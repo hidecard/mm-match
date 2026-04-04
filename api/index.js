@@ -109,12 +109,26 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET gender = ?, looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
             args: [gender, lookingFor, ctx.from.id] 
         });
-        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
+        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find', '/profile']]).resize());
     }
 });
 
 // --- 2. Discovery Logic (Next / Like) ---
 bot.command('find', (ctx) => showNextProfile(ctx));
+bot.command('profile', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user || !user.is_registered) {
+        return ctx.reply("သင့် profile မတွေ့ပါ။ စတင်မှတ်ပုံတင်ဖို့ /start ကိုနှိပ်ပါ။");
+    }
+    
+    await ctx.replyWithPhoto(user.photo_id, {
+        caption: `💕 သင့် Profile 💕\n\n👤 နာမည်: ${user.nickname}\n🎂 အသက်: ${user.age}\n🏠 တည်နေရာ: ${user.address}\n❤️‍🔥 Bio: ${user.bio}\n⚧️ လိင်: ${user.gender}\n🎯 ရှာဖွေရာ: ${user.looking_for}`,
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('📝 Edit Profile', 'edit_profile')],
+            [Markup.button.callback('❌ Close', 'close_profile')]
+        ])
+    });
+});
 
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
@@ -186,6 +200,12 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
 
 bot.action('close_profile', (ctx) => {
     ctx.deleteMessage();
+    ctx.answerCbQuery();
+});
+
+bot.action('edit_profile', async (ctx) => {
+    await db.execute({ sql: "UPDATE users SET step = 'ask_name' WHERE telegram_id = ?", args: [ctx.from.id] });
+    ctx.reply("သင့်နာမည်ကို ပြောင်းလဲလိုပါသလား?");
     ctx.answerCbQuery();
 });
 
