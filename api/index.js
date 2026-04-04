@@ -57,31 +57,8 @@ bot.on('message', async (ctx) => {
     }
 
     if (user.step === 'ask_address') {
-        return ctx.reply("သင့်တည်နေရာကို ပေးပါ။ တစ်ခါတည်း ရိုက်ပေးနိုင်သလား သို့မဟုတ် Location ခလုတ်ကို နှိပ်ပြီး GPS location ပေးနိုင်ပါသည်။", 
-            Markup.keyboard([['📍 Share Location'], ['စာဖြင့်ပေးပါမည်']]).resize());
-    }
-
-    // Handle location sharing
-    if (ctx.message.location && user.step === 'ask_address') {
-        const { latitude, longitude } = ctx.message.location;
-        await db.execute({ 
-            sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", 
-            args: [`Lat: ${latitude}, Lon: ${longitude}`, ctx.from.id] 
-        });
-        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
-    }
-
-    // Handle text location input
-    if (user.step === 'ask_address' && text && !ctx.message.location) {
-        if (text === 'စာဖြင့်ပေးပါမည်') {
-            return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):", Markup.removeKeyboard());
-        }
-        
-        // If user typed location directly
-        if (text !== '📍 Share Location') {
-            await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
-        }
+        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
@@ -92,22 +69,8 @@ bot.on('message', async (ctx) => {
 
     if (user.step === 'ask_bio') {
         await db.execute({ 
-            sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
+            sql: "UPDATE users SET bio = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
-        });
-        return ctx.reply("သင့်လိင်ကို ရွေးပေးပါ (Male/Female):");
-    }
-
-    if (user.step === 'ask_gender') {
-        const gender = text.toLowerCase();
-        if (gender !== 'male' && gender !== 'female') {
-            return ctx.reply("Male သို့မဟုတ် Female ဟု ရိုက်ပေးပါ:");
-        }
-        
-        const lookingFor = gender === 'male' ? 'female' : 'male';
-        await db.execute({ 
-            sql: "UPDATE users SET gender = ?, looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
-            args: [gender, lookingFor, ctx.from.id] 
         });
         return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
     }
@@ -119,17 +82,17 @@ bot.command('find', (ctx) => showNextProfile(ctx));
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
     const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
-        args: [ctx.from.id, user.looking_for]
+        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? ORDER BY RANDOM() LIMIT 1",
+        args: [ctx.from.id]
     });
 
     const target = rs.rows[0];
     if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     
     await ctx.replyWithPhoto(target.photo_id, {
-        caption: `� ${target.nickname} (${target.age}) 💕\n🏠 ${target.address}\n❤️‍� ${target.bio} ❤️‍🔥`,
+        caption: `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️‍🔥 Like ❤️‍🔥', `like_${target.telegram_id}`)],
+            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ])
     });
@@ -175,10 +138,10 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
     }
     
     await ctx.replyWithPhoto(sender.photo_id, {
-        caption: `${sender.nickname} (${sender.age}) 💕\n🏠 ${sender.address}\n❤️‍� ${sender.bio} ❤️‍🔥`,
+        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('💝 Accept 💝', `accept_${senderId}`)],
-            [Markup.button.callback('❌ Close', 'close_profile')]
+            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)],
+            [Markup.button.callback('ပိတ်မည်', 'close_profile')]
         ])
     });
     ctx.answerCbQuery();
