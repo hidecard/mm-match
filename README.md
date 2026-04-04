@@ -73,12 +73,33 @@ TURSO_TOKEN=your_turso_auth_token_here
 
 ### 4. Set Telegram Webhook
 
-After deployment, set the webhook:
+After deployment, set the webhook by replacing your bot token and your deployed Vercel URL:
 
 ```bash
-# Replace YOUR_BOT_TOKEN and YOUR_VERCEL_URL
-https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-app.vercel.app
+# Replace YOUR_BOT_TOKEN with your Telegram bot token
+# Replace YOUR_VERCEL_URL with your deployed Vercel app URL
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://YOUR_VERCEL_URL"
 ```
+
+Or open the URL directly in a browser:
+
+```text
+https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://YOUR_VERCEL_URL
+```
+
+If `/start` still does not work, verify the webhook and endpoint:
+
+```bash
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
+```
+
+If your Vercel app is not routing correctly, use the API path directly:
+
+```bash
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://YOUR_VERCEL_URL/api/index.js"
+```
+
+Also make sure Vercel has `BOT_TOKEN`, `TURSO_URL`, and `TURSO_TOKEN` set in Environment Variables.
 
 ## How It Works
 
