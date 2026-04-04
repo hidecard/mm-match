@@ -41,25 +41,10 @@ bot.start(async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
-    
-    // Handle registered users
-    if (user && user.is_registered) {
-        return handleChat(ctx, user);
-    }
-    
-    // Handle unregistered users or new users
+    if (!user || user.is_registered) return handleChat(ctx, user);
+
     const text = ctx.message.text;
     
-    if (!user) {
-        // User doesn't exist, create them
-        await db.execute({ 
-            sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
-            args: [ctx.from.id, ctx.from.username || 'none'] 
-        });
-        return ctx.reply("MM Match မှ ကြိုဆိုပါတယ်။ စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):");
-    }
-    
-    // Handle registration steps
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
@@ -68,6 +53,10 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_age') {
         if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
+    }
+
+    if (user.step === 'ask_address') {
         return ctx.reply("သင့်တည်နေရာကို ပေးပါ။ တစ်ခါတည်း ရိုက်ပေးနိုင်သလား သို့မဟုတ် Location ခလုတ်ကို နှိပ်ပြီး GPS location ပေးနိုင်ပါသည်။", 
             Markup.keyboard([['📍 Share Location'], ['စာဖြင့်ပေးပါမည်']]).resize());
     }
@@ -88,8 +77,8 @@ bot.on('message', async (ctx) => {
             return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):", Markup.removeKeyboard());
         }
         
-        // If user typed location directly (not a button)
-        if (text !== '📍 Share Location' && text !== 'စာဖြင့်ပေးပါမည်') {
+        // If user typed location directly
+        if (text !== '📍 Share Location') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
             return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
         }
@@ -120,26 +109,12 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET gender = ?, looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
             args: [gender, lookingFor, ctx.from.id] 
         });
-        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find', '/profile']]).resize());
+        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
     }
 });
 
 // --- 2. Discovery Logic (Next / Like) ---
 bot.command('find', (ctx) => showNextProfile(ctx));
-bot.command('profile', async (ctx) => {
-    const user = await getUser(ctx.from.id);
-    if (!user || !user.is_registered) {
-        return ctx.reply("သင့် profile မတွေ့ပါ။ စတင်မှတ်ပုံတင်ဖို့ /start ကိုနှိပ်ပါ။");
-    }
-    
-    await ctx.replyWithPhoto(user.photo_id, {
-        caption: `💕 သင့် Profile 💕\n\n👤 နာမည်: ${user.nickname}\n🎂 အသက်: ${user.age}\n🏠 တည်နေရာ: ${user.address}\n❤️‍🔥 Bio: ${user.bio}\n⚧️ လိင်: ${user.gender}\n🎯 ရှာဖွေရာ: ${user.looking_for}`,
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('📝 Edit Profile', 'edit_profile')],
-            [Markup.button.callback('❌ Close', 'close_profile')]
-        ])
-    });
-});
 
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
@@ -211,12 +186,6 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
 
 bot.action('close_profile', (ctx) => {
     ctx.deleteMessage();
-    ctx.answerCbQuery();
-});
-
-bot.action('edit_profile', async (ctx) => {
-    await db.execute({ sql: "UPDATE users SET step = 'ask_name' WHERE telegram_id = ?", args: [ctx.from.id] });
-    ctx.reply("သင့်နာမည်ကို ပြောင်းလဲလိုပါသလား?");
     ctx.answerCbQuery();
 });
 
