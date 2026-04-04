@@ -69,8 +69,32 @@ bot.on('message', async (ctx) => {
 
     if (user.step === 'ask_bio') {
         await db.execute({ 
-            sql: "UPDATE users SET bio = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
+        });
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+    }
+
+    if (user.step === 'ask_gender') {
+        const gender = text.toLowerCase();
+        if (gender !== 'male' && gender !== 'female') {
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:");
+        }
+        await db.execute({ 
+            sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
+            args: [gender, ctx.from.id] 
+        });
+        return ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):");
+    }
+
+    if (user.step === 'ask_looking_for') {
+        const lookingFor = text.toLowerCase();
+        if (lookingFor !== 'male' && lookingFor !== 'female') {
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:");
+        }
+        await db.execute({ 
+            sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            args: [lookingFor, ctx.from.id] 
         });
         return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
     }
@@ -79,11 +103,24 @@ bot.on('message', async (ctx) => {
 // --- 2. Discovery Logic (Next / Like) ---
 bot.command('find', (ctx) => showNextProfile(ctx));
 
+// Command to update gender preferences for existing users
+bot.command('update', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user) return ctx.reply("အရင်းအမြစ် /start နဲ့ စပါ။");
+    
+    await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+    ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+});
+
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
+    if (!user || !user.looking_for) {
+        return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+    }
+    
     const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? ORDER BY RANDOM() LIMIT 1",
-        args: [ctx.from.id]
+        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
+        args: [ctx.from.id, user.looking_for]
     });
 
     const target = rs.rows[0];
