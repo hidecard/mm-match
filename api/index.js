@@ -53,10 +53,6 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_age') {
         if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
-    }
-
-    if (user.step === 'ask_address') {
         return ctx.reply("သင့်တည်နေရာကို ပေးပါ။ တစ်ခါတည်း ရိုက်ပေးနိုင်သလား သို့မဟုတ် Location ခလုတ်ကို နှိပ်ပြီး GPS location ပေးနိုင်ပါသည်။", 
             Markup.keyboard([['📍 Share Location'], ['စာဖြင့်ပေးပါမည်']]).resize());
     }
@@ -77,8 +73,8 @@ bot.on('message', async (ctx) => {
             return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):", Markup.removeKeyboard());
         }
         
-        // If user typed location directly
-        if (text !== '📍 Share Location') {
+        // If user typed location directly (not a button)
+        if (text !== '📍 Share Location' && text !== 'စာဖြင့်ပေးပါမည်') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
             return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
         }
