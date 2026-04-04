@@ -32,7 +32,34 @@ bot.start(async (ctx) => {
             sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
             args: [ctx.from.id, ctx.from.username || 'none'] 
         });
-        ctx.reply("MM Match မှ ကြိုဆိုပါတယ်။ စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):");
+        
+        const welcomeMessage = `🎉 MM Match မှ ကြိုဆိုပါတယ်!
+
+💕 **Tinder-style Dating Bot**
+
+
+📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
+1️⃣ နာမည် (Nickname)
+2️⃣ အသက် (Age) 
+3️⃣ နေရပ် (Address)
+4️⃣ ပုံ (Photo)
+5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
+6️⃣ လိင် (Gender)
+7️⃣ ရှာနေသောလိင် (Looking For)
+
+🎯 **အသုံးပြုရန် ကွန်ယက်များ:**
+/find - Profile ရှာပါ
+/edit - Profile ပြင်းဆင့်ပါ
+/update - လိင်အပြင်းအစားပြောင်းပါ
+/help - ကူညီမှုကိုကြည့်ပါ
+
+❤️ Male များ Female ကိုသာ မြင်ရပါမည်
+❤️ Female များ Male ကိုသာ မြင်ရပါမည်
+
+---
+စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
+        
+        ctx.reply(welcomeMessage);
     } catch (error) {
         console.error('Start command error:', error);
         ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
@@ -281,7 +308,41 @@ async function handleChat(ctx, user) {
     
     // Help command
     if (ctx.message.text === '/help') {
-        return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/find - Profile ရှာပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
+        const helpMessage = `🎯 **MM Match User Guide**
+
+📋 **မှတ်ပုံတင်ခြင်း:**
+/start - စတင်ဖို့မှတ်ပုံတင်ပါ
+
+🔍 **ရှာဖွေခြင်း:**
+/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)
+
+✏️ **ပြင်းဆင့်ခြင်း:**
+/edit - Profile ပြင်းဆင့်ပါ
+  • 📝 Nickname - နာမည်
+  • 🎂 Age - အသက်
+  • 🏠 Address - နေရာ
+  • 📷 Photo - ပုံ
+  • 📄 Bio - ကိုယ်ရေးတင်ပြ
+
+⚙️ **ဆက်တင်ပြင်းဆင့်:**
+/update - လိင်အပြင်းအစားပြောင်းပါ
+
+❤️ **အလုပ်လုပ်ပုံ:**
+1️⃣ /find ဖြင့် Profile ရှာပါ
+2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ
+3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်
+4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်
+
+💡 **အသိပ်သည်းချက်:**
+• Male များ Female ကိုသာ မြင်ရပါမည်
+• Female များ Male ကိုသာ မြင်ရပါမည်
+• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်
+• Username မရှိပါက Link ပေးပါမည်
+
+---
+🎉 ကောင်းကောင်းတွေ့ပါစေ! 💕`;
+        
+        return ctx.reply(helpMessage);
     }
     
     // Edit profile command
