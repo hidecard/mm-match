@@ -41,71 +41,191 @@ bot.start(async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const text = ctx.message.text;
     
-    // Handle edit menu
-    if (user && user.step === 'edit_menu') {
-        const text = ctx.message.text;
-        
-        if (text === '📝 Nickname') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+    // Handle registered user commands first
+    if (user && user.is_registered) {
+        // Handle menu command
+        if (text === '/menu' || text === '🏠 Main Menu') {
+            return ctx.reply("MM Match Menu:", 
+                Markup.keyboard([
+                    ['🔍 Find Profile', '📍 Share Location'],
+                    ['✏️ Edit Profile', '⚙️ Update Gender'],
+                    ['❓ Help', '🏠 Main Menu']
+                ]).resize()
+            );
         }
         
-        if (text === '🎂 Age') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_age' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        // Handle menu button clicks
+        if (text === '🔍 Find Profile') {
+            return showNextProfile(ctx);
         }
         
-        if (text === '🏠 Address') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        if (text === '📍 Share Location') {
+            return ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
+                Markup.keyboard([
+                    [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
+                    ['🏠 Main Menu']
+                ]).resize()
+            );
         }
         
-        if (text === '📷 Photo') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("ပုံအသစ်ကို ပို့ပေးပါ:");
+        if (text === '✏️ Edit Profile') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return ctx.reply("ဘာကိုပြင်းဆင့်လဲချင်တာပါ။", 
+                Markup.keyboard([
+                    ['📝 Nickname', '🎂 Age'],
+                    ['🏠 Address', '📷 Photo'],
+                    ['📄 Bio', '🏠 Main Menu']
+                ]).resize()
+            );
         }
         
-        if (text === '📄 Bio') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        if (text === '⚙️ Update Gender') {
+            await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
         }
         
-        if (text === '❌ Cancel') {
-            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        if (text === '❓ Help') {
+            return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/menu - အဓိကမှုကိုကြည့်ပါ\n/find - Profile ရှာပါ\n/location - တည်နေရာပေးပို့ပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
         }
         
-        // Handle edit inputs
-        if (user.step === 'edit_nickname') {
-            await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        // Handle edit menu
+        if (user.step === 'edit_menu') {
+            if (text === '📝 Nickname') {
+                await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+            }
+            
+            if (text === '🎂 Age') {
+                await db.execute({ sql: "UPDATE users SET step = 'edit_age' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+            }
+            
+            if (text === '🏠 Address') {
+                await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
+            }
+            
+            if (text === '📷 Photo') {
+                await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("ပုံအသစ်ကို ပို့ပေးပါ:");
+            }
+            
+            if (text === '📄 Bio') {
+                await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+            }
+            
+            if (text === '🏠 Main Menu') {
+                await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return ctx.reply("MM Match Menu:", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
+            
+            // Handle edit inputs
+            if (user.step === 'edit_nickname') {
+                await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+                return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
+            
+            if (user.step === 'edit_age') {
+                if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+                await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+                return ctx.reply("Age ပြောင်းလဲပါပြီ။", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
+            
+            if (user.step === 'edit_address') {
+                await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+                return ctx.reply("Address ပြောင်းလဲပါပြီ။", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
+            
+            if (ctx.message.photo && user.step === 'edit_photo') {
+                const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+                await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
+                return ctx.reply("Photo ပြောင်းလဲပါပြီ။", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
+            
+            if (user.step === 'edit_bio') {
+                await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+                return ctx.reply("Bio ပြောင်းလဲပါပြီ။", 
+                    Markup.keyboard([
+                        ['🔍 Find Profile', '📍 Share Location'],
+                        ['✏️ Edit Profile', '⚙️ Update Gender'],
+                        ['❓ Help', '🏠 Main Menu']
+                    ]).resize()
+                );
+            }
         }
         
-        if (user.step === 'edit_age') {
-            if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-            await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        // Handle regular commands
+        if (text === '/find') {
+            return showNextProfile(ctx);
         }
         
-        if (user.step === 'edit_address') {
-            await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        if (text === '/location') {
+            return ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
+                Markup.keyboard([
+                    [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
+                    ['🏠 Main Menu']
+                ]).resize()
+            );
         }
         
-        if (ctx.message.photo && user.step === 'edit_photo') {
-            const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-            await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-            return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        if (text === '/update') {
+            await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
         }
         
-        if (user.step === 'edit_bio') {
-            await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+        if (text === '/help') {
+            return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/menu - အဓိကမှုကိုကြည့်ပါ\n/find - Profile ရှာပါ\n/location - တည်နေရာပေးပို့ပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
         }
+        
+        if (text === '/edit') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return ctx.reply("ဘာကိုပြင်းဆင့်လဲချင်တာပါ။", 
+                Markup.keyboard([
+                    ['📝 Nickname', '🎂 Age'],
+                    ['🏠 Address', '📷 Photo'],
+                    ['📄 Bio', '🏠 Main Menu']
+                ]).resize()
+            );
+        }
+        
+        return; // Exit if user is registered and command was handled
     }
     
-    if (!user || user.is_registered) return handleChat(ctx, user);
+    // Handle unregistered users (registration flow)
+    if (!user || user.is_registered === 0) {
 
     const text = ctx.message.text;
     
@@ -173,7 +293,16 @@ bot.on('message', async (ctx) => {
 // --- 2. Discovery Logic (Next / Like) ---
 bot.command('find', (ctx) => showNextProfile(ctx));
 
-// Command to update gender preferences for existing users
+// --- 3. Location & Profile Commands ---
+bot.command('location', (ctx) => {
+    ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
+        Markup.keyboard([
+            [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
+            ['/menu']
+        ]).resize()
+    );
+});
+
 bot.command('update', async (ctx) => {
     const user = await getUser(ctx.from.id);
     if (!user) return ctx.reply("အရင်းအမြစ် /start နဲ့ စပါ။");
@@ -182,12 +311,30 @@ bot.command('update', async (ctx) => {
     ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
 });
 
-// Location sharing command
-bot.command('location', (ctx) => {
-    ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
+bot.command('edit', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user) return ctx.reply("အရင်းအမြစ် /start နဲ့ စပါ။");
+    
+    await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+    ctx.reply("ဘာကိုပြင်းဆင့်လဲချင်တာပါ။", 
         Markup.keyboard([
-            [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
-            ['/find']
+            ['📝 Nickname', '🎂 Age'],
+            ['🏠 Address', '📷 Photo'],
+            ['📄 Bio', '🏠 Main Menu']
+        ]).resize()
+    );
+});
+
+bot.command('help', (ctx) => {
+    ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/menu - အဓိကမှုကိုကြည့်ပါ\n/find - Profile ရှာပါ\n/location - တည်နေရာပေးပို့ပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
+});
+
+bot.command('menu', (ctx) => {
+    ctx.reply("MM Match Menu:", 
+        Markup.keyboard([
+            ['🔍 Find Profile', '📍 Share Location'],
+            ['✏️ Edit Profile', '⚙️ Update Gender'],
+            ['❓ Help', '🏠 Main Menu']
         ]).resize()
     );
 });
