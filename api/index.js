@@ -288,7 +288,7 @@ bot.on('message', async (ctx) => {
             ]).resize()
         );
     }
-});
+}})
 
 // --- 2. Discovery Logic (Next / Like) ---
 bot.command('find', (ctx) => showNextProfile(ctx));
