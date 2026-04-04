@@ -41,11 +41,10 @@ bot.start(async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const text = ctx.message.text;
     
     // Handle edit menu
     if (user && user.step === 'edit_menu') {
-        const text = ctx.message.text;
-        
         if (text === '📝 Nickname') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
             return ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
@@ -75,8 +74,10 @@ bot.on('message', async (ctx) => {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
         }
-        
-        // Handle edit inputs
+    }
+    
+    // Handle edit inputs
+    if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
             return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
@@ -93,21 +94,23 @@ bot.on('message', async (ctx) => {
             return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
         }
         
-        if (ctx.message.photo && user.step === 'edit_photo') {
-            const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-            await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-            return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
-        }
-        
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
             return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
         }
     }
     
+    // Handle edit photo
+    if (user && user.step === 'edit_photo' && ctx.message.photo) {
+        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
+        return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
+    }
+    
+    // If user is registered or doesn't exist, handle chat commands
     if (!user || user.is_registered) return handleChat(ctx, user);
-
-    const text = ctx.message.text;
+    
+    // Registration flow for new users
     
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
@@ -204,35 +207,15 @@ async function showNextProfile(ctx) {
         return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
     }
     
-    let rs;
-    if (user.latitude && user.longitude) {
-        // First try to find users with location
-        rs = await db.execute({
-            sql: "SELECT *, (ABS(latitude - ?) + ABS(longitude - ?)) as distance FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? AND latitude IS NOT NULL ORDER BY distance ASC, RANDOM() LIMIT 1",
-            args: [user.latitude, user.longitude, ctx.from.id, user.looking_for]
-        });
-    }
-    
-    // If no nearby users or user has no location, get random user
-    if (!rs.rows[0]) {
-        rs = await db.execute({
-            sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
-            args: [ctx.from.id, user.looking_for]
-        });
-    }
+    const rs = await db.execute({
+        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
+        args: [ctx.from.id, user.looking_for]
+    });
 
     const target = rs.rows[0];
     if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     
-    let caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}`;
-    
-    // Add distance if both users have location
-    if (user.latitude && user.longitude && target.latitude && target.longitude) {
-        const distance = Math.abs(user.latitude - target.latitude) + Math.abs(user.longitude - target.longitude);
-        caption += `\nအနီးနားကပ်: ~${(distance * 111).toFixed(1)} km`;
-    }
-    
-    caption += `\n\n📝 ${target.bio}`;
+    const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
     
     await ctx.replyWithPhoto(target.photo_id, {
         caption: caption,
@@ -313,15 +296,6 @@ async function handleChat(ctx, user) {
         return showNextProfile(ctx);
     }
     
-    if (ctx.message.text === '/location') {
-        return ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
-            Markup.keyboard([
-                [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
-                ['/find']
-            ]).resize()
-        );
-    }
-    
     if (ctx.message.text === '/update') {
         await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
         return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
@@ -329,7 +303,7 @@ async function handleChat(ctx, user) {
     
     // Help command
     if (ctx.message.text === '/help') {
-        return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/find - Profile ရှာပါ\n/location - တည်နေရာပေးပို့ပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
+        return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/find - Profile ရှာပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
     }
     
     // Edit profile command
