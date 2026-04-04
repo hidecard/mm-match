@@ -41,10 +41,25 @@ bot.start(async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
-    if (!user || user.is_registered) return handleChat(ctx, user);
-
+    
+    // Handle registered users
+    if (user && user.is_registered) {
+        return handleChat(ctx, user);
+    }
+    
+    // Handle unregistered users or new users
     const text = ctx.message.text;
     
+    if (!user) {
+        // User doesn't exist, create them
+        await db.execute({ 
+            sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
+            args: [ctx.from.id, ctx.from.username || 'none'] 
+        });
+        return ctx.reply("MM Match မှ ကြိုဆိုပါတယ်။ စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):");
+    }
+    
+    // Handle registration steps
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
