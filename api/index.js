@@ -57,8 +57,31 @@ bot.on('message', async (ctx) => {
     }
 
     if (user.step === 'ask_address') {
-        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        return ctx.reply("သင့်တည်နေရာကို ပေးပါ။ တစ်ခါတည်း ရိုက်ပေးနိုင်သလား သို့မဟုတ် Location ခလုတ်ကို နှိပ်ပြီး GPS location ပေးနိုင်ပါသည်။", 
+            Markup.keyboard([['📍 Share Location'], ['စာဖြင့်ပေးပါမည်']]).resize());
+    }
+
+    // Handle location sharing
+    if (ctx.message.location && user.step === 'ask_address') {
+        const { latitude, longitude } = ctx.message.location;
+        await db.execute({ 
+            sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", 
+            args: [`Lat: ${latitude}, Lon: ${longitude}`, ctx.from.id] 
+        });
+        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
+    }
+
+    // Handle text location input
+    if (user.step === 'ask_address' && text && !ctx.message.location) {
+        if (text === 'စာဖြင့်ပေးပါမည်') {
+            return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):", Markup.removeKeyboard());
+        }
+        
+        // If user typed location directly
+        if (text !== '📍 Share Location') {
+            await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+            return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):", Markup.removeKeyboard());
+        }
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
