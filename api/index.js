@@ -98,14 +98,9 @@ async function showNextProfile(ctx) {
     });
 }
 
-bot.action('next_profile', async (ctx) => {
-    try {
-        await ctx.deleteMessage();
-        await showNextProfile(ctx);
-    } catch (error) {
-        console.error('Next profile error:', error);
-        ctx.answerCbQuery('နောက်တစ်ယောက်ကို ရှာနေပါသည်...');
-    }
+bot.action('next_profile', (ctx) => {
+    ctx.deleteMessage();
+    showNextProfile(ctx);
 });
 
 // --- 3. Like & Match Notification ---
@@ -115,9 +110,6 @@ bot.action(/like_(\d+)/, async (ctx) => {
 
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
     
-    // Get sender's profile to show to target
-    const sender = await getUser(senderId);
-    
     // Target User ကို အကြောင်းကြားမယ်
     await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
         Markup.inlineKeyboard([
@@ -126,31 +118,6 @@ bot.action(/like_(\d+)/, async (ctx) => {
         ])
     );
     ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
-});
-
-// View profile action
-bot.action(/view_back_(\d+)/, async (ctx) => {
-    const senderId = ctx.match[1];
-    const sender = await getUser(senderId);
-    
-    if (!sender) {
-        ctx.answerCbQuery("Profile မတွေ့ပါ");
-        return;
-    }
-    
-    await ctx.replyWithPhoto(sender.photo_id, {
-        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)],
-            [Markup.button.callback('ပိတ်မည်', 'close_profile')]
-        ])
-    });
-    ctx.answerCbQuery();
-});
-
-bot.action('close_profile', (ctx) => {
-    ctx.deleteMessage();
-    ctx.answerCbQuery();
 });
 
 bot.action(/accept_(\d+)/, async (ctx) => {
