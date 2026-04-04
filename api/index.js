@@ -99,7 +99,6 @@ async function showNextProfile(ctx) {
 }
 
 bot.action('next_profile', (ctx) => {
-    ctx.deleteMessage();
     showNextProfile(ctx);
 });
 
@@ -118,6 +117,31 @@ bot.action(/like_(\d+)/, async (ctx) => {
         ])
     );
     ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+});
+
+// View back the person who liked you
+bot.action(/view_back_(\d+)/, async (ctx) => {
+    const senderId = ctx.match[1];
+    const sender = await getUser(senderId);
+    
+    if (!sender) {
+        return ctx.reply("သူ့ Profile မတွေ့ပါ။");
+    }
+    
+    await ctx.replyWithPhoto(sender.photo_id, {
+        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)],
+            [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
+        ])
+    });
+    ctx.answerCbQuery();
+});
+
+// Close profile view
+bot.action('close_profile', (ctx) => {
+    ctx.deleteMessage();
+    ctx.answerCbQuery();
 });
 
 bot.action(/accept_(\d+)/, async (ctx) => {
