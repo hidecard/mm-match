@@ -131,7 +131,8 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
     await ctx.replyWithPhoto(sender.photo_id, {
         caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)],
+            [Markup.button.callback('❤️ Like', `like_${senderId}`)],
+            [Markup.button.callback('➡️ Next', 'next_profile')],
             [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
         ])
     });
