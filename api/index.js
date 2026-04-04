@@ -69,8 +69,22 @@ bot.on('message', async (ctx) => {
 
     if (user.step === 'ask_bio') {
         await db.execute({ 
-            sql: "UPDATE users SET bio = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
+        });
+        return ctx.reply("သင့်လိင်ကို ရွေးပေးပါ (Male/Female):");
+    }
+
+    if (user.step === 'ask_gender') {
+        const gender = text.toLowerCase();
+        if (gender !== 'male' && gender !== 'female') {
+            return ctx.reply("Male သို့မဟုတ် Female ဟု ရိုက်ပေးပါ:");
+        }
+        
+        const lookingFor = gender === 'male' ? 'female' : 'male';
+        await db.execute({ 
+            sql: "UPDATE users SET gender = ?, looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            args: [gender, lookingFor, ctx.from.id] 
         });
         return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
     }
@@ -82,8 +96,8 @@ bot.command('find', (ctx) => showNextProfile(ctx));
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
     const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? ORDER BY RANDOM() LIMIT 1",
-        args: [ctx.from.id]
+        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
+        args: [ctx.from.id, user.looking_for]
     });
 
     const target = rs.rows[0];
