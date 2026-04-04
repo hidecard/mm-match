@@ -99,7 +99,7 @@ bot.on('message', async (ctx) => {
         
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
@@ -107,23 +107,23 @@ bot.on('message', async (ctx) => {
     if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_age') {
             if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
             await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_address') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
@@ -131,7 +131,7 @@ bot.on('message', async (ctx) => {
     if (user && user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
+        return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
     // If user is registered or doesn't exist, handle chat commands
@@ -172,25 +172,41 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_gender') {
         const gender = text.toLowerCase();
         if (gender !== 'male' && gender !== 'female') {
-            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:");
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
+                Markup.keyboard([
+                    ['Male', 'Female']
+                ]).resize()
+            );
         }
         await db.execute({ 
             sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
             args: [gender, ctx.from.id] 
         });
-        return ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):");
+        return ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", 
+            Markup.keyboard([
+                ['Male', 'Female']
+            ]).resize()
+        );
     }
 
     if (user.step === 'ask_looking_for') {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') {
-            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:");
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
+                Markup.keyboard([
+                    ['Male', 'Female']
+                ]).resize()
+            );
         }
         await db.execute({ 
             sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
             args: [lookingFor, ctx.from.id] 
         });
-        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find']]).resize());
+        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", 
+            Markup.keyboard([
+                ['/find', '/edit', '/help']
+            ]).resize()
+        );
     }
 });
 
@@ -203,7 +219,11 @@ bot.command('update', async (ctx) => {
     if (!user) return ctx.reply("အရင်းအမြစ် /start နဲ့ စပါ။");
     
     await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
-    ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+    ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+        Markup.keyboard([
+            ['Male', 'Female']
+        ]).resize()
+    );
 });
 
 async function showNextProfile(ctx) {
@@ -303,7 +323,11 @@ async function handleChat(ctx, user) {
     
     if (ctx.message.text === '/update') {
         await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+            Markup.keyboard([
+                ['Male', 'Female']
+            ]).resize()
+        );
     }
     
     // Help command
