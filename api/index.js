@@ -100,6 +100,7 @@ async function showNextProfile(ctx) {
 
 bot.action('next_profile', async (ctx) => {
     try {
+        await ctx.deleteMessage();
         await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile error:', error);
