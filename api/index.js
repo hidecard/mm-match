@@ -166,7 +166,11 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
         });
-        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+            Markup.keyboard([
+                ['Male', 'Female']
+            ]).resize()
+        );
     }
 
     if (user.step === 'ask_gender') {
