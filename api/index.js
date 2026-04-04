@@ -72,7 +72,7 @@ bot.on('message', async (ctx) => {
         
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit']]).resize());
         }
     }
     
@@ -80,23 +80,23 @@ bot.on('message', async (ctx) => {
     if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
         }
         
         if (user.step === 'edit_age') {
             if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
             await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
         }
         
         if (user.step === 'edit_address') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
         }
         
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/location']]).resize());
+            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit']]).resize());
         }
     }
     
@@ -179,27 +179,37 @@ bot.command('update', async (ctx) => {
     ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
 });
 
-// Location sharing command
-bot.command('location', (ctx) => {
-    ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
-        Markup.keyboard([
-            [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
-            ['/find']
-        ]).resize()
-    );
-});
-
-// Handle location message
-bot.on('location', async (ctx) => {
-    const location = ctx.message.location;
-    await db.execute({ 
-        sql: "UPDATE users SET latitude = ?, longitude = ? WHERE telegram_id = ?", 
-        args: [location.latitude, location.longitude, ctx.from.id] 
-    });
-    ctx.reply("Location သိမ်းဆည်းပြီးပါပြီ။ အနီးနားက လူတွေကို ရှာဖို့ /find ကိုနှိပ်ပါ။", 
-        Markup.keyboard([['/find']]).resize()
-    );
-});
+// --- Helper function for chat ---
+async function handleChat(ctx, user) {
+    // Handle registered user commands
+    if (ctx.message.text === '/find') {
+        return showNextProfile(ctx);
+    }
+    
+    if (ctx.message.text === '/update') {
+        await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
+    }
+    
+    // Help command
+    if (ctx.message.text === '/help') {
+        return ctx.reply("MM Match Commands:\n\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n/find - Profile ရှာပါ\n/update - လိင်အပြင်းအစားပြင်းပြောင်းပါ\n/edit - Profile ပြင်းဆင့်ပါ\n/help - ကူညီမှုကိုကြည့်ပါ");
+    }
+    
+    // Edit profile command
+    if (ctx.message.text === '/edit') {
+        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("ဘာကိုပြင်းဆင့်လဲချင်တာပါ။", 
+            Markup.keyboard([
+                ['📝 Nickname', '🎂 Age'],
+                ['🏠 Address', '📷 Photo'],
+                ['📄 Bio', '❌ Cancel']
+            ]).resize()
+        );
+    }
+    
+    // Add other chat functionality here if needed
+}
 
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
