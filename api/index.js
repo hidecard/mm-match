@@ -127,9 +127,9 @@ async function showNextProfile(ctx) {
     if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     
     await ctx.replyWithPhoto(target.photo_id, {
-        caption: `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`,
+        caption: `� ${target.nickname} (${target.age}) 💕\n🏠 ${target.address}\n❤️‍� ${target.bio} ❤️‍🔥`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
+            [Markup.button.callback('❤️‍🔥 Like ❤️‍🔥', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ])
     });
@@ -175,10 +175,10 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
     }
     
     await ctx.replyWithPhoto(sender.photo_id, {
-        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
+        caption: `${sender.nickname} (${sender.age}) 💕\n🏠 ${sender.address}\n❤️‍� ${sender.bio} ❤️‍🔥`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)],
-            [Markup.button.callback('ပိတ်မည်', 'close_profile')]
+            [Markup.button.callback('💝 Accept 💝', `accept_${senderId}`)],
+            [Markup.button.callback('❌ Close', 'close_profile')]
         ])
     });
     ctx.answerCbQuery();
