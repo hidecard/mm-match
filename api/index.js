@@ -112,22 +112,66 @@ bot.command('update', async (ctx) => {
     ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
 });
 
+// Location sharing command
+bot.command('location', (ctx) => {
+    ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
+        Markup.keyboard([
+            [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
+            ['/find']
+        ]).resize()
+    );
+});
+
+// Handle location message
+bot.on('location', async (ctx) => {
+    const location = ctx.message.location;
+    await db.execute({ 
+        sql: "UPDATE users SET latitude = ?, longitude = ? WHERE telegram_id = ?", 
+        args: [location.latitude, location.longitude, ctx.from.id] 
+    });
+    ctx.reply("Location သိမ်းဆည်းပြီးပါပြီ။ အနီးနားက လူတွေကို ရှာဖို့ /find ကိုနှိပ်ပါ။", 
+        Markup.keyboard([['/find']]).resize()
+    );
+});
+
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
     if (!user || !user.looking_for) {
         return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
     }
     
-    const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
-        args: [ctx.from.id, user.looking_for]
-    });
+    let rs;
+    if (user.latitude && user.longitude) {
+        // First try to find users with location
+        rs = await db.execute({
+            sql: "SELECT *, (ABS(latitude - ?) + ABS(longitude - ?)) as distance FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? AND latitude IS NOT NULL ORDER BY distance ASC, RANDOM() LIMIT 1",
+            args: [user.latitude, user.longitude, ctx.from.id, user.looking_for]
+        });
+    }
+    
+    // If no nearby users or user has no location, get random user
+    if (!rs.rows[0]) {
+        rs = await db.execute({
+            sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
+            args: [ctx.from.id, user.looking_for]
+        });
+    }
 
     const target = rs.rows[0];
     if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     
+    let caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}`;
+    
+    // Add distance if both users have location
+    if (user.latitude && user.longitude && target.latitude && target.longitude) {
+        const distance = Math.abs(user.latitude - target.latitude) + Math.abs(user.longitude - target.longitude);
+        caption += `\n�️ အနီးနားကပ်: ~${(distance * 111).toFixed(1)} km`;
+    }
+    
+    caption += `\n\n📝 ${target.bio}`;
+    
     await ctx.replyWithPhoto(target.photo_id, {
-        caption: `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`,
+        caption: caption,
         ...Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
