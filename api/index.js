@@ -179,28 +179,6 @@ bot.command('update', async (ctx) => {
     ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):");
 });
 
-// Location sharing command
-bot.command('location', (ctx) => {
-    ctx.reply("သင့်တည်နေရာ ပေးပို့ပါ။", 
-        Markup.keyboard([
-            [Markup.button.locationRequest('📍 Location ပေးပို့ပါ')],
-            ['/find']
-        ]).resize()
-    );
-});
-
-// Handle location message
-bot.on('location', async (ctx) => {
-    const location = ctx.message.location;
-    await db.execute({ 
-        sql: "UPDATE users SET latitude = ?, longitude = ? WHERE telegram_id = ?", 
-        args: [location.latitude, location.longitude, ctx.from.id] 
-    });
-    ctx.reply("Location သိမ်းဆည်းပြီးပါပြီ။ အနီးနားက လူတွေကို ရှာဖို့ /find ကိုနှိပ်ပါ။", 
-        Markup.keyboard([['/find']]).resize()
-    );
-});
-
 async function showNextProfile(ctx) {
     const user = await getUser(ctx.from.id);
     if (!user || !user.looking_for) {
