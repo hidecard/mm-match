@@ -12,8 +12,8 @@ CREATE TABLE users (
     photo_id TEXT,
     gender TEXT,
     looking_for TEXT,
-    interests TEXT, -- JSON array of interest tags
-    mood_status TEXT, -- Current mood status
+    interests TEXT, -- Interest tags like #travel #music #food
+    mood_status TEXT, -- Current mood status with emoji
     step TEXT DEFAULT 'start', -- Registration step tracking
     is_registered BOOLEAN DEFAULT 0
 );
@@ -29,5 +29,6 @@ CREATE TABLE likes (
 -- Index for efficient discovery queries
 CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
 CREATE INDEX idx_interests ON users(interests);
+CREATE INDEX idx_mood_status ON users(mood_status);
 CREATE INDEX idx_likes_from ON likes(from_user);
 CREATE INDEX idx_likes_to ON likes(to_user);
