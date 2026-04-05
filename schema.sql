@@ -32,3 +32,8 @@ CREATE INDEX idx_interests ON users(interests);
 CREATE INDEX idx_mood_status ON users(mood_status);
 CREATE INDEX idx_likes_from ON likes(from_user);
 CREATE INDEX idx_likes_to ON likes(to_user);
+
+-- Additional performance indexes for optimized queries
+CREATE INDEX idx_users_telegram_id ON users(telegram_id);
+CREATE INDEX idx_users_gender_registered ON users(gender, is_registered);
+CREATE INDEX idx_likes_composite ON likes(from_user, to_user);

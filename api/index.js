@@ -16,6 +16,10 @@ if (!process.env.TURSO_TOKEN) {
 const bot = new Telegraf(process.env.BOT_TOKEN);
 let db;
 
+// Performance optimization: Cache for user profiles
+const profileCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 try {
     db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
 } catch (error) {
@@ -24,6 +28,47 @@ try {
 
 // --- Helper Functions ---
 const getUser = async (id) => (await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] })).rows[0];
+
+// Cache helper functions
+const getCachedProfiles = async (userId, lookingFor) => {
+    const cacheKey = `${userId}_${lookingFor}`;
+    const cached = profileCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.profiles;
+    }
+    
+    return null;
+};
+
+const setCachedProfiles = async (userId, lookingFor, profiles) => {
+    const cacheKey = `${userId}_${lookingFor}`;
+    profileCache.set(cacheKey, {
+        profiles,
+        timestamp: Date.now()
+    });
+};
+
+const getSeenProfiles = async (userId) => {
+    const result = await db.execute({
+        sql: "SELECT to_user FROM likes WHERE from_user = ?",
+        args: [userId]
+    });
+    return new Set(result.rows.map(row => row.to_user));
+};
+
+// Periodic cache cleanup to prevent memory leaks
+const cleanupCache = () => {
+    const now = Date.now();
+    for (const [key, value] of profileCache.entries()) {
+        if (now - value.timestamp > CACHE_TTL) {
+            profileCache.delete(key);
+        }
+    }
+};
+
+// Run cleanup every 5 minutes
+setInterval(cleanupCache, 5 * 60 * 1000);
 
 // --- 1. Registration Logic (Step-by-step) ---
 bot.start(async (ctx) => {
@@ -232,13 +277,43 @@ async function showNextProfile(ctx) {
         return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
     }
     
-    const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
-        args: [ctx.from.id, user.looking_for]
-    });
-
-    const target = rs.rows[0];
-    if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    // Try to get cached profiles first
+    let profiles = await getCachedProfiles(ctx.from.id, user.looking_for);
+    let seenProfiles = await getSeenProfiles(ctx.from.id);
+    
+    if (!profiles || profiles.length === 0) {
+        // Fetch fresh profiles with optimized query
+        const rs = await db.execute({
+            sql: `SELECT * FROM users 
+                  WHERE is_registered = 1 
+                  AND telegram_id != ? 
+                  AND gender = ? 
+                  AND telegram_id NOT IN (
+                      SELECT to_user FROM likes WHERE from_user = ?
+                  )
+                  ORDER BY telegram_id ASC 
+                  LIMIT 20`,
+            args: [ctx.from.id, user.looking_for, ctx.from.id]
+        });
+        
+        profiles = rs.rows;
+        await setCachedProfiles(ctx.from.id, user.looking_for, profiles);
+    }
+    
+    // Filter out already seen profiles
+    const availableProfiles = profiles.filter(profile => 
+        !seenProfiles.has(profile.telegram_id)
+    );
+    
+    if (availableProfiles.length === 0) {
+        // Clear cache and try again if no profiles left
+        profileCache.delete(`${ctx.from.id}_${user.looking_for}`);
+        return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+    
+    // Get next profile using simple indexing instead of random
+    const targetIndex = Math.floor(Math.random() * availableProfiles.length);
+    const target = availableProfiles[targetIndex];
     
     const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
     
@@ -261,6 +336,12 @@ bot.action(/like_(\d+)/, async (ctx) => {
     const senderId = ctx.from.id;
 
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+    
+    // Clear cache for this user since they've seen a new profile
+    const user = await getUser(senderId);
+    if (user) {
+        profileCache.delete(`${senderId}_${user.looking_for}`);
+    }
     
     // Target User ကို အကြောင်းကြားမယ်
     await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
