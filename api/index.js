@@ -33,7 +33,7 @@ bot.start(async (ctx) => {
             args: [ctx.from.id, ctx.from.username || 'none'] 
         });
         
-        const welcomeMessage = `🎉 MM Match မှ ကြိုဆိုပါတယ်!
+        const welcomeMessage = `🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
 
 💕 **Tinder-style Dating Bot**
 
@@ -47,11 +47,7 @@ bot.start(async (ctx) => {
 6️⃣ လိင် (Gender)
 7️⃣ ရှာနေသောလိင် (Looking For)
 
-🎯 **အသုံးပြုရန် ကွန်ယက်များ:**
-/find - Profile ရှာပါ
-/edit - Profile ပြင်းဆင့်ပါ
-/update - လိင်အပြင်းအစားပြောင်းပါ
-/help - ကူညီမှုကိုကြည့်ပါ
+
 
 ❤️ Male များ Female ကိုသာ မြင်ရပါမည်
 ❤️ Female များ Male ကိုသာ မြင်ရပါမည်
