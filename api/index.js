@@ -23,40 +23,7 @@ try {
 }
 
 // --- Helper Functions ---
-// Cache for user data to reduce database calls
-const userCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-const getUser = async (id) => {
-    // Check cache first
-    const cached = userCache.get(id);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.data;
-    }
-    
-    // Query database
-    const result = await db.execute({ 
-        sql: "SELECT telegram_id, username, nickname, age, address, bio, photo_id, gender, looking_for, interests, mood_status, step, is_registered FROM users WHERE telegram_id = ?", 
-        args: [id] 
-    });
-    
-    const user = result.rows[0];
-    
-    // Cache result
-    if (user) {
-        userCache.set(id, {
-            data: user,
-            timestamp: Date.now()
-        });
-    }
-    
-    return user;
-};
-
-// Clear cache when user data is updated
-const clearUserCache = (id) => {
-    userCache.delete(id);
-};
+const getUser = async (id) => (await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] })).rows[0];
 
 // --- 1. Registration Logic (Step-by-step) ---
 bot.start(async (ctx) => {
@@ -77,10 +44,8 @@ bot.start(async (ctx) => {
 3️⃣ နေရပ် (Address)
 4️⃣ ပုံ (Photo)
 5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
-6️⃣ Interest Tags (စိတ်ဝင်စားပစ္စည်းများ)
-7️⃣ Mood Status (လက်ရှိချိန်)
-8️⃣ လိင် (Gender)
-9️⃣ ရှာနေသောလိင် (Looking For)
+6️⃣ လိင် (Gender)
+7️⃣ ရှာနေသောလိင် (Looking For)
 
 
 
@@ -128,92 +93,41 @@ bot.on('message', async (ctx) => {
             return ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
         
-        if (text === '🏷️ Interests') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_interests' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("Interest အသစ်များကို ရိုက်ထည့်ပေးပါ (ဥပမာ - #travel #music #food):");
-        }
-        
-        if (text === '😊 Mood') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_mood' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("Mood Status အသစ်ကို ရွေးပါ:", 
-                Markup.keyboard([
-                    ['😊 Happy', '🎉 Excited', '😌 Chill'],
-                    ['🤔 Thinking', '💭 Dreaming', '🎯 Focused'],
-                    ['💪 Energetic', '🌟 Optimistic', '🎨 Creative'],
-                    ['❌ Cancel']
-                ]).resize()
-            );
-        }
-        
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
-    // Handle edit photo
-    if (user && user.step === 'edit_photo' && ctx.message.photo) {
-        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        
-        // Validate photo size and quality
-        const photo = ctx.message.photo[ctx.message.photo.length - 1];
-        if (photo.file_size > 10 * 1024 * 1024) { // 10MB limit
-            return ctx.reply("⚠️ ပုံအရွယ်ပါးသားပါ။ 10MB ထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
-        await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        clearUserCache(ctx.from.id);
-        return ctx.reply("📷 Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
-    }
-    
     // Handle edit inputs
-    if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio' || user.step === 'edit_interests')) {
+    if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            clearUserCache(ctx.from.id);
             return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_age') {
-            if (isNaN(text)) return ctx.reply("⚠️ ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-            
-            const age = parseInt(text);
-            if (age < 18 || age > 100) {
-                return ctx.reply("⚠️ အသက် 18-100 အတွင်းအတွင်းရှိပါရမည်။ ပြန်လည်စမ်းကြည့်ပါ:");
-            }
-            
-            await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [age, ctx.from.id] });
-            clearUserCache(ctx.from.id);
-            return ctx.reply("🎂 Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+            if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+            await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_address') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            clearUserCache(ctx.from.id);
             return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            clearUserCache(ctx.from.id);
             return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
-        }
-        
-        if (user.step === 'edit_interests') {
-            await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            clearUserCache(ctx.from.id);
-            return ctx.reply("Interests ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
-    // Handle edit mood
-    if (user && user.step === 'edit_mood') {
-        const moodOptions = ['😊 Happy', '🎉 Excited', '😌 Chill', '🤔 Thinking', '💭 Dreaming', '🎯 Focused', '💪 Energetic', '🌟 Optimistic', '🎨 Creative'];
-        const selectedMood = moodOptions.includes(text) ? text : '😊 Happy';
-        
-        await db.execute({ sql: "UPDATE users SET mood_status = ?, step = 'done' WHERE telegram_id = ?", args: [selectedMood, ctx.from.id] });
-        clearUserCache(ctx.from.id);
-        return ctx.reply("Mood Status ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+    // Handle edit photo
+    if (user && user.step === 'edit_photo' && ctx.message.photo) {
+        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
+        return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
     // If user is registered or doesn't exist, handle chat commands
@@ -222,100 +136,33 @@ bot.on('message', async (ctx) => {
     // Registration flow for new users
     
     if (user.step === 'ask_name') {
-        if (!text || text.trim().length < 2) {
-            return ctx.reply("⚠️ နာမည် အနည်းငယ်ရှိပါရမည်။:");
-        }
-        if (text.trim().length > 50) {
-            return ctx.reply("⚠️ နာမည် အလွန်ပါးသားပါ။ 50 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
-        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
-        return ctx.reply("✨ သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
+        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+        return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     
     if (user.step === 'ask_age') {
-        if (isNaN(text)) return ctx.reply("⚠️ ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-        
-        const age = parseInt(text);
-        if (age < 18 || age > 100) {
-            return ctx.reply("⚠️ အသက် 18-100 အတွင်းအတွင်းရှိပါရမည်။ ပြန်လည်စမ်းကြည့်ပါ:");
-        }
-        
-        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [age, ctx.from.id] });
-        return ctx.reply("🏠 သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
+        if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
 
     if (user.step === 'ask_address') {
-        if (!text || text.trim().length < 2) {
-            return ctx.reply("⚠️ နေရာအမှန်ရှိပါရမည်။ အနည်းငယ် စာနှစ်မရို့ပါ (၂ စားအောင်း):");
-        }
-        if (text.trim().length > 100) {
-            return ctx.reply("⚠️ နေရာအလွန်ပါးသားပါ။ 100 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
-        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
-        return ctx.reply("📸 သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        
-        // Validate photo size and quality
-        const photo = ctx.message.photo[ctx.message.photo.length - 1];
-        if (photo.file_size > 10 * 1024 * 1024) { // 10MB limit
-            return ctx.reply("⚠️ ပုံအရွယ်ပါးသားပါ။ 10MB ထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'ask_bio' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("📝 သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
+        return ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
     }
 
     if (user.step === 'ask_bio') {
-        if (!text || text.trim().length < 10) {
-            return ctx.reply("⚠️ Bio အနည်းငယ်ရှိပါရမည်။ အနည်းငယ် စာနှစ်မရို့ပါ (၁ဝ စားအောင်း):");
-        }
-        if (text.trim().length > 500) {
-            return ctx.reply("⚠️ Bio အလွန်ပါးသားပါ။ 500 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
         await db.execute({ 
-            sql: "UPDATE users SET bio = ?, step = 'ask_interests' WHERE telegram_id = ?", 
-            args: [text.trim(), ctx.from.id] 
+            sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
+            args: [text, ctx.from.id] 
         });
-        return ctx.reply("🏷️ သင့်စိတ်ဝင်စားပစ္စည်းများကို ရေးပေးပါ (ဥပမာ - #travel #music #food #movie #sports #reading #coffee #photography):");
-    }
-
-    if (user.step === 'ask_interests') {
-        if (!text || text.trim().length < 5) {
-            return ctx.reply("⚠️ Interest အနည်းငယ်ရှိပါရမည်။");
-        }
-        if (text.trim().length > 200) {
-            return ctx.reply("⚠️ Interest အလွန်ပါးသားပါ။ 200 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
-        }
-        
-        await db.execute({ 
-            sql: "UPDATE users SET interests = ?, step = 'ask_mood' WHERE telegram_id = ?", 
-            args: [text.trim(), ctx.from.id] 
-        });
-        return ctx.reply("😊 သင့်လက်ရှိချိန်ကို ရွေးပါ:", 
-            Markup.keyboard([
-                ['😊 Happy', '🎉 Excited', '😌 Chill'],
-                ['🤔 Thinking', '💭 Dreaming', '🎯 Focused'],
-                ['💪 Energetic', '🌟 Optimistic', '🎨 Creative'],
-                ['❌ Skip']
-            ]).resize()
-        );
-    }
-
-    if (user.step === 'ask_mood') {
-        const moodOptions = ['😊 Happy', '🎉 Excited', '😌 Chill', '🤔 Thinking', '💭 Dreaming', '🎯 Focused', '💪 Energetic', '🌟 Optimistic', '🎨 Creative'];
-        const selectedMood = moodOptions.includes(text) ? text : '😊 Happy';
-        
-        await db.execute({ 
-            sql: "UPDATE users SET mood_status = ?, step = 'ask_gender' WHERE telegram_id = ?", 
-            args: [selectedMood, ctx.from.id] 
-        });
-        return ctx.reply("👫 သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
                 ['Male', 'Female']
             ]).resize()
@@ -380,52 +227,23 @@ bot.command('update', async (ctx) => {
 });
 
 async function showNextProfile(ctx) {
-    // Show loading message
-    const loadingMsg = await ctx.reply("🔍 ရှာနေသည်...");
-    
     const user = await getUser(ctx.from.id);
     if (!user || !user.looking_for) {
-        await ctx.telegram.deleteMessage(loadingMsg.message_id);
         return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
     }
     
-    // Optimized query with better indexing and LIMIT
     const rs = await db.execute({
-        sql: "SELECT telegram_id, nickname, age, address, bio, photo_id, interests, mood_status FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 5",
+        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
         args: [ctx.from.id, user.looking_for]
     });
 
-    // Delete loading message
-    await ctx.telegram.deleteMessage(loadingMsg.message_id);
-
-    if (!rs.rows || rs.rows.length === 0) {
-        return ctx.reply("⚠️ ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
-    }
-    
-    // Pick first result for now (can be enhanced for multiple profiles)
     const target = rs.rows[0];
+    if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     
-    // Build caption efficiently with better formatting
-    let caption = `� **${target.nickname}** (${target.age})\n📍 ${target.address}`;
+    const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
     
-    // Add mood status if available
-    if (target.mood_status) {
-        caption += `\n${target.mood_status} ချိန်`;
-    }
-    
-    // Add interests if available (limit length for performance)
-    if (target.interests && target.interests.length < 200) {
-        caption += `\n🏷️ ${target.interests}`;
-    }
-    
-    // Add bio with length limit
-    const bio = target.bio && target.bio.length > 200 ? target.bio.substring(0, 200) + "..." : target.bio;
-    caption += `\n\n💭 ${bio || ''}`;
-    
-    // Send photo with optimized options and better buttons
     await ctx.replyWithPhoto(target.photo_id, {
         caption: caption,
-        parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
@@ -439,24 +257,22 @@ bot.action('next_profile', (ctx) => {
 
 // --- 3. Like & Match Notification ---
 bot.action(/like_(\d+)/, async (ctx) => {
-    // Show processing animation
-    await ctx.answerCbQuery("💝 စိတ်ဆိုးနေသည်...");
-    
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
 
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
     
     // Target User ကို အကြောင်းကြားမယ်
-    await bot.telegram.sendMessage(targetId, "💕 တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! 🌟\nသူ့ Profile ကို ပြန်ကြည့်မလား?", 
+    await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
         Markup.inlineKeyboard([
-            [Markup.button.callback('💝 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-            [Markup.button.callback('✅ လက်ခံသည်', `accept_${senderId}`)]
+            [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
+            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
         ])
     );
+    ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
 });
 
-// View back person who liked you
+// View back the person who liked you
 bot.action(/view_back_(\d+)/, async (ctx) => {
     const senderId = ctx.match[1];
     const sender = await getUser(senderId);
@@ -465,23 +281,8 @@ bot.action(/view_back_(\d+)/, async (ctx) => {
         return ctx.reply("သူ့ Profile မတွေ့ပါ။");
     }
     
-    let caption = `💕 **${sender.nickname}** (${sender.age})\n📍 ${sender.address}`;
-    
-    // Add mood status if available
-    if (sender.mood_status) {
-        caption += `\n${sender.mood_status} ချိန်`;
-    }
-    
-    // Add interests if available
-    if (sender.interests) {
-        caption += `\n🏷️ ${sender.interests}`;
-    }
-    
-    caption += `\n\n ${sender.bio}`;
-    
     await ctx.replyWithPhoto(sender.photo_id, {
-        caption: caption,
-        parse_mode: 'Markdown',
+        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${senderId}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')],
@@ -575,8 +376,7 @@ async function handleChat(ctx, user) {
             Markup.keyboard([
                 ['📝 Nickname', '🎂 Age'],
                 ['🏠 Address', '📷 Photo'],
-                ['📄 Bio', '🏷️ Interests'],
-                ['😊 Mood', '❌ Cancel']
+                ['📄 Bio', '❌ Cancel']
             ]).resize()
         );
     }
