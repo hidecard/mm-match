@@ -126,29 +126,8 @@ Match ဖြစ်သွားပါပြီ! ❤️
 - When both users like each other, it's a Match!
 
 ### **4. Managing Your Profile**
-- `/edit` - Update nickname, age, address, photo, or bio
-- `/update` - Change gender preferences
-- `/help` - View complete user guide
-
-### **5. How Matching Works**
-1. User A likes User B's profile
-2. User B gets notification with option to view User A
-3. If User B accepts, both users get each other's usernames
-4. Users can then start chatting directly on Telegram
-
-### **6. Important Features**
-- **Privacy First**: Only shows profiles based on gender preferences
-- **Smart Links**: If no username set, provides direct chat link
-- **Photo Storage**: Images stored securely on Telegram servers
-- **Real-time**: Instant notifications for likes and matches
-
-## 🚀 Quick Setup
-
-### **1. Database Setup**
-Run this SQL in your Turso dashboard:
-
 ```sql
--- Users table
+-- Users table with enhanced fields
 CREATE TABLE users (
     telegram_id INTEGER PRIMARY KEY,
     username TEXT,
@@ -159,57 +138,41 @@ CREATE TABLE users (
     photo_id TEXT,
     gender TEXT,
     looking_for TEXT,
+    interests TEXT,        -- Interest tags
+    mood_status TEXT,     -- Current mood
     step TEXT DEFAULT 'start',
     is_registered BOOLEAN DEFAULT 0
 );
 
--- Likes table
-CREATE TABLE likes (
-    from_user INTEGER,
-    to_user INTEGER,
-    status TEXT DEFAULT 'pending',
-    PRIMARY KEY (from_user, to_user)
-);
-
--- Indexes for performance
+-- Performance indexes
 CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
-CREATE INDEX idx_likes_from ON likes(from_user);
-CREATE INDEX idx_likes_to ON likes(to_user);
+CREATE INDEX idx_interests ON users(interests);
+CREATE INDEX idx_mood_status ON users(mood_status);
 ```
 
-### **2. Environment Variables**
-Create `.env` file:
+### 🚀 Installation & Setup
 
-```env
-BOT_TOKEN=your_telegram_bot_token_here
-TURSO_URL=libsql://your-database-url.turso.io
-TURSO_TOKEN=your_turso_auth_token_here
-```
+#### Prerequisites
+- Node.js 18+ installed
+- Telegram Bot Token
+- Turso Database URL and Token
 
-### **3. Deploy to Vercel**
-1. Push code to GitHub repository
-2. Connect repository to Vercel
-3. Add environment variables in Vercel Settings
-4. Deploy
-
-### **4. Set Telegram Webhook**
+#### Local Development
 ```bash
-curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-app.vercel.app"
+# Clone repository
+git clone <repository-url>
+cd mm-match
+
+# Install dependencies
+npm install
+
+# Set environment variables
+cp .env.example .env
+# Edit .env with your credentials
+
+# Start development server
+npm run dev
 ```
-
-## 📊 Architecture & Performance
-
-### **Scalability Features**
-- **Serverless**: Auto-scaling with Vercel Functions
-- **Database**: Turso edge database for global performance
-- **Caching**: Efficient query patterns with proper indexing
-- **Storage**: Zero-cost photo storage via Telegram
-
-### **Performance Optimizations**
-- **Indexed Queries**: Optimized for large user bases
-- **Random Selection**: Efficient profile discovery
-- **Webhook Handling**: Real-time message processing
-- **Error Handling**: Comprehensive error management
 
 ### **Security Features**
 - **Input Validation**: All user inputs validated

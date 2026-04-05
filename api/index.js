@@ -160,10 +160,16 @@ bot.on('message', async (ctx) => {
         }
         
         if (user.step === 'edit_age') {
-            if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-            await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+            if (isNaN(text)) return ctx.reply("⚠️ ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+            
+            const age = parseInt(text);
+            if (age < 18 || age > 100) {
+                return ctx.reply("⚠️ အသက် 18-100 အတွင်းအတွင်းရှိပါရမည်။ ပြန်လည်စမ်းကြည့်ပါ:");
+            }
+            
+            await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [age, ctx.from.id] });
             clearUserCache(ctx.from.id);
-            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+            return ctx.reply("🎂 Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_address') {
@@ -206,9 +212,15 @@ bot.on('message', async (ctx) => {
     }
     
     if (user.step === 'ask_age') {
-        if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
+        if (isNaN(text)) return ctx.reply("⚠️ ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+        
+        const age = parseInt(text);
+        if (age < 18 || age > 100) {
+            return ctx.reply("⚠️ အသက် 18-100 အတွင်းအတွင်းရှိပါရမည်။ ပြန်လည်စမ်းကြည့်ပါ:");
+        }
+        
+        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [age, ctx.from.id] });
+        return ctx.reply("🏠 သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
 
     if (user.step === 'ask_address') {
