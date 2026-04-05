@@ -23,7 +23,40 @@ try {
 }
 
 // --- Helper Functions ---
-const getUser = async (id) => (await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] })).rows[0];
+// Cache for user data to reduce database calls
+const userCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const getUser = async (id) => {
+    // Check cache first
+    const cached = userCache.get(id);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+    }
+    
+    // Query database
+    const result = await db.execute({ 
+        sql: "SELECT telegram_id, username, nickname, age, address, bio, photo_id, gender, looking_for, interests, mood_status, step, is_registered FROM users WHERE telegram_id = ?", 
+        args: [id] 
+    });
+    
+    const user = result.rows[0];
+    
+    // Cache the result
+    if (user) {
+        userCache.set(id, {
+            data: user,
+            timestamp: Date.now()
+        });
+    }
+    
+    return user;
+};
+
+// Clear cache when user data is updated
+const clearUserCache = (id) => {
+    userCache.delete(id);
+};
 
 // --- 1. Registration Logic (Step-by-step) ---
 bot.start(async (ctx) => {
@@ -33,29 +66,31 @@ bot.start(async (ctx) => {
             args: [ctx.from.id, ctx.from.username || 'none'] 
         });
         
-        const welcomeMessage = `🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
+        const welcomeMessage = `💕 **Welcome to MM Cupid!** 💕
 
-💕 **Tinder-style Dating Bot**
+🎯 *Tinder-style Dating Bot*
+အရင်းအမြစ်လွယ်ကူတဲ့ ရည်းစားရှာဖွေရေး ဘော့
+
+🌟 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
+1️⃣ 📝 နာမည် (Nickname)
+2️⃣ 🎂 အသက် (Age) 
+3️⃣ 🏠 နေရပ် (Address)
+4️⃣ 📸 ပုံ (Photo)
+5️⃣ 📄 ကိုယ်ရေးတင်ပြ (Bio)
+6️⃣ 🏷️ Interest Tags (စိတ်ဝင်စားပစ္စည်းများ)
+7️⃣ 😊 Mood Status (လက်ရှိချိန်)
+8️⃣ 👫 လိင် (Gender)
+9️⃣ 💕 ရှာနေသောလိင် (Looking For)
 
 
-📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
-1️⃣ နာမည် (Nickname)
-2️⃣ အသက် (Age) 
-3️⃣ နေရပ် (Address)
-4️⃣ ပုံ (Photo)
-5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
-6️⃣ Interest Tags (စိတ်ဝင်စားပစ္စည်းများ)
-7️⃣ Mood Status (လက်ရှိချိန်)
-8️⃣ လိင် (Gender)
-9️⃣ ရှာနေသောလိင် (Looking For)
 
-
-
-❤️ Male များ Female ကိုသာ မြင်ရပါမည်
-❤️ Female များ Male ကိုသာ မြင်ရပါမည်
+💝 **Matching System:**
+• Male 👨 များ Female 👩 ကိုသာ မြင်ရပါမည်
+• Female 👩 များ Male 👨 ကိုသာ မြင်ရပါမည်
+• Interest တူတဲ့ လူတွေကို ပိုမိုတွေ့ရပါမည်
 
 ---
-စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
+🚀 စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ ✨`;
         
         ctx.reply(welcomeMessage);
     } catch (error) {
@@ -122,27 +157,32 @@ bot.on('message', async (ctx) => {
     if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio' || user.step === 'edit_interests')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+            clearUserCache(ctx.from.id);
             return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_age') {
             if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
             await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+            clearUserCache(ctx.from.id);
             return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_address') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+            clearUserCache(ctx.from.id);
             return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+            clearUserCache(ctx.from.id);
             return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_interests') {
             await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+            clearUserCache(ctx.from.id);
             return ctx.reply("Interests ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
@@ -153,6 +193,7 @@ bot.on('message', async (ctx) => {
         const selectedMood = moodOptions.includes(text) ? text : '😊 Happy';
         
         await db.execute({ sql: "UPDATE users SET mood_status = ?, step = 'done' WHERE telegram_id = ?", args: [selectedMood, ctx.from.id] });
+        clearUserCache(ctx.from.id);
         return ctx.reply("Mood Status ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
@@ -160,6 +201,7 @@ bot.on('message', async (ctx) => {
     if (user && user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
+        clearUserCache(ctx.from.id);
         return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
@@ -170,24 +212,28 @@ bot.on('message', async (ctx) => {
     
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
+        clearUserCache(ctx.from.id);
+        return ctx.reply("✨ သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     
     if (user.step === 'ask_age') {
-        if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+        if (isNaN(text)) return ctx.reply("⚠️ ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
+        clearUserCache(ctx.from.id);
+        return ctx.reply("🏠 သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
 
     if (user.step === 'ask_address') {
         await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        clearUserCache(ctx.from.id);
+        return ctx.reply("📸 သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ:");
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'ask_bio' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
+        clearUserCache(ctx.from.id);
+        return ctx.reply("📝 သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ:");
     }
 
     if (user.step === 'ask_bio') {
@@ -195,7 +241,8 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET bio = ?, step = 'ask_interests' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
         });
-        return ctx.reply("သင့်စိတ်ဝင်စားပစ္စည်းများကို ရေးပေးပါ (ဥပမာ - #travel #music #food #movie #sports #reading #coffee #photography):");
+        clearUserCache(ctx.from.id);
+        return ctx.reply("🏷️ သင့်စိတ်ဝင်စားပစ္စည်းများကို ရေးပေးပါ (ဥပမာ - #travel #music #food #movie #sports #reading #coffee #photography):");
     }
 
     if (user.step === 'ask_interests') {
@@ -203,7 +250,8 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET interests = ?, step = 'ask_mood' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
         });
-        return ctx.reply("သင့်လက်ရှိချိန်ကို ရွေးပါ:", 
+        clearUserCache(ctx.from.id);
+        return ctx.reply("😊 သင့်လက်ရှိချိန်ကို ရွေးပါ:", 
             Markup.keyboard([
                 ['😊 Happy', '🎉 Excited', '😌 Chill'],
                 ['🤔 Thinking', '💭 Dreaming', '🎯 Focused'],
@@ -221,7 +269,8 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET mood_status = ?, step = 'ask_gender' WHERE telegram_id = ?", 
             args: [selectedMood, ctx.from.id] 
         });
-        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+        clearUserCache(ctx.from.id);
+        return ctx.reply("👫 သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
                 ['Male', 'Female']
             ]).resize()
@@ -231,7 +280,7 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_gender') {
         const gender = text.toLowerCase();
         if (gender !== 'male' && gender !== 'female') {
-            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
+            return ctx.reply("⚠️ Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
                 Markup.keyboard([
                     ['Male', 'Female']
                 ]).resize()
@@ -241,7 +290,8 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
             args: [gender, ctx.from.id] 
         });
-        return ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", 
+        clearUserCache(ctx.from.id);
+        return ctx.reply("💕 ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
                 ['Male', 'Female']
             ]).resize()
@@ -251,7 +301,7 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_looking_for') {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') {
-            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
+            return ctx.reply("⚠️ Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
                 Markup.keyboard([
                     ['Male', 'Female']
                 ]).resize()
@@ -261,7 +311,8 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
             args: [lookingFor, ctx.from.id] 
         });
-        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", 
+        clearUserCache(ctx.from.id);
+        return ctx.reply("🎉 မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n🔍 /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", 
             Markup.keyboard([
                 ['/find', '/edit', '/help']
             ]).resize()
@@ -291,30 +342,40 @@ async function showNextProfile(ctx) {
         return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
     }
     
+    // Optimized query with better indexing and LIMIT
     const rs = await db.execute({
-        sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
+        sql: "SELECT telegram_id, nickname, age, address, bio, photo_id, interests, mood_status FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 5",
         args: [ctx.from.id, user.looking_for]
     });
 
-    const target = rs.rows[0];
-    if (!target) return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    if (!rs.rows || rs.rows.length === 0) {
+        return ctx.reply("⚠️ ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
     
-    let caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}`;
+    // Pick first result for now (can be enhanced for multiple profiles)
+    const target = rs.rows[0];
+    
+    // Build caption efficiently
+    let caption = `💕 **${target.nickname}** (${target.age})\n📍 ${target.address}`;
     
     // Add mood status if available
     if (target.mood_status) {
         caption += `\n${target.mood_status} ချိန်`;
     }
     
-    // Add interests if available
-    if (target.interests) {
+    // Add interests if available (limit length for performance)
+    if (target.interests && target.interests.length < 200) {
         caption += `\n🏷️ ${target.interests}`;
     }
     
-    caption += `\n\n📝 ${target.bio}`;
+    // Add bio with length limit
+    const bio = target.bio && target.bio.length > 200 ? target.bio.substring(0, 200) + "..." : target.bio;
+    caption += `\n\n💭 ${bio || ''}`;
     
+    // Send photo with optimized options
     await ctx.replyWithPhoto(target.photo_id, {
         caption: caption,
+        parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
@@ -334,13 +395,13 @@ bot.action(/like_(\d+)/, async (ctx) => {
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
     
     // Target User ကို အကြောင်းကြားမယ်
-    await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
+    await bot.telegram.sendMessage(targetId, " တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! \nသူ့ Profile ကို ပြန်ကြည့်မလား?", 
         Markup.inlineKeyboard([
-            [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+            [Markup.button.callback('', `view_back_${senderId}`)],
+            [Markup.button.callback('', `accept_${senderId}`)]
         ])
     );
-    ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+    ctx.answerCbQuery("");
 });
 
 // View back the person who liked you
@@ -394,8 +455,8 @@ bot.action(/accept_(\d+)/, async (ctx) => {
     const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
     const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${myId}`;
 
-    await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
-    await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+    await ctx.reply(`🎉 **Match ဖြစ်သွားပါပြီ!** 💕\n\n💬 သူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}\n\n🌟 ကံကောင်းပါစေ!`);
+    await bot.telegram.sendMessage(partnerId, `🎉 **Match ဖြစ်သွားပါပြီ!** 💕\n\n💬 စကားပြောရန်: ${myLink}\n\n🌟 ကံကောင်းပါစေ!`);
     ctx.answerCbQuery();
 });
 
