@@ -77,8 +77,10 @@ bot.start(async (ctx) => {
 3️⃣ နေရပ် (Address)
 4️⃣ ပုံ (Photo)
 5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
-6️⃣ လိင် (Gender)
-7️⃣ ရှာနေသောလိင် (Looking For)
+6️⃣ Interest Tags (စိတ်ဝင်စားပစ္စည်းများ)
+7️⃣ Mood Status (လက်ရှိချိန်)
+8️⃣ လိင် (Gender)
+9️⃣ ရှာနေသောလိင် (Looking For)
 
 
 
@@ -222,10 +224,36 @@ bot.on('message', async (ctx) => {
 
     if (user.step === 'ask_bio') {
         await db.execute({ 
-            sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
+            sql: "UPDATE users SET bio = ?, step = 'ask_interests' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
         });
-        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+        return ctx.reply("🏷️ သင့်စိတ်ဝင်စားပစ္စည်းများကို ရေးပေးပါ (ဥပမာ - #travel #music #food #movie #sports #reading #coffee #photography):");
+    }
+
+    if (user.step === 'ask_interests') {
+        await db.execute({ 
+            sql: "UPDATE users SET interests = ?, step = 'ask_mood' WHERE telegram_id = ?", 
+            args: [text, ctx.from.id] 
+        });
+        return ctx.reply("😊 သင့်လက်ရှိချိန်ကို ရွေးပါ:", 
+            Markup.keyboard([
+                ['😊 Happy', '🎉 Excited', '😌 Chill'],
+                ['🤔 Thinking', '💭 Dreaming', '🎯 Focused'],
+                ['💪 Energetic', '🌟 Optimistic', '🎨 Creative'],
+                ['❌ Skip']
+            ]).resize()
+        );
+    }
+
+    if (user.step === 'ask_mood') {
+        const moodOptions = ['😊 Happy', '🎉 Excited', '😌 Chill', '🤔 Thinking', '💭 Dreaming', '🎯 Focused', '💪 Energetic', '🌟 Optimistic', '🎨 Creative'];
+        const selectedMood = moodOptions.includes(text) ? text : '😊 Happy';
+        
+        await db.execute({ 
+            sql: "UPDATE users SET mood_status = ?, step = 'ask_gender' WHERE telegram_id = ?", 
+            args: [selectedMood, ctx.from.id] 
+        });
+        return ctx.reply("👫 သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
                 ['Male', 'Female']
             ]).resize()
