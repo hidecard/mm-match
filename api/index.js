@@ -151,6 +151,21 @@ bot.on('message', async (ctx) => {
         }
     }
     
+    // Handle edit photo
+    if (user && user.step === 'edit_photo' && ctx.message.photo) {
+        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        
+        // Validate photo size and quality
+        const photo = ctx.message.photo[ctx.message.photo.length - 1];
+        if (photo.file_size > 10 * 1024 * 1024) { // 10MB limit
+            return ctx.reply("⚠️ ပုံအရွယ်ပါးသားပါ။ 10MB ထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
+        await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
+        clearUserCache(ctx.from.id);
+        return ctx.reply("📷 Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+    }
+    
     // Handle edit inputs
     if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio' || user.step === 'edit_interests')) {
         if (user.step === 'edit_nickname') {
@@ -207,8 +222,15 @@ bot.on('message', async (ctx) => {
     // Registration flow for new users
     
     if (user.step === 'ask_name') {
-        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
+        if (!text || text.trim().length < 2) {
+            return ctx.reply("⚠️ နာမည် အနည်းငယ်ရှိပါရမည်။:");
+        }
+        if (text.trim().length > 50) {
+            return ctx.reply("⚠️ နာမည် အလွန်ပါးသားပါ။ 50 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
+        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        return ctx.reply("✨ သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     
     if (user.step === 'ask_age') {
@@ -224,28 +246,56 @@ bot.on('message', async (ctx) => {
     }
 
     if (user.step === 'ask_address') {
-        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        if (!text || text.trim().length < 2) {
+            return ctx.reply("⚠️ နေရာအမှန်ရှိပါရမည်။ အနည်းငယ် စာနှစ်မရို့ပါ (၂ စားအောင်း):");
+        }
+        if (text.trim().length > 100) {
+            return ctx.reply("⚠️ နေရာအလွန်ပါးသားပါ။ 100 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
+        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        return ctx.reply("📸 သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        
+        // Validate photo size and quality
+        const photo = ctx.message.photo[ctx.message.photo.length - 1];
+        if (photo.file_size > 10 * 1024 * 1024) { // 10MB limit
+            return ctx.reply("⚠️ ပုံအရွယ်ပါးသားပါ။ 10MB ထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'ask_bio' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
+        return ctx.reply("📝 သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
     }
 
     if (user.step === 'ask_bio') {
+        if (!text || text.trim().length < 10) {
+            return ctx.reply("⚠️ Bio အနည်းငယ်ရှိပါရမည်။ အနည်းငယ် စာနှစ်မရို့ပါ (၁ဝ စားအောင်း):");
+        }
+        if (text.trim().length > 500) {
+            return ctx.reply("⚠️ Bio အလွန်ပါးသားပါ။ 500 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
         await db.execute({ 
             sql: "UPDATE users SET bio = ?, step = 'ask_interests' WHERE telegram_id = ?", 
-            args: [text, ctx.from.id] 
+            args: [text.trim(), ctx.from.id] 
         });
         return ctx.reply("🏷️ သင့်စိတ်ဝင်စားပစ္စည်းများကို ရေးပေးပါ (ဥပမာ - #travel #music #food #movie #sports #reading #coffee #photography):");
     }
 
     if (user.step === 'ask_interests') {
+        if (!text || text.trim().length < 5) {
+            return ctx.reply("⚠️ Interest အနည်းငယ်ရှိပါရမည်။");
+        }
+        if (text.trim().length > 200) {
+            return ctx.reply("⚠️ Interest အလွန်ပါးသားပါ။ 200 စားအောင်းထက်အောင်းပုံငယ်းလုပ်ပါ:");
+        }
+        
         await db.execute({ 
             sql: "UPDATE users SET interests = ?, step = 'ask_mood' WHERE telegram_id = ?", 
-            args: [text, ctx.from.id] 
+            args: [text.trim(), ctx.from.id] 
         });
         return ctx.reply("😊 သင့်လက်ရှိချိန်ကို ရွေးပါ:", 
             Markup.keyboard([
