@@ -574,17 +574,18 @@ async function handleChat(ctx, user) {
     
     // Handle update flow steps
     if (user.step === 'ask_gender') {
-        const gender = text.toLowerCase();
-        if (gender !== 'male' && gender !== 'female') {
+        const gender = text.toLowerCase().trim();
+        if (gender !== 'male' && gender !== 'female' && gender !== 'male' && gender !== 'female') {
             return ctx.reply("Please select Male or Female:", 
                 Markup.keyboard([
                     ['Male', 'Female']
                 ]).resize()
             );
         }
+        const cleanGender = gender.includes('male') ? 'male' : 'female';
         await db.execute({ 
             sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
-            args: [gender, ctx.from.id] 
+            args: [cleanGender, ctx.from.id] 
         });
         return ctx.reply("Who are you looking for (Male or Female):", 
             Markup.keyboard([
@@ -594,17 +595,18 @@ async function handleChat(ctx, user) {
     }
     
     if (user.step === 'ask_looking_for') {
-        const lookingFor = text.toLowerCase();
-        if (lookingFor !== 'male' && lookingFor !== 'female') {
+        const lookingFor = text.toLowerCase().trim();
+        if (lookingFor !== 'male' && lookingFor !== 'female' && lookingFor !== 'male' && lookingFor !== 'female') {
             return ctx.reply("Please select Male or Female:", 
                 Markup.keyboard([
                     ['Male', 'Female']
                 ]).resize()
             );
         }
+        const cleanLookingFor = lookingFor.includes('male') ? 'male' : 'female';
         await db.execute({ 
             sql: "UPDATE users SET looking_for = ?, step = 'done' WHERE telegram_id = ?", 
-            args: [lookingFor, ctx.from.id] 
+            args: [cleanLookingFor, ctx.from.id] 
         });
         return ctx.reply("Gender preferences updated successfully!", 
             Markup.keyboard([
