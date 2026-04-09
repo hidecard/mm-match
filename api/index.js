@@ -488,7 +488,7 @@ async function handleChat(ctx, user) {
     
     // Help command
     if (ctx.message.text === '/help') {
-        const helpMessage = `🎯 *MM Match User Guide*\n\n📋 *မှတ်ပုံတင်ခြင်း:*\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n\n🔍 *ရှာဖွေခြင်း:*\n/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)\n\n✏️ *ပြင်းဆင့်ခြင်း:*\n/edit - Profile ပြင်းဆင့်ပါ\n  • 📝 Nickname - နာမည်\n  • 🎂 Age - အသက်\n  • 🏠 Address - နေရာ\n  • 📷 Photo - ပုံ\n  • 📄 Bio - ကိုယ်ရေးတင်ပြ\n\n⚙️ *ဆက်တင်ပြင်းဆင့်:*\n/update - လိင်အပြင်းအစားပြောင်းပါ\n\n❤️ *အလုပ်လုပ်ပုံ:*\n1️⃣ /find ဖြင့် Profile ရှာပါ\n2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ\n3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်\n4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်\n\n💡 *အသိပ်သည်းချက်:*\n• Male များ Female ကိုသာ မြင်ရပါမည်\n• Female များ Male ကိုသာ မြင်ရပါမည်\n• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်\n• Username မရှိပါက Link ပေးပါမည်\n\n---\n🎉 *ကောင်းကောင်းတွေ့ပါစေ!* 💕`;
+        const helpMessage = `🎯 *MM Cupid User Guide*\n\n📋 *မှတ်ပုံတင်ခြင်း:*\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n\n🔍 *ရှာဖွေခြင်း:*\n/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)\n\n✏️ *ပြင်းဆင့်ခြင်း:*\n/edit - Profile ပြင်းဆင့်ပါ\n  • 📝 Nickname - နာမည်\n  • 🎂 Age - အသက်\n  • 🏠 Address - နေရာ\n  • 📷 Photo - ပုံ\n  • 📄 Bio - ကိုယ်ရေးတင်ပြ\n\n⚙️ *ဆက်တင်ပြင်ဆင်*\n/update - လိင်အပြင်းအစားပြောင်းပါ\n\n❤️ *အလုပ်လုပ်ပုံ:*\n1️⃣ /find ဖြင့် Profile ရှာပါ\n2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ\n3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်\n4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်\n\n💡 *အသိပေးချက်*\n• Male များ Female ကိုသာ မြင်ရပါမည်\n• Female များ Male ကိုသာ မြင်ရပါမည်\n• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်\n• Username မရှိပါက Link ပေးပါမည်\n\n---\n🎉 *ကောင်းကောင်းတွေ့ပါစေ!* 💕`;
         
         return ctx.reply(helpMessage);
     }
