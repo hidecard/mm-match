@@ -181,8 +181,11 @@ bot.on('message', async (ctx) => {
         return ctx.reply("✅ *Photo ပြောင်းလဲပါပြီ။*", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
-    // If user is registered or doesn't exist, handle chat commands
-    if (!user || user.is_registered) return handleChat(ctx, user);
+    // If user doesn't exist, handle chat commands
+    if (!user) return handleChat(ctx, user);
+    
+    // If user is registered and not in a registration step, handle chat commands
+    if (user.is_registered && user.step === 'done') return handleChat(ctx, user);
     
     // Registration flow for new users
     
@@ -266,9 +269,9 @@ bot.on('message', async (ctx) => {
     // Handle location step
     if (user.step === 'ask_location') {
         if (text === 'Send Location') {
-            return ctx.reply("Please share your location using the location button below.", 
+            return ctx.reply("Please click the location button (paperclip icon) below to share your GPS location:", 
                 Markup.keyboard([
-                    ['Share Location', 'Skip Location'],
+                    ['Skip Location'],
                     ['Privacy Settings']
                 ]).resize()
             );
@@ -290,7 +293,7 @@ bot.on('message', async (ctx) => {
         if (text === 'Privacy Settings') {
             return ctx.reply("Location privacy settings:", 
                 Markup.keyboard([
-                    ['Share Location', 'Skip Location'],
+                    ['Send Location', 'Skip Location'],
                     ['Privacy Settings']
                 ]).resize()
             );
