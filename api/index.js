@@ -250,15 +250,49 @@ bot.on('message', async (ctx) => {
             );
         }
         await db.execute({ 
-            sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            sql: "UPDATE users SET looking_for = ?, step = 'ask_location' WHERE telegram_id = ?", 
             args: [lookingFor, ctx.from.id] 
         });
-        return ctx.reply("🎉 *မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်!*\n✨ *ဒီနေရာမှာ အချစ်ရှာနိုင်ပါပြီ*\n\n👇 *အောက်က command များကို အသုံးပြုပါ:*", 
+        return ctx.reply("Location-based matching  enabled!  Share your location?", 
             Markup.keyboard([
-                ['💕 Find Match', '✏️ Edit Profile'],
-                ['❓ Help']
+                ['Send Location', 'Skip Location'],
+                ['Privacy Settings']
             ]).resize()
         );
+    }
+
+    // Handle location step
+    if (user.step === 'ask_location') {
+        if (text === 'Send Location') {
+            return ctx.reply("Please share your location using the location button below.", 
+                Markup.keyboard([
+                    ['Share Location', 'Skip Location'],
+                    ['Privacy Settings']
+                ]).resize()
+            );
+        }
+        
+        if (text === 'Skip Location') {
+            await db.execute({ 
+                sql: "UPDATE users SET is_registered = 1, step = 'done', location_sharing = 0 WHERE telegram_id = ?", 
+                args: [ctx.from.id] 
+            });
+            return ctx.reply("Registration completed! You can start finding matches now.", 
+                Markup.keyboard([
+                    ['Find Match', 'Edit Profile'],
+                    ['Help']
+                ]).resize()
+            );
+        }
+        
+        if (text === 'Privacy Settings') {
+            return ctx.reply("Location privacy settings:", 
+                Markup.keyboard([
+                    ['Share Location', 'Skip Location'],
+                    ['Privacy Settings']
+                ]).resize()
+            );
+        }
     }
 });
 
@@ -278,6 +312,27 @@ bot.command('update', async (ctx) => {
     );
 });
 
+// Handle location messages
+bot.on('location', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user) return;
+    
+    if (user.step === 'ask_location') {
+        const location = ctx.message.location;
+        await db.execute({ 
+            sql: "UPDATE users SET latitude = ?, longitude = ?, is_registered = 1, step = 'done', location_sharing = 1, last_location_update = CURRENT_TIMESTAMP WHERE telegram_id = ?", 
+            args: [location.latitude, location.longitude, ctx.from.id] 
+        });
+        
+        return ctx.reply("Registration completed! Location-based matching is now enabled.", 
+            Markup.keyboard([
+                ['Find Match', 'Edit Profile'],
+                ['Help']
+            ]).resize()
+        );
+    }
+});
+
 async function showNextProfile(ctx) {
     // Show loading indicator
     const loadingMessage = await ctx.reply("⏳ *Profile ရှာနေသည်...*");
@@ -294,18 +349,42 @@ async function showNextProfile(ctx) {
         let seenProfiles = await getSeenProfiles(ctx.from.id);
         
         if (!profiles || profiles.length === 0) {
-            // Fetch fresh profiles with optimized query
+            // Fetch fresh profiles with location-based query
+            let locationQuery = "";
+            let locationArgs = [];
+            
+            if (user.location_sharing && user.latitude && user.longitude) {
+                // Use Haversine formula for distance calculation
+                locationQuery = `AND (latitude IS NULL OR longitude IS NULL OR 
+                    (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * 
+                    cos(radians(longitude) - radians(?)) + sin(radians(?)) * 
+                    sin(radians(latitude)))) <= COALESCE(?, 50))`;
+                locationArgs = [user.latitude, user.longitude, user.latitude, user.location_radius || 50];
+            }
+            
             const rs = await db.execute({
-                sql: `SELECT * FROM users 
-                      WHERE is_registered = 1 
-                      AND telegram_id != ? 
-                      AND gender = ? 
-                      AND telegram_id NOT IN (
-                          SELECT to_user FROM likes WHERE from_user = ?
-                      )
-                      ORDER BY RANDOM() 
-                      LIMIT 50`,
-                args: [ctx.from.id, user.looking_for, ctx.from.id]
+                sql: `SELECT *, 
+                    CASE 
+                        WHEN latitude IS NULL OR longitude IS NULL OR ? IS NULL OR ? IS NULL THEN NULL
+                        ELSE (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * 
+                            cos(radians(longitude) - radians(?)) + sin(radians(?)) * 
+                            sin(radians(latitude))))
+                    END as distance
+                    FROM users 
+                    WHERE is_registered = 1 
+                    AND telegram_id != ? 
+                    AND gender = ? 
+                    AND telegram_id NOT IN (
+                        SELECT to_user FROM likes WHERE from_user = ?
+                    )
+                    ${locationQuery}
+                    ORDER BY CASE 
+                        WHEN distance IS NULL THEN 999999
+                        ELSE distance 
+                    END ASC
+                    LIMIT 50`,
+                args: [user.latitude, user.longitude, user.latitude, user.longitude, user.latitude, 
+                    ctx.from.id, user.looking_for, ctx.from.id, ...locationArgs]
             });
             
             profiles = rs.rows;
@@ -491,6 +570,48 @@ async function handleChat(ctx, user) {
         const helpMessage = `🎯 *MM Cupid User Guide*\n\n📋 *မှတ်ပုံတင်ခြင်း:*\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n\n🔍 *ရှာဖွေခြင်း:*\n/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)\n\n✏️ *ပြင်းဆင့်ခြင်း:*\n/edit - Profile ပြင်းဆင့်ပါ\n  • 📝 Nickname - နာမည်\n  • 🎂 Age - အသက်\n  • 🏠 Address - နေရာ\n  • 📷 Photo - ပုံ\n  • 📄 Bio - ကိုယ်ရေးတင်ပြ\n\n⚙️ *ဆက်တင်ပြင်ဆင်*\n/update - လိင်အပြင်းအစားပြောင်းပါ\n\n❤️ *အလုပ်လုပ်ပုံ:*\n1️⃣ /find ဖြင့် Profile ရှာပါ\n2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ\n3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်\n4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်\n\n💡 *အသိပေးချက်*\n• Male များ Female ကိုသာ မြင်ရပါမည်\n• Female များ Male ကိုသာ မြင်ရပါမည်\n• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်\n• Username မရှိပါက Link ပေးပါမည်\n\n---\n🎉 *ကောင်းကောင်းတွေ့ပါစေ!* 💕`;
         
         return ctx.reply(helpMessage);
+    }
+    
+    // Handle update flow steps
+    if (user.step === 'ask_gender') {
+        const gender = text.toLowerCase();
+        if (gender !== 'male' && gender !== 'female') {
+            return ctx.reply("Please select Male or Female:", 
+                Markup.keyboard([
+                    ['Male', 'Female']
+                ]).resize()
+            );
+        }
+        await db.execute({ 
+            sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
+            args: [gender, ctx.from.id] 
+        });
+        return ctx.reply("Who are you looking for (Male or Female):", 
+            Markup.keyboard([
+                ['Male', 'Female']
+            ]).resize()
+        );
+    }
+    
+    if (user.step === 'ask_looking_for') {
+        const lookingFor = text.toLowerCase();
+        if (lookingFor !== 'male' && lookingFor !== 'female') {
+            return ctx.reply("Please select Male or Female:", 
+                Markup.keyboard([
+                    ['Male', 'Female']
+                ]).resize()
+            );
+        }
+        await db.execute({ 
+            sql: "UPDATE users SET looking_for = ?, step = 'done' WHERE telegram_id = ?", 
+            args: [lookingFor, ctx.from.id] 
+        });
+        return ctx.reply("Gender preferences updated successfully!", 
+            Markup.keyboard([
+                ['Find Match', 'Edit Profile'],
+                ['Help']
+            ]).resize()
+        );
     }
     
     // Add other chat functionality here if needed
