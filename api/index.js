@@ -221,17 +221,18 @@ bot.on('message', async (ctx) => {
     }
 
     if (user.step === 'ask_gender') {
-        const gender = text.toLowerCase();
-        if (gender !== 'male' && gender !== 'female') {
+        const gender = text.toLowerCase().trim();
+        if (gender !== 'male' && gender !== 'female' && gender !== '🚹 male' && gender !== '🚺 female') {
             return ctx.reply("⚠️ *Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:*", 
                 Markup.keyboard([
                     ['🚹 Male', '🚺 Female']
                 ]).resize()
             );
         }
+        const cleanGender = gender.includes('male') ? 'male' : 'female';
         await db.execute({ 
             sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
-            args: [gender, ctx.from.id] 
+            args: [cleanGender, ctx.from.id] 
         });
         return ctx.reply("💕 *ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):*", 
             Markup.keyboard([
@@ -241,17 +242,18 @@ bot.on('message', async (ctx) => {
     }
 
     if (user.step === 'ask_looking_for') {
-        const lookingFor = text.toLowerCase();
-        if (lookingFor !== 'male' && lookingFor !== 'female') {
+        const lookingFor = text.toLowerCase().trim();
+        if (lookingFor !== 'male' && lookingFor !== 'female' && lookingFor !== '🚹 male' && lookingFor !== '🚺 female') {
             return ctx.reply("⚠️ *Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:*", 
                 Markup.keyboard([
                     ['🚹 Male', '🚺 Female']
                 ]).resize()
             );
         }
+        const cleanLookingFor = lookingFor.includes('male') ? 'male' : 'female';
         await db.execute({ 
             sql: "UPDATE users SET looking_for = ?, step = 'ask_location' WHERE telegram_id = ?", 
-            args: [lookingFor, ctx.from.id] 
+            args: [cleanLookingFor, ctx.from.id] 
         });
         return ctx.reply("Location-based matching  enabled!  Share your location?", 
             Markup.keyboard([
