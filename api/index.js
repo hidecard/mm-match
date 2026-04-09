@@ -49,20 +49,46 @@ const setCachedProfiles = async (userId, lookingFor, profiles) => {
     });
 };
 
+// Cache for seen profiles to reduce database queries
+const seenProfilesCache = new Map();
+const SEEN_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
 const getSeenProfiles = async (userId) => {
+    const cached = seenProfilesCache.get(userId);
+    
+    if (cached && Date.now() - cached.timestamp < SEEN_CACHE_TTL) {
+        return cached.profiles;
+    }
+    
     const result = await db.execute({
         sql: "SELECT to_user FROM likes WHERE from_user = ?",
         args: [userId]
     });
-    return new Set(result.rows.map(row => row.to_user));
+    
+    const seenSet = new Set(result.rows.map(row => row.to_user));
+    seenProfilesCache.set(userId, {
+        profiles: seenSet,
+        timestamp: Date.now()
+    });
+    
+    return seenSet;
 };
 
 // Periodic cache cleanup to prevent memory leaks
 const cleanupCache = () => {
     const now = Date.now();
+    
+    // Clean profile cache
     for (const [key, value] of profileCache.entries()) {
         if (now - value.timestamp > CACHE_TTL) {
             profileCache.delete(key);
+        }
+    }
+    
+    // Clean seen profiles cache
+    for (const [key, value] of seenProfilesCache.entries()) {
+        if (now - value.timestamp > SEEN_CACHE_TTL) {
+            seenProfilesCache.delete(key);
         }
     }
 };
@@ -253,58 +279,113 @@ bot.command('update', async (ctx) => {
 });
 
 async function showNextProfile(ctx) {
-    const user = await getUser(ctx.from.id);
-    if (!user || !user.looking_for) {
-        return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
-    }
+    // Show loading indicator
+    const loadingMessage = await ctx.reply("⏳ *Profile ရှာနေသည်...*");
     
-    // Try to get cached profiles first
-    let profiles = await getCachedProfiles(ctx.from.id, user.looking_for);
-    let seenProfiles = await getSeenProfiles(ctx.from.id);
-    
-    if (!profiles || profiles.length === 0) {
-        // Fetch fresh profiles with optimized query
-        const rs = await db.execute({
-            sql: `SELECT * FROM users 
-                  WHERE is_registered = 1 
-                  AND telegram_id != ? 
-                  AND gender = ? 
-                  AND telegram_id NOT IN (
-                      SELECT to_user FROM likes WHERE from_user = ?
-                  )
-                  ORDER BY telegram_id ASC 
-                  LIMIT 20`,
-            args: [ctx.from.id, user.looking_for, ctx.from.id]
-        });
+    try {
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.looking_for) {
+            await ctx.deleteMessage(loadingMessage.message_id);
+            return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+        }
         
-        profiles = rs.rows;
-        await setCachedProfiles(ctx.from.id, user.looking_for, profiles);
+        // Try to get cached profiles first
+        let profiles = await getCachedProfiles(ctx.from.id, user.looking_for);
+        let seenProfiles = await getSeenProfiles(ctx.from.id);
+        
+        if (!profiles || profiles.length === 0) {
+            // Fetch fresh profiles with optimized query
+            const rs = await db.execute({
+                sql: `SELECT * FROM users 
+                      WHERE is_registered = 1 
+                      AND telegram_id != ? 
+                      AND gender = ? 
+                      AND telegram_id NOT IN (
+                          SELECT to_user FROM likes WHERE from_user = ?
+                      )
+                      ORDER BY RANDOM() 
+                      LIMIT 50`,
+                args: [ctx.from.id, user.looking_for, ctx.from.id]
+            });
+            
+            profiles = rs.rows;
+            await setCachedProfiles(ctx.from.id, user.looking_for, profiles);
+        }
+        
+        // Filter out already seen profiles
+        const availableProfiles = profiles.filter(profile => 
+            !seenProfiles.has(profile.telegram_id)
+        );
+        
+        if (availableProfiles.length === 0) {
+            // Try to refresh cache with more profiles
+            profileCache.delete(`${ctx.from.id}_${user.looking_for}`);
+            
+            // Fetch fresh profiles again
+            const rs = await db.execute({
+                sql: `SELECT * FROM users 
+                      WHERE is_registered = 1 
+                      AND telegram_id != ? 
+                      AND gender = ? 
+                      AND telegram_id NOT IN (
+                          SELECT to_user FROM likes WHERE from_user = ?
+                      )
+                      ORDER BY RANDOM() 
+                      LIMIT 100`,
+                args: [ctx.from.id, user.looking_for, ctx.from.id]
+            });
+            
+            const freshProfiles = rs.rows;
+            if (freshProfiles.length === 0) {
+                await ctx.deleteMessage(loadingMessage.message_id);
+                return ctx.reply("😔 *ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*\n\n💡 *အကြံပြုချက်:*\n• နောက်မှ ပြန်လည်ကြိုးစားကြည့်ပါ\n• Profile ပိုမိုးများပေါ်လာနိုင်ပါတယ်");
+            }
+            
+            await setCachedProfiles(ctx.from.id, user.looking_for, freshProfiles);
+            const newAvailableProfiles = freshProfiles.filter(profile => 
+                !seenProfiles.has(profile.telegram_id)
+            );
+            
+            if (newAvailableProfiles.length === 0) {
+                await ctx.deleteMessage(loadingMessage.message_id);
+                return ctx.reply("😔 *ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*");
+            }
+            
+            const targetIndex = Math.floor(Math.random() * newAvailableProfiles.length);
+            const target = newAvailableProfiles[targetIndex];
+            
+            const caption = `💕 *${target.nickname}* (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}\n\n💖 *သင့်အနှစ်သက်ရာလား?*`;
+            
+            await ctx.deleteMessage(loadingMessage.message_id);
+            await ctx.replyWithPhoto(target.photo_id, {
+                caption: caption,
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`), Markup.button.callback('➡️ Next', 'next_profile')],
+                    [Markup.button.callback('👀 View Profile', `view_${target.telegram_id}`)]
+                ])
+            });
+            return;
+        }
+        
+        // Get next profile using simple indexing instead of random
+        const targetIndex = Math.floor(Math.random() * availableProfiles.length);
+        const target = availableProfiles[targetIndex];
+        
+        const caption = `💕 *${target.nickname}* (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}\n\n💖 *သင့်အနှစ်သက်ရာလား?*`;
+        
+        await ctx.deleteMessage(loadingMessage.message_id);
+        await ctx.replyWithPhoto(target.photo_id, {
+            caption: caption,
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`), Markup.button.callback('➡️ Next', 'next_profile')],
+                [Markup.button.callback('👀 View Profile', `view_${target.telegram_id}`)]
+            ])
+        });
+    } catch (error) {
+        console.error('Error in showNextProfile:', error);
+        await ctx.deleteMessage(loadingMessage.message_id);
+        ctx.reply("⚠️ *စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*");
     }
-    
-    // Filter out already seen profiles
-    const availableProfiles = profiles.filter(profile => 
-        !seenProfiles.has(profile.telegram_id)
-    );
-    
-    if (availableProfiles.length === 0) {
-        // Clear cache and try again if no profiles left
-        profileCache.delete(`${ctx.from.id}_${user.looking_for}`);
-        return ctx.reply("😔 *ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*\n\n💡 *အကြံပြုချက်:*\n• နောက်မှ ပြန်လည်ကြိုးစားကြည့်ပါ\n• Profile ပိုမိုးများပေါ်လာနိုင်ပါတယ်");
-    }
-    
-    // Get next profile using simple indexing instead of random
-    const targetIndex = Math.floor(Math.random() * availableProfiles.length);
-    const target = availableProfiles[targetIndex];
-    
-    const caption = `� *${target.nickname}* (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}\n\n💖 *သင့်အနှစ်သက်ရာလား?*`;
-    
-    await ctx.replyWithPhoto(target.photo_id, {
-        caption: caption,
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`), Markup.button.callback('➡️ Next', 'next_profile')],
-            [Markup.button.callback('👀 View Profile', `view_${target.telegram_id}`)]
-        ])
-    });
 }
 
 bot.action('next_profile', (ctx) => {
@@ -322,6 +403,8 @@ bot.action(/like_(\d+)/, async (ctx) => {
     const user = await getUser(senderId);
     if (user) {
         profileCache.delete(`${senderId}_${user.looking_for}`);
+        // Clear seen profiles cache to refresh
+        seenProfilesCache.delete(senderId);
     }
     
     // Target User ကို အကြောင်းကြားမယ်
