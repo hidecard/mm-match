@@ -533,46 +533,14 @@ bot.action(/accept_(\d+)/, async (ctx) => {
     const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${myId}`;
 
     await ctx.reply(`🎉 *Match ဖြစ်သွားပါပြီ!* ❤️\n\n💬 *သူ့ဆီ စကားပြောလိုက်ပါ:* ${partnerLink}\n\n💡 *အကြံပြုချက်:*\n• သူ့ကို ဦးစွာစကားပြောပါ\n• သူ့အကြောင်းကို သိရှိပါ\n• ရိုးရှင်းစွာပြောဆိုပါ`);
-    await bot.telegram.sendMessage(partnerId, `🎉 *သူက သင့်ကို လက်ခံလိုက်ပါပြီ!* ❤️\n\n💬 *စကားပြောရန်:* ${myLink}\n\n💡 *အကြံပြုချက်:*\n• သူ့ကို ဦးစွာစကားပြောပါ\n• သူ့အကြောင်းကို သိရှိပါ\n• ရိုးရှင်းစွာပြောဆိုပါ`);
+    await bot.telegram.sendMessage(partnerId, `🎉 *They accepted your match!* ❤️\n\n💬 *Chat with them:* ${myLink}\n\n💡 *Tips:*\n• သူ့ကို ဦးစွာစကားပြောပါ\n• သူ့အကြောင်းကို သိရှိပါ\n• ရိုးရှင်းစွာပြောဆိုပါ`);
     ctx.answerCbQuery();
 });
 
-// --- Helper function for chat ---
 async function handleChat(ctx, user) {
-    // Handle registered user commands
-    if (ctx.message.text === '/find') {
-        return showNextProfile(ctx);
-    }
+    const text = ctx.message.text;
     
-    if (ctx.message.text === '/update') {
-        await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("🚻 *သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):*", 
-            Markup.keyboard([
-                ['🚹 Male', '🚺 Female']
-            ]).resize()
-        );
-    }
-    
-    // Edit profile command
-    if (ctx.message.text === '/edit') {
-        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("✏️ *ဘာကိုပြင်းဆင့်လဲချင်တာပါ။*", 
-            Markup.keyboard([
-                ['📝 Nickname', '🎂 Age'],
-                ['🏠 Address', '📷 Photo'],
-                ['📄 Bio', '❌ Cancel']
-            ]).resize()
-        );
-    }
-    
-    // Help command
-    if (ctx.message.text === '/help') {
-        const helpMessage = `🎯 *MM Cupid User Guide*\n\n📋 *မှတ်ပုံတင်ခြင်း:*\n/start - စတင်ဖို့မှတ်ပုံတင်ပါ\n\n🔍 *ရှာဖွေခြင်း:*\n/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)\n\n✏️ *ပြင်းဆင့်ခြင်း:*\n/edit - Profile ပြင်းဆင့်ပါ\n  • 📝 Nickname - နာမည်\n  • 🎂 Age - အသက်\n  • 🏠 Address - နေရာ\n  • 📷 Photo - ပုံ\n  • 📄 Bio - ကိုယ်ရေးတင်ပြ\n\n⚙️ *ဆက်တင်ပြင်ဆင်*\n/update - လိင်အပြင်းအစားပြောင်းပါ\n\n❤️ *အလုပ်လုပ်ပုံ:*\n1️⃣ /find ဖြင့် Profile ရှာပါ\n2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ\n3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်\n4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်\n\n💡 *အသိပေးချက်*\n• Male များ Female ကိုသာ မြင်ရပါမည်\n• Female များ Male ကိုသာ မြင်ရပါမည်\n• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်\n• Username မရှိပါက Link ပေးပါမည်\n\n---\n🎉 *ကောင်းကောင်းတွေ့ပါစေ!* 💕`;
-        
-        return ctx.reply(helpMessage);
-    }
-    
-    // Handle update flow steps
+    // Handle update flow steps first (highest priority)
     if (user.step === 'ask_gender') {
         const gender = text.toLowerCase().trim();
         if (gender !== 'male' && gender !== 'female' && gender !== 'male' && gender !== 'female') {
@@ -614,6 +582,57 @@ async function handleChat(ctx, user) {
                 ['Help']
             ]).resize()
         );
+    }
+    
+    // Handle commands (lower priority)
+    if (text === '/find') {
+        return showNextProfile(ctx);
+    }
+    
+    if (text === '/update') {
+        await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("Select your gender (Male or Female):", 
+            Markup.keyboard([
+                ['Male', 'Female']
+            ]).resize()
+        );
+    }
+    
+    // Edit profile command
+    if (text === '/edit') {
+        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("What would you like to edit?", 
+            Markup.keyboard([
+                ['Nickname', 'Age'],
+                ['Address', 'Photo'],
+                ['Bio', 'Cancel']
+            ]).resize()
+        );
+    }
+    
+    // Help command
+    if (text === '/help') {
+        const helpMessage = `*MM Match User Guide*
+
+*Registration:*
+/start - Start registration
+
+*Discovery:*
+/find - Find profiles
+
+*Editing:*
+/edit - Edit profile
+
+*Settings:*
+/update - Update gender preferences
+
+*How it works:*
+1. /find to discover profiles
+2. Like or Next
+3. Mutual likes = Match
+
+---`;
+        return ctx.reply(helpMessage);
     }
     
     // Add other chat functionality here if needed
