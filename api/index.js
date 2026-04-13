@@ -134,9 +134,9 @@ bot.start(async (ctx) => {
             });
         }
         
-        const welcomeMessage = `🎉 *MM Cupid မှ ကြိုဆိုပါတယ်!*\n\n💕 *Tinder-style Dating Bot*\n\n📋 *မှတ်ပုံတင်ရန် အဆင့်များ:*\n\n1️⃣ နာမည် (Nickname)\n2️⃣ အသက် (Age)\n3️⃣ နေရပ် (Address)\n4️⃣ ပုံ (Photo)\n5️⃣ ကိုယ်ရေးတင်ပြ (Bio)\n6️⃣ လိင် (Gender)\n7️⃣ ရှာနေသောလိင် (Looking For)\n\n💖 *အချစ်ရှာဖွေရေး စည်းမျဉ်းများ*\n❤️ Male များ Female ကိုသာ မြင်ရပါမည်\n❤️ Female များ Male ကိုသာ မြင်ရပါမည်\n\n---\n🚀 *စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ*\n✏️ *Nickname:*`;
+        const welcomeMessage = `*MM Cupid   !*\n\n*Tinder-style Dating Bot*\n\n*Registration Steps:*\n\n1. Nickname\n2. Age\n3. Address\n4. Photo\n5. Bio\n6. Gender\n7. Looking For\n\n*Dating Rules*\nMale users only see Female profiles\nFemale users only see Male profiles\n\n---\n*Start by telling me your nickname*\n*Nickname:*`;
         
-        ctx.replyWithMarkdown(welcomeMessage, Markup.removeKeyboard());
+        ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Start command error:', error);
         ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။ 😕");
@@ -545,7 +545,7 @@ bot.action(/accept_(\d+)/, async (ctx) => {
     const me = await getUser(myId);
 
     const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
-    const myLink = me.username !== 'none' ? `@${myId}`;
+    const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${myId}`;
 
     await ctx.reply(`🎉 *Match ဖြစ်သွားပါပြီ!* ❤️\n\n💬 *သူ့ဆီ စကားပြောလိုက်ပါ:* ${partnerLink}`);
     await bot.telegram.sendMessage(partnerId, `🎉 *They accepted your match!* ❤️\n\n💬 *Chat with them:* ${myLink}`);
