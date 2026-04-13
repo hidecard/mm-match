@@ -248,17 +248,6 @@ bot.on('message', async (ctx) => {
         return ctx.reply("✅ *Photo ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
     }
     
-<<<<<<< HEAD
-    // If user doesn't exist, they need to start registration first
-    if (!user) {
-        return ctx.reply("Please start with /start to begin registration.");
-    }
-    
-    // If user is registered and not in a registration step, handle chat commands
-    if (user.is_registered && user.step === 'done') return handleChat(ctx, user);
-    
-=======
->>>>>>> 18e5ec486cca62b91e3f4223b41ea254d7c0a5b7
     // Registration flow for new users
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
@@ -579,6 +568,24 @@ function showHelp(ctx) {
 
 ---`;
     return ctx.replyWithMarkdown(helpMessage);
+}
+
+async function handleChat(ctx, user) {
+    const text = ctx.message.text;
+    
+    // Handle commands
+    if (text === '/find') return showNextProfile(ctx);
+    if (text === '/edit') {
+        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("What would you like to edit?", 
+            Markup.keyboard([
+                ['Nickname', 'Age'],
+                ['Address', 'Photo'],
+                ['Bio', 'Cancel']
+            ]).resize()
+        );
+    }
+    if (text === '/help') return showHelp(ctx);
 }
 
 // Vercel Handler
