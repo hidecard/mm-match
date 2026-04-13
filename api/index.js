@@ -28,7 +28,19 @@ try {
 }
 
 // --- Helper Functions ---
-const getUser = async (id) => (await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] })).rows[0];
+const getUser = async (id) => {
+    try {
+        if (!db) {
+            console.log('Database not available in getUser');
+            return null;
+        }
+        const result = await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] });
+        return result.rows[0];
+    } catch (error) {
+        console.error('Error in getUser:', error);
+        return null;
+    }
+};
 
 // Performance optimization: Cache management
 const getCachedProfile = (userId) => {
@@ -143,6 +155,33 @@ const getUnviewedProfile = async (userId, lookingFor) => {
 // --- 1. Registration Logic (Step-by-step) ---
 bot.start(async (ctx) => {
     try {
+        // Check if database is available
+        if (!db) {
+            console.log('Database not available, sending welcome message without DB');
+            const welcomeMessage = `🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
+
+💕 **Tinder-style Dating Bot**
+
+
+📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
+1️⃣ နာမည် (Nickname)
+2️⃣ အသက် (Age) 
+3️⃣ နေရပ် (Address)
+4️⃣ ပုံ (Photo)
+5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
+6️⃣ လိင် (Gender)
+7️⃣ ရှာနေသောလိင် (Looking For)
+
+
+
+❤️ Male များ Female ကိုသာ မြင်ရပါမည်
+❤️ Female များ Male ကိုသာ မြင်ရပါမည်
+
+---
+စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
+            return ctx.reply(welcomeMessage);
+        }
+        
         await db.execute({ 
             sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
             args: [ctx.from.id, ctx.from.username || 'none'] 
