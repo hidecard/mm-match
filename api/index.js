@@ -134,7 +134,7 @@ bot.start(async (ctx) => {
             });
         }
         
-        const welcomeMessage = `*MM Cupid   !*\n\n*Tinder-style Dating Bot*\n\n*Registration Steps:*\n\n1. Nickname\n2. Age\n3. Address\n4. Photo\n5. Bio\n6. Gender\n7. Looking For\n\n*Dating Rules*\nMale users only see Female profiles\nFemale users only see Male profiles\n\n---\n*Start by telling me your nickname*\n*Nickname:*`;
+        const welcomeMessage = `*MM Cupid  !*\n\n*Tinder-style Dating Bot*\n\n*Registration Steps:*\n\n1. Nickname\n2. Age\n3. Address\n4. Photo\n5. Bio\n6. Gender\n7. Looking For\n8. Location\n\n*Dating Rules*\nMale users only see Female profiles\nFemale users only see Male profiles\n\n---\n*Start by telling me your nickname*\n*Nickname:*`;
         
         ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
     } catch (error) {
