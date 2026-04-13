@@ -181,8 +181,10 @@ bot.on('message', async (ctx) => {
         return ctx.reply("✅ *Photo ပြောင်းလဲပါပြီ။*", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
-    // If user doesn't exist, handle chat commands
-    if (!user) return handleChat(ctx, user);
+    // If user doesn't exist, they need to start registration first
+    if (!user) {
+        return ctx.reply("Please start with /start to begin registration.");
+    }
     
     // If user is registered and not in a registration step, handle chat commands
     if (user.is_registered && user.step === 'done') return handleChat(ctx, user);
