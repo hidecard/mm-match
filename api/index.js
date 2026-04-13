@@ -13,175 +13,167 @@ if (!process.env.TURSO_TOKEN) {
     console.error('TURSO_TOKEN is missing');
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN || '');
+const bot = new Telegraf(process.env.BOT_TOKEN);
 let db;
 
-// Performance optimization: Cache for user profiles
+// Performance optimization: In-memory cache for frequently accessed profiles
 const profileCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 100;
 
 try {
-    db = createClient({ url: process.env.TURSO_URL || '', authToken: process.env.TURSO_TOKEN || '' });
+    db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
 } catch (error) {
     console.error('Database connection error:', error);
 }
 
 // --- Helper Functions ---
-const getUser = async (id) => {
-    try {
-        const result = await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] });
-        return result.rows[0];
-    } catch (error) {
-        console.error('Error in getUser:', error);
-        return null;
-    }
-};
+const getUser = async (id) => (await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] })).rows[0];
 
-// Cache helper functions
-const getCachedProfiles = async (userId, lookingFor) => {
-    const cacheKey = `${userId}_${lookingFor}`;
-    const cached = profileCache.get(cacheKey);
-    
+// Performance optimization: Cache management
+const getCachedProfile = (userId) => {
+    const cached = profileCache.get(userId);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.profiles;
+        return cached.data;
     }
-    
+    profileCache.delete(userId);
     return null;
 };
 
-const setCachedProfiles = async (userId, lookingFor, profiles) => {
-    const cacheKey = `${userId}_${lookingFor}`;
-    profileCache.set(cacheKey, {
-        profiles,
+const setCachedProfile = (userId, profileData) => {
+    if (profileCache.size >= MAX_CACHE_SIZE) {
+        // Remove oldest entry
+        const firstKey = profileCache.keys().next().value;
+        profileCache.delete(firstKey);
+    }
+    profileCache.set(userId, {
+        data: profileData,
         timestamp: Date.now()
     });
 };
 
-// Cache for seen profiles to reduce database queries
-const seenProfilesCache = new Map();
-const SEEN_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-
-const getSeenProfiles = async (userId) => {
-    const cached = seenProfilesCache.get(userId);
-    
-    if (cached && Date.now() - cached.timestamp < SEEN_CACHE_TTL) {
-        return cached.profiles;
-    }
-    
+// Performance optimization: Get random profile without ORDER BY RANDOM()
+const getRandomProfile = async (userId, lookingFor) => {
     try {
-        const result = await db.execute({
-            sql: "SELECT to_user FROM likes WHERE from_user = ?",
-            args: [userId]
+        // First try to get from cache
+        const cacheKey = `discovery_${userId}_${lookingFor}`;
+        const cachedProfiles = getCachedProfile(cacheKey);
+        
+        if (cachedProfiles && cachedProfiles.length > 0) {
+            const availableProfiles = cachedProfiles.filter(p => p.telegram_id !== userId);
+            if (availableProfiles.length > 0) {
+                const randomIndex = Math.floor(Math.random() * availableProfiles.length);
+                return availableProfiles[randomIndex];
+            }
+        }
+        
+        // Get total count for better random selection
+        const countResult = await db.execute({
+            sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ?",
+            args: [userId, lookingFor]
         });
         
-        const seenSet = new Set(result.rows.map(row => row.to_user));
-        seenProfilesCache.set(userId, {
-            profiles: seenSet,
-            timestamp: Date.now()
+        const totalCount = countResult.rows[0].count;
+        if (totalCount === 0) return null;
+        
+        // Use optimized approach: get random offset instead of ORDER BY RANDOM()
+        const randomOffset = Math.floor(Math.random() * totalCount);
+        
+        const rs = await db.execute({
+            sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? LIMIT 1 OFFSET ?",
+            args: [userId, lookingFor, randomOffset]
         });
         
-        return seenSet;
+        const profile = rs.rows[0];
+        if (profile) {
+            // Cache the result for future use
+            const profilesToCache = [profile];
+            setCachedProfile(cacheKey, profilesToCache);
+        }
+        
+        return profile;
     } catch (error) {
-        console.error('Error in getSeenProfiles:', error);
-        return new Set();
+        console.error('Error in getRandomProfile:', error);
+        return null;
     }
 };
 
-// Periodic cache cleanup to prevent memory leaks
-const cleanupCache = () => {
-    const now = Date.now();
-    
-    // Clean profile cache
-    for (const [key, value] of profileCache.entries()) {
-        if (now - value.timestamp > CACHE_TTL) {
-            profileCache.delete(key);
-        }
-    }
-    
-    // Clean seen profiles cache
-    for (const [key, value] of seenProfilesCache.entries()) {
-        if (now - value.timestamp > SEEN_CACHE_TTL) {
-            seenProfilesCache.delete(key);
-        }
+// Track viewed profiles to avoid showing them again
+const markProfileAsViewed = async (userId, profileId) => {
+    try {
+        await db.execute({
+            sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id) VALUES (?, ?)",
+            args: [userId, profileId]
+        });
+    } catch (error) {
+        console.error('Error marking profile as viewed:', error);
     }
 };
 
-// Run cleanup every 5 minutes
-setInterval(cleanupCache, 5 * 60 * 1000);
+// Get profiles that haven't been viewed recently
+const getUnviewedProfile = async (userId, lookingFor) => {
+    try {
+        const rs = await db.execute({
+            sql: `
+                SELECT u.* FROM users u 
+                LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                WHERE u.is_registered = 1 
+                AND u.telegram_id != ? 
+                AND u.gender = ? 
+                AND pv.viewed_profile_id IS NULL
+                ORDER BY u.telegram_id 
+                LIMIT 10
+            `,
+            args: [userId, userId, lookingFor]
+        });
+        
+        if (rs.rows.length > 0) {
+            const randomIndex = Math.floor(Math.random() * rs.rows.length);
+            return rs.rows[randomIndex];
+        }
+        
+        // If no unviewed profiles, fall back to any profile
+        return await getRandomProfile(userId, lookingFor);
+    } catch (error) {
+        console.error('Error getting unviewed profile:', error);
+        return await getRandomProfile(userId, lookingFor);
+    }
+};
 
 // --- 1. Registration Logic (Step-by-step) ---
 bot.start(async (ctx) => {
     try {
-        const user = await getUser(ctx.from.id);
-        
-        if (user && user.is_registered) {
-            return ctx.reply("🎉 *MM Cupid မှ ပြန်လည်ကြိုဆိုပါတယ်!*", Markup.keyboard([
-                ['🔍 Find Match', '👤 Edit Profile'],
-                ['❓ Help']
-            ]).resize());
-        }
-
         await db.execute({ 
             sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
             args: [ctx.from.id, ctx.from.username || 'none'] 
         });
         
-        // If user already exists but not registered, reset step to ask_name
-        if (user && !user.is_registered) {
-            await db.execute({
-                sql: "UPDATE users SET step = 'ask_name' WHERE telegram_id = ?",
-                args: [ctx.from.id]
-            });
-        }
-        
-        const welcomeMessage = `*MM Cupid !*
+        const welcomeMessage = `🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
 
-*Tinder-style Dating Bot*
+💕 **Tinder-style Dating Bot**
 
-*Registration Steps:*
 
-1. Nickname
-2. Age
-3. Address
-4. Photo
-5. Bio
-6. Gender
-7. Looking For
-8. Location
+📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
+1️⃣ နာမည် (Nickname)
+2️⃣ အသက် (Age) 
+3️⃣ နေရပ် (Address)
+4️⃣ ပုံ (Photo)
+5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
+6️⃣ လိင် (Gender)
+7️⃣ ရှာနေသောလိင် (Looking For)
 
-*Dating Rules*
-Male users only see Female profiles
-Female users only see Male profiles
+
+
+❤️ Male များ Female ကိုသာ မြင်ရပါမည်
+❤️ Female များ Male ကိုသာ မြင်ရပါမည်
 
 ---
-*Start by telling me your nickname*
-*Nickname:*`;
+စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
         
-        ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
+        ctx.reply(welcomeMessage);
     } catch (error) {
         console.error('Start command error:', error);
-        ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။ 😕");
-    }
-});
-
-// Handle location messages
-bot.on('location', async (ctx) => {
-    const user = await getUser(ctx.from.id);
-    if (!user) return;
-    
-    if (user.step === 'ask_location') {
-        const location = ctx.message.location;
-        await db.execute({ 
-            sql: "UPDATE users SET latitude = ?, longitude = ?, is_registered = 1, step = 'done', location_sharing = 1, last_location_update = CURRENT_TIMESTAMP WHERE telegram_id = ?", 
-            args: [location.latitude, location.longitude, ctx.from.id] 
-        });
-        
-        return ctx.reply("Registration completed! You can start finding matches now.", 
-            Markup.keyboard([
-                ['🔍 Find Match', '👤 Edit Profile'],
-                ['❓ Help']
-            ]).resize()
-        );
+        ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     }
 });
 
@@ -189,112 +181,95 @@ bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
     const text = ctx.message.text;
     
-    // Handle main menu buttons for registered users
-    if (user && user.is_registered) {
-        if (text === '🔍 Find Match') return showNextProfile(ctx);
-        if (text === '👤 Edit Profile') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("What would you like to edit?", 
-                Markup.keyboard([
-                    ['📝 Nickname', '🎂 Age'],
-                    ['🏠 Address', '📷 Photo'],
-                    ['📄 Bio', '❌ Cancel']
-                ]).resize()
-            );
-        }
-        if (text === '❓ Help') return showHelp(ctx);
-    }
-    
-    // If user doesn't exist, they need to start registration first
-    if (!user) {
-        return ctx.reply("Please start with /start to begin registration.");
-    }
-
     // Handle edit menu
-    if (user.step === 'edit_menu') {
+    if (user && user.step === 'edit_menu') {
         if (text === '📝 Nickname') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("✏️ *နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:*");
+            return ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
         
         if (text === '🎂 Age') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_age' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("🎂 *အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:*");
+            return ctx.reply("အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
         
         if (text === '🏠 Address') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("🏠 *နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:*");
+            return ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
         
         if (text === '📷 Photo') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("📷 *ပုံအသစ်ကို ပို့ပေးပါ:*");
+            return ctx.reply("ပုံအသစ်ကို ပို့ပေးပါ:");
         }
         
         if (text === '📄 Bio') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("📝 *Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:*");
+            return ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
         
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return ctx.reply("❌ *ပယ်ဖျက်လိုက်ပါတယ်။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+            return ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
     // Handle edit inputs
-    if (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio') {
+    if (user && (user.step === 'edit_nickname' || user.step === 'edit_age' || user.step === 'edit_address' || user.step === 'edit_bio')) {
         if (user.step === 'edit_nickname') {
             await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("✅ *Nickname ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+            return ctx.reply("Nickname ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_age') {
             if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
             await db.execute({ sql: "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-            return ctx.reply("✅ *Age ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+            return ctx.reply("Age ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_address') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("✅ *Address ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+            return ctx.reply("Address ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
         
         if (user.step === 'edit_bio') {
             await db.execute({ sql: "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-            return ctx.reply("✅ *Bio ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+            return ctx.reply("Bio ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
         }
     }
     
     // Handle edit photo
-    if (user.step === 'edit_photo' && ctx.message.photo) {
+    if (user && user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("✅ *Photo ပြောင်းလဲပါပြီ။*", Markup.keyboard([['🔍 Find Match', '👤 Edit Profile'], ['❓ Help']]).resize());
+        return ctx.reply("Photo ပြောင်းလဲပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
     }
     
+    // If user is registered or doesn't exist, handle chat commands
+    if (!user || user.is_registered) return handleChat(ctx, user);
+    
     // Registration flow for new users
+    
     if (user.step === 'ask_name') {
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("🎂 *သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:*");
+        return ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     
     if (user.step === 'ask_age') {
-        if (isNaN(text)) return ctx.reply("⚠️ *ဂဏန်းအမှန်ရိုက်ပေးပါ:*");
+        if (isNaN(text)) return ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-        return ctx.reply("🏠 *သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):*");
+        return ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
 
     if (user.step === 'ask_address') {
         await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return ctx.reply("📷 *သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ:*");
+        return ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
 
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'ask_bio' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return ctx.reply("📝 *သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):*");
+        return ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
     }
 
     if (user.step === 'ask_bio') {
@@ -302,198 +277,114 @@ bot.on('message', async (ctx) => {
             sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", 
             args: [text, ctx.from.id] 
         });
-        return ctx.reply("🚻 *သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):*", 
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
-                ['🚹 Male', '🚺 Female']
+                ['Male', 'Female']
             ]).resize()
         );
     }
 
     if (user.step === 'ask_gender') {
-        const gender = text.toLowerCase().trim();
-        if (!gender.includes('male') && !gender.includes('female')) {
-            return ctx.reply("⚠️ *Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:*", 
+        const gender = text.toLowerCase();
+        if (gender !== 'male' && gender !== 'female') {
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
                 Markup.keyboard([
-                    ['🚹 Male', '🚺 Female']
+                    ['Male', 'Female']
                 ]).resize()
             );
         }
-        const cleanGender = gender.includes('male') ? 'male' : 'female';
         await db.execute({ 
             sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", 
-            args: [cleanGender, ctx.from.id] 
+            args: [gender, ctx.from.id] 
         });
-        return ctx.reply("💕 *ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):*", 
+        return ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
-                ['🚹 Male', '🚺 Female']
+                ['Male', 'Female']
             ]).resize()
         );
     }
 
     if (user.step === 'ask_looking_for') {
-        const lookingFor = text.toLowerCase().trim();
-        if (!lookingFor.includes('male') && !lookingFor.includes('female')) {
-            return ctx.reply("⚠️ *Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:*", 
+        const lookingFor = text.toLowerCase();
+        if (lookingFor !== 'male' && lookingFor !== 'female') {
+            return ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", 
                 Markup.keyboard([
-                    ['🚹 Male', '🚺 Female']
+                    ['Male', 'Female']
                 ]).resize()
             );
         }
-        const cleanLookingFor = lookingFor.includes('male') ? 'male' : 'female';
         await db.execute({ 
-            sql: "UPDATE users SET looking_for = ?, step = 'ask_location' WHERE telegram_id = ?", 
-            args: [cleanLookingFor, ctx.from.id] 
+            sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+            args: [lookingFor, ctx.from.id] 
         });
-        return ctx.reply("Location-based matching enabled! Share your location?", 
+        return ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", 
             Markup.keyboard([
-                ['📍 Send Location', '⏭️ Skip Location']
+                ['/find', '/edit', '/help']
             ]).resize()
         );
     }
-
-    if (user.step === 'ask_location') {
-        if (text === '📍 Send Location') {
-            return ctx.reply("Please click the location button (paperclip icon) below to share your GPS location:");
-        }
-        
-        if (text === '⏭️ Skip Location') {
-            await db.execute({ 
-                sql: "UPDATE users SET is_registered = 1, step = 'done', location_sharing = 0 WHERE telegram_id = ?", 
-                args: [ctx.from.id] 
-            });
-            return ctx.reply("Registration completed! You can start finding matches now.", 
-                Markup.keyboard([
-                    ['🔍 Find Match', '👤 Edit Profile'],
-                    ['❓ Help']
-                ]).resize()
-            );
-        }
-    }
-
-    // Handle slash commands
-    if (text === '/find') return showNextProfile(ctx);
-    if (text === '/edit') {
-        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("What would you like to edit?", 
-            Markup.keyboard([
-                ['📝 Nickname', '🎂 Age'],
-                ['🏠 Address', '📷 Photo'],
-                ['📄 Bio', '❌ Cancel']
-            ]).resize()
-        );
-    }
-    if (text === '/help') return showHelp(ctx);
 });
 
 // --- 2. Discovery Logic (Next / Like) ---
+bot.command('find', (ctx) => showNextProfile(ctx));
+
+// Command to update gender preferences for existing users
+bot.command('update', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user) return ctx.reply("အရင်းအမြစ် /start နဲ့ စပါ။");
+    
+    await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+    ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
+        Markup.keyboard([
+            ['Male', 'Female']
+        ]).resize()
+    );
+});
+
 async function showNextProfile(ctx) {
-    const loadingMessage = await ctx.reply("⏳ *Profile ရှာနေသည်...*");
+    const startTime = Date.now();
     
     try {
         const user = await getUser(ctx.from.id);
         if (!user || !user.looking_for) {
-            await ctx.deleteMessage(loadingMessage.message_id);
             return ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
         }
         
-        let profiles = await getCachedProfiles(ctx.from.id, user.looking_for);
-        let seenProfiles = await getSeenProfiles(ctx.from.id);
+        // Performance optimization: Try unviewed profiles first
+        const target = await getUnviewedProfile(ctx.from.id, user.looking_for);
         
-        if (!profiles || profiles.length === 0) {
-            let locationQuery = "";
-            let locationArgs = [];
-            
-            if (user.location_sharing && user.latitude && user.longitude) {
-                locationQuery = `AND (latitude IS NULL OR longitude IS NULL OR 
-                    (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * 
-                    cos(radians(longitude) - radians(?)) + sin(radians(?)) * 
-                    sin(radians(latitude)))) <= COALESCE(?, 50))`;
-                locationArgs = [user.latitude, user.longitude, user.latitude, user.location_radius || 50];
-            }
-            
-            const rs = await db.execute({
-                sql: `SELECT *, 
-                    CASE 
-                        WHEN latitude IS NULL OR longitude IS NULL OR ? IS NULL OR ? IS NULL THEN NULL
-                        ELSE (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * 
-                            cos(radians(longitude) - radians(?)) + sin(radians(?)) * 
-                            sin(radians(latitude))))
-                    END as distance
-                    FROM users 
-                    WHERE is_registered = 1 
-                    AND telegram_id != ? 
-                    AND gender = ? 
-                    AND telegram_id NOT IN (
-                        SELECT to_user FROM likes WHERE from_user = ?
-                    )
-                    ${locationQuery}
-                    ORDER BY CASE 
-                        WHEN distance IS NULL THEN 999999
-                        ELSE distance 
-                    END ASC
-                    LIMIT 50`,
-                args: [user.latitude, user.longitude, user.latitude, user.longitude, user.latitude, 
-                    ctx.from.id, user.looking_for, ctx.from.id, ...locationArgs]
-            });
-            
-            profiles = rs.rows;
-            await setCachedProfiles(ctx.from.id, user.looking_for, profiles);
+        if (!target) {
+            return ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
         }
         
-        const availableProfiles = profiles.filter(profile => !seenProfiles.has(profile.telegram_id));
+        // Mark this profile as viewed
+        await markProfileAsViewed(ctx.from.id, target.telegram_id);
         
-        if (availableProfiles.length === 0) {
-            profileCache.delete(`${ctx.from.id}_${user.looking_for}`);
-            const rs = await db.execute({
-                sql: `SELECT * FROM users 
-                      WHERE is_registered = 1 
-                      AND telegram_id != ? 
-                      AND gender = ? 
-                      AND telegram_id NOT IN (
-                          SELECT to_user FROM likes WHERE from_user = ?
-                      )
-                      ORDER BY RANDOM() 
-                      LIMIT 100`,
-                args: [ctx.from.id, user.looking_for, ctx.from.id]
-            });
-            
-            const freshProfiles = rs.rows;
-            if (freshProfiles.length === 0) {
-                await ctx.deleteMessage(loadingMessage.message_id);
-                return ctx.reply("😔 *ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*");
-            }
-            
-            await setCachedProfiles(ctx.from.id, user.looking_for, freshProfiles);
-            const target = freshProfiles[Math.floor(Math.random() * freshProfiles.length)];
-            
-            await ctx.deleteMessage(loadingMessage.message_id);
-            return sendProfile(ctx, target);
-        }
+        const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         
-        const target = availableProfiles[Math.floor(Math.random() * availableProfiles.length)];
-        await ctx.deleteMessage(loadingMessage.message_id);
-        return sendProfile(ctx, target);
+        await ctx.replyWithPhoto(target.photo_id, {
+            caption: caption,
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
+                [Markup.button.callback('➡️ Next', 'next_profile')]
+            ])
+        });
+        
+        const responseTime = Date.now() - startTime;
+        console.log(`Profile discovery took ${responseTime}ms for user ${ctx.from.id}`);
+        
     } catch (error) {
         console.error('Error in showNextProfile:', error);
-        await ctx.deleteMessage(loadingMessage.message_id);
-        ctx.reply("⚠️ *စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။*");
+        const responseTime = Date.now() - startTime;
+        console.log(`Error after ${responseTime}ms`);
+        
+        ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     }
 }
 
-async function sendProfile(ctx, target) {
-    const caption = `💕 *${target.nickname}* (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}\n\n💖 *သင့်အနှစ်သက်ရာလား?*`;
-    return ctx.replyWithPhoto(target.photo_id, {
-        caption: caption,
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`), Markup.button.callback('➡️ Next', 'next_profile')],
-            [Markup.button.callback('👀 View Profile', `view_${target.telegram_id}`)]
-        ])
-    });
-}
-
-bot.action('next_profile', (ctx) => {
-    ctx.answerCbQuery();
-    showNextProfile(ctx);
+bot.action('next_profile', async (ctx) => {
+    await ctx.answerCbQuery(); // Quick response to button press
+    await showNextProfile(ctx);
 });
 
 // --- 3. Like & Match Notification ---
@@ -501,63 +392,39 @@ bot.action(/like_(\d+)/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
 
-    try {
-        await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
-        
-        const user = await getUser(senderId);
-        if (user) {
-            profileCache.delete(`${senderId}_${user.looking_for}`);
-            seenProfilesCache.delete(senderId);
-        }
-        
-        // Check for mutual like
-        const mutualLike = await db.execute({
-            sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
-            args: [targetId, senderId]
-        });
-
-        if (mutualLike.rows.length > 0) {
-            // It's a match!
-            const me = await getUser(senderId);
-            const partner = await getUser(targetId);
-            
-            const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
-            const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
-
-            await ctx.reply(`🎉 *Match ဖြစ်သွားပါပြီ!* ❤️\n\n💬 *သူ့ဆီ စကားပြောလိုက်ပါ:* ${partnerLink}`);
-            await bot.telegram.sendMessage(targetId, `🎉 *Match ဖြစ်သွားပါပြီ!* ❤️\n\n💬 *သူ့ဆီ စကားပြောလိုက်ပါ:* ${myLink}`);
-        } else {
-            await bot.telegram.sendMessage(targetId, "💕 *တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်!*\n\n🎯 *သူ့ Profile ကို ပြန်ကြည့်မလား?*", 
-                Markup.inlineKeyboard([
-                    [Markup.button.callback('👀 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-                    [Markup.button.callback('❤️ လက်ခံသည်', `accept_${senderId}`)]
-                ])
-            );
-        }
-        
-        ctx.answerCbQuery("❤️ *Like ပို့လိုက်ပါပြီ!*");
-        showNextProfile(ctx);
-    } catch (error) {
-        console.error('Error in like action:', error);
-        ctx.answerCbQuery("⚠️ Error occurred");
-    }
+    await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+    
+    // Target User ကို အကြောင်းကြားမယ်
+    await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
+            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+        ])
+    );
+    ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
 });
 
+// View back the person who liked you
 bot.action(/view_back_(\d+)/, async (ctx) => {
     const senderId = ctx.match[1];
     const sender = await getUser(senderId);
-    if (!sender) return ctx.reply("😔 *သူ့ Profile မတွေ့ပါ။*");
+    
+    if (!sender) {
+        return ctx.reply("သူ့ Profile မတွေ့ပါ။");
+    }
     
     await ctx.replyWithPhoto(sender.photo_id, {
-        caption: `💕 *${sender.nickname}* (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}\n\n💖 *သင့်အနှစ်သက်ရာလား?*`,
+        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${senderId}`), Markup.button.callback('➡️ Next', 'next_profile')],
-            [Markup.button.callback('❌ ပိတ်မယ်', 'close_profile')]
+            [Markup.button.callback('❤️ Like', `like_${senderId}`)],
+            [Markup.button.callback('➡️ Next', 'next_profile')],
+            [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
         ])
     });
     ctx.answerCbQuery();
 });
 
+// Close profile view
 bot.action('close_profile', (ctx) => {
     ctx.deleteMessage();
     ctx.answerCbQuery();
@@ -570,54 +437,90 @@ bot.action(/accept_(\d+)/, async (ctx) => {
     const partner = await getUser(partnerId);
     const me = await getUser(myId);
 
+    // Match Message (Usernames Reveal)
     const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
     const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${myId}`;
 
-    await ctx.reply(`🎉 *Match ဖြစ်သွားပါပြီ!* ❤️\n\n💬 *သူ့ဆီ စကားပြောလိုက်ပါ:* ${partnerLink}`);
-    await bot.telegram.sendMessage(partnerId, `🎉 *They accepted your match!* ❤️\n\n💬 *Chat with them:* ${myLink}`);
+    await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
+    await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
     ctx.answerCbQuery();
 });
 
-function showHelp(ctx) {
-    const helpMessage = `*MM Match User Guide*
-
-*Discovery:*
-🔍 Find Match - Find profiles
-
-*Editing:*
-👤 Edit Profile - Edit profile
-
-*How it works:*
-1. Click 'Find Match' to discover profiles
-2. Like or Next
-3. Mutual likes = Match
-
----`;
-    return ctx.reply(helpMessage, { parse_mode: 'Markdown' });
-}
-
+// --- Helper function for chat ---
 async function handleChat(ctx, user) {
-    const text = ctx.message.text;
+    // Handle registered user commands
+    if (ctx.message.text === '/find') {
+        return showNextProfile(ctx);
+    }
     
-    // Handle commands
-    if (text === '/find') return showNextProfile(ctx);
-    if (text === '/edit') {
-        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("What would you like to edit?", 
+    if (ctx.message.text === '/update') {
+        await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", 
             Markup.keyboard([
-                ['Nickname', 'Age'],
-                ['Address', 'Photo'],
-                ['Bio', 'Cancel']
+                ['Male', 'Female']
             ]).resize()
         );
     }
-    if (text === '/help') return showHelp(ctx);
+    
+    // Help command
+    if (ctx.message.text === '/help') {
+        const helpMessage = `🎯 **MM Match User Guide**
+
+📋 **မှတ်ပုံတင်ခြင်း:**
+/start - စတင်ဖို့မှတ်ပုံတင်ပါ
+
+🔍 **ရှာဖွေခြင်း:**
+/find - Profile ရှာပါ (လိင်အပြင်းအစားအလိုက်)
+
+✏️ **ပြင်းဆင့်ခြင်း:**
+/edit - Profile ပြင်းဆင့်ပါ
+  • 📝 Nickname - နာမည်
+  • 🎂 Age - အသက်
+  • 🏠 Address - နေရာ
+  • 📷 Photo - ပုံ
+  • 📄 Bio - ကိုယ်ရေးတင်ပြ
+
+⚙️ **ဆက်တင်ပြင်းဆင့်:**
+/update - လိင်အပြင်းအစားပြောင်းပါ
+
+❤️ **အလုပ်လုပ်ပုံ:**
+1️⃣ /find ဖြင့် Profile ရှာပါ
+2️⃣ ❤️ Like သို့မဟုတ် ➡️ Next နှိပ်ပါ
+3️⃣ နှစ်ယောက်လုံး Like လိုက်ပါက Match ဖြစ်ပါမည်
+4️⃣ Match ဖြစ်လျှင် Username ပေါ်ပြပါမည်
+
+💡 **အသိပ်သည်းချက်:**
+• Male များ Female ကိုသာ မြင်ရပါမည်
+• Female များ Male ကိုသာ မြင်ရပါမည်
+• ပုံကို Telegram မှာသာ သိမ်းဆည်းပါသည်
+• Username မရှိပါက Link ပေးပါမည်
+
+---
+🎉 ကောင်းကောင်းတွေ့ပါစေ! 💕`;
+        
+        return ctx.reply(helpMessage);
+    }
+    
+    // Edit profile command
+    if (ctx.message.text === '/edit') {
+        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return ctx.reply("ဘာကိုပြင်းဆင့်လဲချင်တာပါ။", 
+            Markup.keyboard([
+                ['📝 Nickname', '🎂 Age'],
+                ['🏠 Address', '📷 Photo'],
+                ['📄 Bio', '❌ Cancel']
+            ]).resize()
+        );
+    }
+    
+    // Add other chat functionality here if needed
 }
 
 // Vercel Handler
 export default async (req, res) => {
     try {
         if (req.method === 'POST') {
+            console.log('Received webhook update:', JSON.stringify(req.body, null, 2));
             await bot.handleUpdate(req.body);
             return res.status(200).json({ ok: true });
         }
