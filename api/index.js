@@ -166,23 +166,28 @@ bot.on('location', async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const user = await getUser(ctx.from.id);
-    if (!user) return;
-
     const text = ctx.message.text;
     
-    // Handle main menu buttons
-    if (text === '🔍 Find Match') return showNextProfile(ctx);
-    if (text === '👤 Edit Profile') {
-        await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return ctx.reply("What would you like to edit?", 
-            Markup.keyboard([
-                ['📝 Nickname', '🎂 Age'],
-                ['🏠 Address', '📷 Photo'],
-                ['📄 Bio', '❌ Cancel']
-            ]).resize()
-        );
+    // Handle main menu buttons for registered users
+    if (user && user.is_registered) {
+        if (text === '🔍 Find Match') return showNextProfile(ctx);
+        if (text === '👤 Edit Profile') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return ctx.reply("What would you like to edit?", 
+                Markup.keyboard([
+                    ['📝 Nickname', '🎂 Age'],
+                    ['🏠 Address', '📷 Photo'],
+                    ['📄 Bio', '❌ Cancel']
+                ]).resize()
+            );
+        }
+        if (text === '❓ Help') return showHelp(ctx);
     }
-    if (text === '❓ Help') return showHelp(ctx);
+    
+    // If user doesn't exist, they need to start registration first
+    if (!user) {
+        return ctx.reply("Please start with /start to begin registration.");
+    }
 
     // Handle edit menu
     if (user.step === 'edit_menu') {
