@@ -561,11 +561,16 @@ export default async (req, res) => {
         if (req.method === 'POST') {
             console.log('Received webhook update:', JSON.stringify(req.body, null, 2));
             await bot.handleUpdate(req.body);
-            return res.status(200).json({ ok: true });
+            if (!res.writableEnded) {
+                res.status(200).json({ ok: true });
+            }
+            return;
         }
         res.status(200).send("MM Match Bot is Running...");
     } catch (error) {
         console.error('Vercel handler error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        if (!res.writableEnded) {
+            res.status(500).json({ error: 'Internal server error' });
+        }
     }
 };
