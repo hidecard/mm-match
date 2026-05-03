@@ -434,12 +434,16 @@ bot.action(/like_(\d+)/, async (ctx) => {
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
     
     // Target User ကို အကြောင်းကြားမယ်
-    await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
-        Markup.inlineKeyboard([
-            [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-            [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
-        ])
-    );
+    try {
+        await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
+                [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+            ])
+        );
+    } catch (err) {
+        console.error('Error sending like notification:', err);
+    }
     await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
 });
 
@@ -481,7 +485,11 @@ bot.action(/accept_(\d+)/, async (ctx) => {
     const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${myId}`;
 
     await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
-    await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+    try {
+        await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+    } catch (err) {
+        console.error('Error sending accept notification:', err);
+    }
     await ctx.answerCbQuery();
 });
 
@@ -560,7 +568,9 @@ export default async (req, res) => {
     try {
         if (req.method === 'POST') {
             console.log('Received webhook update:', JSON.stringify(req.body, null, 2));
+            // Telegraf v4 handleUpdate returns a promise that resolves when the update is handled
             await bot.handleUpdate(req.body);
+            // Always send 200 OK to Telegram immediately after handling
             if (!res.writableEnded) {
                 res.status(200).json({ ok: true });
             }
@@ -569,8 +579,9 @@ export default async (req, res) => {
         res.status(200).send("MM Match Bot is Running...");
     } catch (error) {
         console.error('Vercel handler error:', error);
+        // Ensure we don't leave Telegram hanging
         if (!res.writableEnded) {
-            res.status(500).json({ error: 'Internal server error' });
+            res.status(200).json({ ok: true }); // Still send 200 to avoid retries from Telegram
         }
     }
 };
