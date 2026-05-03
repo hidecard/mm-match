@@ -10,11 +10,6 @@ if (!process.env.TURSO_TOKEN) console.error('TURSO_TOKEN is missing');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 let db;
 
-// Performance optimization: In-memory cache for frequently accessed profiles
-const profileCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_SIZE = 100;
-
 try {
     db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
 } catch (error) {
@@ -33,31 +28,8 @@ const getUser = async (id) => {
     }
 };
 
-const getCachedProfile = (userId) => {
-    const cached = profileCache.get(userId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data;
-    profileCache.delete(userId);
-    return null;
-};
-
-const setCachedProfile = (userId, profileData) => {
-    if (profileCache.size >= MAX_CACHE_SIZE) {
-        const firstKey = profileCache.keys().next().value;
-        profileCache.delete(firstKey);
-    }
-    profileCache.set(userId, { data: profileData, timestamp: Date.now() });
-};
-
 const getRandomProfile = async (userId, lookingFor) => {
     try {
-        const cacheKey = `discovery_${userId}_${lookingFor}`;
-        const cachedProfiles = getCachedProfile(cacheKey);
-        if (cachedProfiles && cachedProfiles.length > 0) {
-            const availableProfiles = cachedProfiles.filter(p => p.telegram_id !== userId);
-            if (availableProfiles.length > 0) {
-                return availableProfiles[Math.floor(Math.random() * availableProfiles.length)];
-            }
-        }
         const countResult = await db.execute({
             sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ?",
             args: [userId, lookingFor]
@@ -69,9 +41,7 @@ const getRandomProfile = async (userId, lookingFor) => {
             sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? LIMIT 1 OFFSET ?",
             args: [userId, lookingFor, randomOffset]
         });
-        const profile = rs.rows[0];
-        if (profile) setCachedProfile(cacheKey, [profile]);
-        return profile;
+        return rs.rows[0];
     } catch (error) {
         console.error('Error in getRandomProfile:', error);
         return null;
@@ -271,56 +241,67 @@ async function showNextProfile(ctx) {
     }
 }
 
-bot.action('next_profile', async (ctx) => {
-    await ctx.answerCbQuery();
-    await showNextProfile(ctx);
-});
-
-bot.action(/^like_(\d+)$/, async (ctx) => {
-    const targetId = ctx.match[1];
-    const senderId = ctx.from.id;
-    await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+// Universal action handler for debugging
+bot.on('callback_query', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    console.log('Callback Query received:', data);
+    
     try {
-        await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
-            Markup.inlineKeyboard([
-                [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-                [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
-            ]));
-    } catch (e) {}
-    await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
-});
-
-bot.action(/^view_back_(\d+)$/, async (ctx) => {
-    const senderId = ctx.match[1];
-    const sender = await getUser(senderId);
-    if (!sender) return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
-    await ctx.replyWithPhoto(sender.photo_id, {
-        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${senderId}`)],
-            [Markup.button.callback('➡️ Next', 'next_profile')],
-            [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
-        ])
-    });
-    await ctx.answerCbQuery();
-});
-
-bot.action('close_profile', async (ctx) => {
-    await ctx.deleteMessage();
-    await ctx.answerCbQuery();
-});
-
-bot.action(/^accept_(\d+)$/, async (ctx) => {
-    const partnerId = ctx.match[1];
-    const partner = await getUser(partnerId);
-    const me = await getUser(ctx.from.id);
-    const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
-    const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${ctx.from.id}`;
-    await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
-    try {
-        await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
-    } catch (e) {}
-    await ctx.answerCbQuery();
+        if (data === 'next_profile') {
+            await ctx.answerCbQuery();
+            return await showNextProfile(ctx);
+        }
+        
+        if (data.startsWith('like_')) {
+            const targetId = data.split('_')[1];
+            const senderId = ctx.from.id;
+            await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+            try {
+                await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
+                    Markup.inlineKeyboard([
+                        [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
+                        [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+                    ]));
+            } catch (e) {}
+            return await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+        }
+        
+        if (data.startsWith('view_back_')) {
+            const senderId = data.split('_')[2];
+            const sender = await getUser(senderId);
+            if (!sender) return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
+            await ctx.replyWithPhoto(sender.photo_id, {
+                caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('❤️ Like', `like_${senderId}`)],
+                    [Markup.button.callback('➡️ Next', 'next_profile')],
+                    [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
+                ])
+            });
+            return await ctx.answerCbQuery();
+        }
+        
+        if (data === 'close_profile') {
+            await ctx.deleteMessage();
+            return await ctx.answerCbQuery();
+        }
+        
+        if (data.startsWith('accept_')) {
+            const partnerId = data.split('_')[1];
+            const partner = await getUser(partnerId);
+            const me = await getUser(ctx.from.id);
+            const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
+            const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${ctx.from.id}`;
+            await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
+            try {
+                await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+            } catch (e) {}
+            return await ctx.answerCbQuery();
+        }
+    } catch (error) {
+        console.error('Callback Error:', error);
+        await ctx.answerCbQuery("Error occurred");
+    }
 });
 
 async function handleChat(ctx, user) {
