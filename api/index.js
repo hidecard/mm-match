@@ -260,7 +260,10 @@ async function showNextProfile(ctx) {
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         await ctx.replyWithPhoto(target.photo_id, {
             caption: caption,
-            ...Markup.inlineKeyboard([[Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)], [Markup.button.callback('➡️ Next', 'next_profile')]])
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
+                [Markup.button.callback('➡️ Next', 'next_profile')]
+            ])
         });
     } catch (error) {
         console.error('Error in showNextProfile:', error);
@@ -273,24 +276,31 @@ bot.action('next_profile', async (ctx) => {
     await showNextProfile(ctx);
 });
 
-bot.action(/like_(\d+)/, async (ctx) => {
+bot.action(/^like_(\d+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
     await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
     try {
         await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
-            Markup.inlineKeyboard([[Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)], [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]]));
+            Markup.inlineKeyboard([
+                [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
+                [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+            ]));
     } catch (e) {}
     await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
 });
 
-bot.action(/view_back_(\d+)/, async (ctx) => {
+bot.action(/^view_back_(\d+)$/, async (ctx) => {
     const senderId = ctx.match[1];
     const sender = await getUser(senderId);
     if (!sender) return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
     await ctx.replyWithPhoto(sender.photo_id, {
         caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
-        ...Markup.inlineKeyboard([[Markup.button.callback('❤️ Like', `like_${senderId}`)], [Markup.button.callback('➡️ Next', 'next_profile')], [Markup.button.callback('ပိတ်မယ်', 'close_profile')]])
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('❤️ Like', `like_${senderId}`)],
+            [Markup.button.callback('➡️ Next', 'next_profile')],
+            [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
+        ])
     });
     await ctx.answerCbQuery();
 });
@@ -300,7 +310,7 @@ bot.action('close_profile', async (ctx) => {
     await ctx.answerCbQuery();
 });
 
-bot.action(/accept_(\d+)/, async (ctx) => {
+bot.action(/^accept_(\d+)$/, async (ctx) => {
     const partnerId = ctx.match[1];
     const partner = await getUser(partnerId);
     const me = await getUser(ctx.from.id);
