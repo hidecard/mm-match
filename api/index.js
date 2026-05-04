@@ -274,7 +274,8 @@ bot.on('callback_query', async (ctx) => {
                         [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
                     ]));
             } catch (e) {}
-            return await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+            await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+            return await showNextProfile(ctx);
         }
         
         if (data.startsWith('view_back_')) {
