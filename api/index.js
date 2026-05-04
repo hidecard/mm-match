@@ -228,13 +228,24 @@ async function showNextProfile(ctx) {
         if (!target) return await ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
         await markProfileAsViewed(ctx.from.id, target.telegram_id);
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
-        await ctx.replyWithPhoto(target.photo_id, {
-            caption: caption,
-            ...Markup.inlineKeyboard([
-                [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
-                [Markup.button.callback('➡️ Next', 'next_profile')]
-            ])
-        });
+        const markup = Markup.inlineKeyboard([
+            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
+            [Markup.button.callback('➡️ Next', 'next_profile')]
+        ]);
+        
+        // Try to edit the message if it exists, otherwise send a new one
+        try {
+            await ctx.editMessageMedia(
+                { type: 'photo', media: target.photo_id },
+                { caption: caption, ...markup }
+            );
+        } catch (editError) {
+            // If edit fails, send a new message
+            await ctx.replyWithPhoto(target.photo_id, {
+                caption: caption,
+                ...markup
+            });
+        }
     } catch (error) {
         console.error('Error in showNextProfile:', error);
         await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
