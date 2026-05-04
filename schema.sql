@@ -18,6 +18,14 @@ CREATE TABLE users (
     is_registered BOOLEAN DEFAULT 0
 );
 
+-- Profile views table - tracks which profiles have been viewed
+CREATE TABLE profile_views (
+    user_id INTEGER,
+    viewed_profile_id INTEGER,
+    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, viewed_profile_id)
+);
+
 -- Likes table - tracks who likes whom
 CREATE TABLE likes (
     from_user INTEGER,

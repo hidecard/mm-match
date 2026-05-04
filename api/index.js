@@ -30,18 +30,26 @@ const getUser = async (id) => {
 
 const getRandomProfile = async (userId, lookingFor) => {
     try {
-        const countResult = await db.execute({
-            sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ?",
+        // Get unviewed profiles first using RANDOM()
+        const unviewedResult = await db.execute({
+            sql: `SELECT u.* FROM users u 
+                  LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                  WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
+                  ORDER BY RANDOM() LIMIT 1`,
+            args: [userId, userId, lookingFor]
+        });
+        
+        if (unviewedResult.rows.length > 0) {
+            return unviewedResult.rows[0];
+        }
+        
+        // If no unviewed profiles, get any random profile
+        const allResult = await db.execute({
+            sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
             args: [userId, lookingFor]
         });
-        const totalCount = countResult.rows[0].count;
-        if (totalCount === 0) return null;
-        const randomOffset = Math.floor(Math.random() * totalCount);
-        const rs = await db.execute({
-            sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? LIMIT 1 OFFSET ?",
-            args: [userId, lookingFor, randomOffset]
-        });
-        return rs.rows[0];
+        
+        return allResult.rows[0] || null;
     } catch (error) {
         console.error('Error in getRandomProfile:', error);
         return null;
@@ -65,10 +73,10 @@ const getUnviewedProfile = async (userId, lookingFor) => {
             sql: `SELECT u.* FROM users u 
                   LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                   WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
-                  LIMIT 10`,
+                  ORDER BY RANDOM() LIMIT 1`,
             args: [userId, userId, lookingFor]
         });
-        if (rs.rows.length > 0) return rs.rows[Math.floor(Math.random() * rs.rows.length)];
+        if (rs.rows.length > 0) return rs.rows[0];
         return await getRandomProfile(userId, lookingFor);
     } catch (error) {
         return await getRandomProfile(userId, lookingFor);
