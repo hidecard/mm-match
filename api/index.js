@@ -243,10 +243,17 @@ async function showNextProfile(ctx) {
         
         // Try to edit the message if it exists, otherwise send a new one
         try {
-            await ctx.editMessageMedia(
-                { type: 'photo', media: target.photo_id },
-                { caption: caption, ...markup }
-            );
+            if (ctx.callbackQuery || ctx.updateType === 'callback_query') {
+                await ctx.editMessageMedia(
+                    { type: 'photo', media: target.photo_id },
+                    { caption: caption, ...markup }
+                );
+            } else {
+                await ctx.replyWithPhoto(target.photo_id, {
+                    caption: caption,
+                    ...markup
+                });
+            }
         } catch (editError) {
             // If edit fails, send a new message
             await ctx.replyWithPhoto(target.photo_id, {
@@ -260,68 +267,70 @@ async function showNextProfile(ctx) {
     }
 }
 
-// Universal action handler for debugging
-bot.on('callback_query', async (ctx) => {
-    const data = ctx.callbackQuery.data;
-    console.log('Callback Query received:', data);
-    
+// Action handlers
+bot.action('next_profile', async (ctx) => {
+    await ctx.answerCbQuery();
+    return await showNextProfile(ctx);
+});
+
+bot.action(/^like_(.+)$/, async (ctx) => {
+    const targetId = ctx.match[1];
+    const senderId = ctx.from.id;
     try {
-        if (data === 'next_profile') {
-            await ctx.answerCbQuery();
-            return await showNextProfile(ctx);
-        }
+        await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
         
-        if (data.startsWith('like_')) {
-            const targetId = data.split('_')[1];
-            const senderId = ctx.from.id;
-            await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+        // Check for mutual like
+        const mutualLike = await db.execute({
+            sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
+            args: [targetId, senderId]
+        });
+
+        if (mutualLike.rows.length > 0) {
+            const me = await getUser(senderId);
+            const partner = await getUser(targetId);
+            const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
+            const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
+            
+            await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
+            try {
+                await bot.telegram.sendMessage(targetId, `သူက သင့်ကို Like ပြန်လုပ်လိုက်ပါတယ်! Match ဖြစ်သွားပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+            } catch (e) {}
+        } else {
             try {
                 await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
                     Markup.inlineKeyboard([
-                        [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)],
-                        [Markup.button.callback('လက်ခံသည် ✅', `accept_${senderId}`)]
+                        [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
                     ]));
             } catch (e) {}
             await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
-            return await showNextProfile(ctx);
-        }
-        
-        if (data.startsWith('view_back_')) {
-            const senderId = data.split('_')[2];
-            const sender = await getUser(senderId);
-            if (!sender) return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
-            await ctx.replyWithPhoto(sender.photo_id, {
-                caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
-                ...Markup.inlineKeyboard([
-                    [Markup.button.callback('❤️ Like', `like_${senderId}`)],
-                    [Markup.button.callback('➡️ Next', 'next_profile')],
-                    [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
-                ])
-            });
-            return await ctx.answerCbQuery();
-        }
-        
-        if (data === 'close_profile') {
-            await ctx.deleteMessage();
-            return await ctx.answerCbQuery();
-        }
-        
-        if (data.startsWith('accept_')) {
-            const partnerId = data.split('_')[1];
-            const partner = await getUser(partnerId);
-            const me = await getUser(ctx.from.id);
-            const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${partnerId}`;
-            const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${ctx.from.id}`;
-            await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
-            try {
-                await bot.telegram.sendMessage(partnerId, `သူက သင့်ကို လက်ခံလိုက်ပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
-            } catch (e) {}
-            return await ctx.answerCbQuery();
         }
     } catch (error) {
-        console.error('Callback Error:', error);
-        await ctx.answerCbQuery("Error occurred");
+        console.error('Like Error:', error);
     }
+    return await showNextProfile(ctx);
+});
+
+bot.action(/^view_back_(.+)$/, async (ctx) => {
+    const senderId = ctx.match[1];
+    const sender = await getUser(senderId);
+    if (!sender) {
+        await ctx.answerCbQuery("သူ့ Profile မတွေ့ပါ။");
+        return;
+    }
+    await ctx.replyWithPhoto(sender.photo_id, {
+        caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('❤️ Like', `like_${senderId}`)],
+            [Markup.button.callback('➡️ Next', 'next_profile')],
+            [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
+        ])
+    });
+    return await ctx.answerCbQuery();
+});
+
+bot.action('close_profile', async (ctx) => {
+    await ctx.deleteMessage();
+    return await ctx.answerCbQuery();
 });
 
 async function handleChat(ctx, user) {
