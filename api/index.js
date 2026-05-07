@@ -261,8 +261,8 @@ async function showNextProfile(ctx) {
         try {
             if (ctx.callbackQuery || ctx.updateType === 'callback_query') {
                 await ctx.editMessageMedia(
-                    { type: 'photo', media: target.photo_id },
-                    { caption: caption, ...markup }
+                    { type: 'photo', media: target.photo_id, caption: caption },
+                    markup
                 );
             } else {
                 await ctx.replyWithPhoto(target.photo_id, {
@@ -271,6 +271,7 @@ async function showNextProfile(ctx) {
                 });
             }
         } catch (editError) {
+            console.error('Edit error, sending new message:', editError.message);
             // If edit fails, send a new message
             await ctx.replyWithPhoto(target.photo_id, {
                 caption: caption,
