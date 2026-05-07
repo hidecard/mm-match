@@ -30,20 +30,24 @@ const getUser = async (id) => {
 
 const getRandomProfile = async (userId, lookingFor) => {
     try {
-        // Get unviewed profiles first using RANDOM()
-        const unviewedResult = await db.execute({
-            sql: `SELECT u.* FROM users u 
-                  LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                  WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
-                  ORDER BY RANDOM() LIMIT 1`,
-            args: [userId, userId, lookingFor]
-        });
-        
-        if (unviewedResult.rows.length > 0) {
-            return unviewedResult.rows[0];
+        // Try with profile_views join first
+        try {
+            const unviewedResult = await db.execute({
+                sql: `SELECT u.* FROM users u 
+                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                      WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
+                      ORDER BY RANDOM() LIMIT 1`,
+                args: [userId, userId, lookingFor]
+            });
+            
+            if (unviewedResult.rows.length > 0) {
+                return unviewedResult.rows[0];
+            }
+        } catch (dbError) {
+            console.error('Profile views query failed, falling back to basic query:', dbError.message);
         }
         
-        // If no unviewed profiles, get any random profile
+        // Fallback: get any random profile (works even if profile_views table is missing)
         const allResult = await db.execute({
             sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
             args: [userId, lookingFor]
@@ -58,27 +62,39 @@ const getRandomProfile = async (userId, lookingFor) => {
 
 const markProfileAsViewed = async (userId, profileId) => {
     try {
+        // Only attempt if we have a database connection
+        if (!db) return;
+        
         await db.execute({
             sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id) VALUES (?, ?)",
             args: [userId, profileId]
         });
     } catch (error) {
-        console.error('Error marking profile as viewed:', error);
+        // Silently fail if table doesn't exist, just log it
+        console.error('Error marking profile as viewed (might be missing table):', error.message);
     }
 };
 
 const getUnviewedProfile = async (userId, lookingFor) => {
     try {
-        const rs = await db.execute({
-            sql: `SELECT u.* FROM users u 
-                  LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                  WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
-                  ORDER BY RANDOM() LIMIT 1`,
-            args: [userId, userId, lookingFor]
-        });
-        if (rs.rows.length > 0) return rs.rows[0];
+        // Try with profile_views join
+        try {
+            const rs = await db.execute({
+                sql: `SELECT u.* FROM users u 
+                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                      WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
+                      ORDER BY RANDOM() LIMIT 1`,
+                args: [userId, userId, lookingFor]
+            });
+            if (rs.rows.length > 0) return rs.rows[0];
+        } catch (dbError) {
+            console.error('getUnviewedProfile DB error:', dbError.message);
+        }
+        
+        // Fallback to getRandomProfile
         return await getRandomProfile(userId, lookingFor);
     } catch (error) {
+        console.error('getUnviewedProfile error:', error);
         return await getRandomProfile(userId, lookingFor);
     }
 };
@@ -148,7 +164,7 @@ bot.on('message', async (ctx) => {
         }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
         }
     }
 
@@ -166,13 +182,13 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
-        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
     }
 
     if (user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
     }
 
     if (user.is_registered) return await handleChat(ctx, user);
@@ -210,7 +226,7 @@ bot.on('message', async (ctx) => {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
-        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['/find', '/edit', '/help']]).resize());
+        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
     }
 });
 
@@ -334,12 +350,13 @@ bot.action('close_profile', async (ctx) => {
 });
 
 async function handleChat(ctx, user) {
-    if (ctx.message.text === '/find') return await showNextProfile(ctx);
-    if (ctx.message.text === '/edit') {
+    const text = ctx.message.text;
+    if (text === '/find' || text === '🔍 Find Match') return await showNextProfile(ctx);
+    if (text === '/edit' || text === '⚙️ Edit Profile') {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
-    if (ctx.message.text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile");
+    if (text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile");
 }
 
 // Vercel Handler
