@@ -286,19 +286,34 @@ async function showNextProfile(ctx) {
 
 // Action handlers
 bot.action('next_profile', async (ctx) => {
-    await ctx.answerCbQuery();
+    try {
+        await ctx.answerCbQuery();
+    } catch (e) {
+        console.error('answerCbQuery error:', e.message);
+    }
     return await showNextProfile(ctx);
 });
 
 bot.action(/^like_(.+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
+    
     try {
-        await db.execute({ sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", args: [senderId, targetId] });
+        try {
+            await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
+        } catch (e) {
+            console.error('answerCbQuery error:', e.message);
+        }
+
+        // Record the like
+        await db.execute({ 
+            sql: "INSERT OR IGNORE INTO likes (liker_id, liked_id) VALUES (?, ?)", 
+            args: [senderId, targetId] 
+        });
         
         // Check for mutual like
         const mutualLike = await db.execute({
-            sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
+            sql: "SELECT * FROM likes WHERE liker_id = ? AND liked_id = ?",
             args: [targetId, senderId]
         });
 
@@ -314,12 +329,12 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             } catch (e) {}
         } else {
             try {
-                await bot.telegram.sendMessage(targetId, "တစ်ယောက်ယောက်က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?", 
+                const me = await getUser(senderId);
+                await bot.telegram.sendMessage(targetId, `${me.nickname} က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?`, 
                     Markup.inlineKeyboard([
                         [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
                     ]));
             } catch (e) {}
-            await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
         }
     } catch (error) {
         console.error('Like Error:', error);
@@ -330,10 +345,17 @@ bot.action(/^like_(.+)$/, async (ctx) => {
 bot.action(/^view_back_(.+)$/, async (ctx) => {
     const senderId = ctx.match[1];
     const sender = await getUser(senderId);
-    if (!sender) {
-        await ctx.answerCbQuery("သူ့ Profile မတွေ့ပါ။");
-        return;
+    
+    try {
+        await ctx.answerCbQuery();
+    } catch (e) {
+        console.error('answerCbQuery error:', e.message);
     }
+
+    if (!sender) {
+        return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
+    }
+    
     await ctx.replyWithPhoto(sender.photo_id, {
         caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
@@ -342,12 +364,15 @@ bot.action(/^view_back_(.+)$/, async (ctx) => {
             [Markup.button.callback('ပိတ်မယ်', 'close_profile')]
         ])
     });
-    return await ctx.answerCbQuery();
 });
 
 bot.action('close_profile', async (ctx) => {
-    await ctx.deleteMessage();
-    return await ctx.answerCbQuery();
+    try {
+        await ctx.answerCbQuery();
+        await ctx.deleteMessage();
+    } catch (e) {
+        console.error('close_profile error:', e.message);
+    }
 });
 
 async function handleChat(ctx, user) {
