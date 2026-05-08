@@ -257,27 +257,18 @@ async function showNextProfile(ctx) {
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
-        // Try to edit the message if it exists, otherwise send a new one
-        try {
-            if (ctx.callbackQuery || ctx.updateType === 'callback_query') {
-                await ctx.editMessageMedia(
-                    { type: 'photo', media: target.photo_id, caption: caption },
-                    markup
-                );
-            } else {
-                await ctx.replyWithPhoto(target.photo_id, {
-                    caption: caption,
-                    ...markup
-                });
-            }
-        } catch (editError) {
-            console.error('Edit error, sending new message:', editError.message);
-            // If edit fails, send a new message
-            await ctx.replyWithPhoto(target.photo_id, {
-                caption: caption,
-                ...markup
-            });
+        // Send a new message instead of editing to avoid complex media edit issues
+        // This is more robust for Telegram bots handling photos
+        if (ctx.callbackQuery) {
+            try {
+                await ctx.deleteMessage().catch(() => {});
+            } catch (e) {}
         }
+        
+        await ctx.replyWithPhoto(target.photo_id, {
+            caption: caption,
+            ...markup
+        });
     } catch (error) {
         console.error('Error in showNextProfile:', error);
         await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
