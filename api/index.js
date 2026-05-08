@@ -44,10 +44,10 @@ const getRandomProfile = async (userId, lookingFor) => {
                 return unviewedResult.rows[0];
             }
         } catch (dbError) {
-            console.error('Profile views query failed, falling back to basic query:', dbError.message);
+            console.error('Profile views query failed:', dbError.message);
         }
         
-        // Fallback: get any random profile (works even if profile_views table is missing)
+        // Fallback: get any random profile
         const allResult = await db.execute({
             sql: "SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ORDER BY RANDOM() LIMIT 1",
             args: [userId, lookingFor]
@@ -62,41 +62,18 @@ const getRandomProfile = async (userId, lookingFor) => {
 
 const markProfileAsViewed = async (userId, profileId) => {
     try {
-        // Only attempt if we have a database connection
         if (!db) return;
-        
         await db.execute({
             sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id) VALUES (?, ?)",
             args: [userId, profileId]
         });
     } catch (error) {
-        // Silently fail if table doesn't exist, just log it
-        console.error('Error marking profile as viewed (might be missing table):', error.message);
+        console.error('Error marking profile as viewed:', error.message);
     }
 };
 
 const getUnviewedProfile = async (userId, lookingFor) => {
-    try {
-        // Try with profile_views join
-        try {
-            const rs = await db.execute({
-                sql: `SELECT u.* FROM users u 
-                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                      WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
-                      ORDER BY RANDOM() LIMIT 1`,
-                args: [userId, userId, lookingFor]
-            });
-            if (rs.rows.length > 0) return rs.rows[0];
-        } catch (dbError) {
-            console.error('getUnviewedProfile DB error:', dbError.message);
-        }
-        
-        // Fallback to getRandomProfile
-        return await getRandomProfile(userId, lookingFor);
-    } catch (error) {
-        console.error('getUnviewedProfile error:', error);
-        return await getRandomProfile(userId, lookingFor);
-    }
+    return await getRandomProfile(userId, lookingFor);
 };
 
 // --- 1. Registration Logic ---
@@ -135,6 +112,8 @@ bot.start(async (ctx) => {
 });
 
 bot.on('message', async (ctx) => {
+    if (!ctx.message) return;
+    
     const user = await getUser(ctx.from.id);
     const text = ctx.message.text;
     
@@ -248,40 +227,40 @@ async function showNextProfile(ctx) {
     try {
         const user = await getUser(ctx.from.id);
         if (!user || !user.looking_for) return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+        
         const target = await getUnviewedProfile(ctx.from.id, user.looking_for);
         if (!target) return await ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+        
         await markProfileAsViewed(ctx.from.id, target.telegram_id);
+        
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const markup = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
-        // Send a new message instead of editing to avoid complex media edit issues
-        // This is more robust for Telegram bots handling photos
+        // Always send a new message for photos to be reliable
         if (ctx.callbackQuery) {
             try {
                 await ctx.deleteMessage().catch(() => {});
             } catch (e) {}
         }
         
-        await ctx.replyWithPhoto(target.photo_id, {
+        return await ctx.replyWithPhoto(target.photo_id, {
             caption: caption,
             ...markup
         });
     } catch (error) {
         console.error('Error in showNextProfile:', error);
-        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+        return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
     }
 }
 
 // Action handlers
 bot.action('next_profile', async (ctx) => {
     try {
-        await ctx.answerCbQuery();
-    } catch (e) {
-        console.error('answerCbQuery error:', e.message);
-    }
+        await ctx.answerCbQuery().catch(() => {});
+    } catch (e) {}
     return await showNextProfile(ctx);
 });
 
@@ -291,20 +270,18 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     
     try {
         try {
-            await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!");
-        } catch (e) {
-            console.error('answerCbQuery error:', e.message);
-        }
+            await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!").catch(() => {});
+        } catch (e) {}
 
-        // Record the like
+        // Record the like - using correct column names from schema.sql
         await db.execute({ 
-            sql: "INSERT OR IGNORE INTO likes (liker_id, liked_id) VALUES (?, ?)", 
+            sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", 
             args: [senderId, targetId] 
         });
         
         // Check for mutual like
         const mutualLike = await db.execute({
-            sql: "SELECT * FROM likes WHERE liker_id = ? AND liked_id = ?",
+            sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
             args: [targetId, senderId]
         });
 
@@ -338,16 +315,14 @@ bot.action(/^view_back_(.+)$/, async (ctx) => {
     const sender = await getUser(senderId);
     
     try {
-        await ctx.answerCbQuery();
-    } catch (e) {
-        console.error('answerCbQuery error:', e.message);
-    }
+        await ctx.answerCbQuery().catch(() => {});
+    } catch (e) {}
 
     if (!sender) {
         return await ctx.reply("သူ့ Profile မတွေ့ပါ။");
     }
     
-    await ctx.replyWithPhoto(sender.photo_id, {
+    return await ctx.replyWithPhoto(sender.photo_id, {
         caption: `👤 ${sender.nickname} (${sender.age})\n📍 ${sender.address}\n\n📝 ${sender.bio}`,
         ...Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${senderId}`)],
@@ -359,11 +334,9 @@ bot.action(/^view_back_(.+)$/, async (ctx) => {
 
 bot.action('close_profile', async (ctx) => {
     try {
-        await ctx.answerCbQuery();
-        await ctx.deleteMessage();
-    } catch (e) {
-        console.error('close_profile error:', e.message);
-    }
+        await ctx.answerCbQuery().catch(() => {});
+        await ctx.deleteMessage().catch(() => {});
+    } catch (e) {}
 });
 
 async function handleChat(ctx, user) {
