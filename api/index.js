@@ -254,10 +254,11 @@ async function showNextProfile(ctx) {
 // Action handlers
 bot.action('next_profile', async (ctx) => {
     try {
-        await ctx.answerCbQuery().catch(() => {});
+        await ctx.answerCbQuery('⏳...').catch(() => {});
         return await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile action error:', error);
+        await ctx.answerCbQuery('အမှား!').catch(() => {});
         return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။").catch(() => {});
     }
 });
@@ -266,9 +267,22 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
     
+    // Validate inputs
+    if (!targetId || !senderId) {
+        console.error('Missing targetId or senderId');
+        await ctx.answerCbQuery('အမှား!').catch(() => {});
+        return;
+    }
+    
+    if (!db) {
+        console.error('Database not connected');
+        await ctx.answerCbQuery('Database error').catch(() => {});
+        return await ctx.reply("Database မချိတ်ဆက်နိုင်ပါ။").catch(() => {});
+    }
+    
     try {
         // Answer callback query first to stop loading animation
-        await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!").catch(() => {});
+        await ctx.answerCbQuery('❤️ Like!').catch(() => {});
         
         // Record the like and wait for it to complete
         await db.execute({ 
@@ -307,6 +321,7 @@ bot.action(/^like_(.+)$/, async (ctx) => {
         }
     } catch (error) {
         console.error('Like Error:', error);
+        await ctx.answerCbQuery('အမှား!').catch(() => {});
     }
     
     // Always show next profile after processing the like
@@ -348,14 +363,33 @@ async function handleChat(ctx, user) {
     if (text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile");
 }
 
-// Vercel Handler
+// Vercel Handler - Ensures all async operations complete
 export default async (req, res) => {
     if (req.method !== 'POST') return res.status(200).send('Bot is running...');
+    
     try {
-        await bot.handleUpdate(req.body);
-        if (!res.writableEnded) res.status(200).json({ ok: true });
+        // Create a promise that resolves when all bot processing is done
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                console.warn('Bot processing timeout - forcing response');
+                resolve();
+            }, 8000); // 8 second timeout for Vercel
+            
+            bot.handleUpdate(req.body)
+                .then(() => {
+                    clearTimeout(timeout);
+                    // Give a small delay for any background DB operations
+                    setTimeout(resolve, 100);
+                })
+                .catch((err) => {
+                    clearTimeout(timeout);
+                    reject(err);
+                });
+        });
+        
+        res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Webhook Error:', error);
-        if (!res.writableEnded) res.status(200).json({ ok: true });
+        res.status(200).json({ ok: true });
     }
 };
