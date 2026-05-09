@@ -265,11 +265,6 @@ async function showNextProfile(ctx) {
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
-        // If it's a callback query, delete the old message first
-        if (ctx.callbackQuery) {
-            console.log('Deleting previous message');
-            await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
-        }
         
         // Try sending photo, fallback to text if photo fails
         try {
@@ -299,6 +294,8 @@ bot.action('next_profile', async (ctx) => {
     console.log('Next button clicked by:', ctx.from?.id);
     try {
         await ctx.answerCbQuery('⏳ Loading...').catch((e) => console.log('Answer error:', e.message));
+        // Delete the message immediately
+        await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
         return await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile action error:', error);
@@ -326,8 +323,12 @@ bot.action(/^like_(.+)$/, async (ctx) => {
         return await ctx.reply("Database မချိတ်ဆက်နိုင်ပါ။").catch(() => {});
     }
     
+    // Delete the message immediately before processing
+    console.log('Deleting message before processing like');
+    await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
+    
     try {
-        // Answer callback query first to stop loading animation
+        // Answer callback query
         await ctx.answerCbQuery('❤️ Like!').catch((e) => console.log('Answer error:', e.message));
         
         // Record the like and wait for it to complete
