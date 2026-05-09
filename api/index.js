@@ -253,33 +253,39 @@ async function showNextProfile(ctx) {
 
 // Action handlers
 bot.action('next_profile', async (ctx) => {
-    // Answer immediately to stop loading animation
-    await ctx.answerCbQuery().catch(() => {});
-    return await showNextProfile(ctx);
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        return await showNextProfile(ctx);
+    } catch (error) {
+        console.error('Next profile action error:', error);
+        return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။").catch(() => {});
+    }
 });
 
 bot.action(/^like_(.+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
     
-    // Answer immediately to stop loading animation
-    await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!").catch(() => {});
-    
     try {
-        // Record the like in background
-        db.execute({ 
+        // Answer callback query first to stop loading animation
+        await ctx.answerCbQuery("Like ပို့လိုက်ပါပြီ!").catch(() => {});
+        
+        // Record the like and wait for it to complete
+        await db.execute({ 
             sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", 
             args: [senderId, targetId] 
-        }).then(async () => {
-            // Check for mutual like
-            const mutualLike = await db.execute({
-                sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
-                args: [targetId, senderId]
-            });
+        });
+        
+        // Check for mutual like
+        const mutualLike = await db.execute({
+            sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
+            args: [targetId, senderId]
+        });
 
-            if (mutualLike.rows.length > 0) {
-                const me = await getUser(senderId);
-                const partner = await getUser(targetId);
+        if (mutualLike.rows.length > 0) {
+            const me = await getUser(senderId);
+            const partner = await getUser(targetId);
+            if (me && partner) {
                 const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
                 const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
                 
@@ -287,20 +293,23 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                 try {
                     await bot.telegram.sendMessage(targetId, `သူက သင့်ကို Like ပြန်လုပ်လိုက်ပါတယ်! Match ဖြစ်သွားပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
                 } catch (e) {}
-            } else {
-                try {
-                    const me = await getUser(senderId);
+            }
+        } else {
+            try {
+                const me = await getUser(senderId);
+                if (me) {
                     await bot.telegram.sendMessage(targetId, `${me.nickname} က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?`, 
                         Markup.inlineKeyboard([
                             [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
                         ]));
-                } catch (e) {}
-            }
-        }).catch(e => console.error('Like DB Error:', e));
+                }
+            } catch (e) {}
+        }
     } catch (error) {
         console.error('Like Error:', error);
     }
     
+    // Always show next profile after processing the like
     return await showNextProfile(ctx);
 });
 
