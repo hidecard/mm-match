@@ -72,30 +72,6 @@ const markProfileAsViewed = async (userId, profileId) => {
     }
 };
 
-// Calculate distance between two coordinates using Haversine formula
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-    
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-    
-    return Math.round(distance);
-};
-
-// Format distance for display
-const formatDistance = (distance) => {
-    if (distance === null) return '📍 Location unknown';
-    if (distance < 1) return '📍 Less than 1 km away';
-    if (distance < 10) return `📍 ${distance} km away`;
-    return `📍 ${distance} km away`;
-};
-
 // --- 1. Registration Logic ---
 bot.start(async (ctx) => {
     try {
@@ -111,11 +87,9 @@ bot.start(async (ctx) => {
 5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
 6️⃣ လိင် (Gender)
 7️⃣ ရှာနေသောလိင် (Looking For)
-8️⃣ 📍 Location (နေရာ)
 
 ❤️ Male များ Female ကိုသာ မြင်ရပါမည်
 ❤️ Female များ Male ကိုသာ မြင်ရပါမည်
-📍 အနီးနားမှ Match များကို ရှာဖွေနိုင်ပါသည်
 
 ---
 စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
@@ -226,20 +200,8 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_looking_for') {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
-        await db.execute({ sql: "UPDATE users SET looking_for = ?, step = 'ask_location' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
-        return await ctx.reply("📍 သင့်နေရာကို ပို့ပေးပါ (Location button ကိုနှိပ်ပြီး):", Markup.keyboard([['📍 Share Location']]).resize().oneTime());
-    }
-    
-    if (user.step === 'ask_location') {
-        if (ctx.message.location) {
-            const { latitude, longitude } = ctx.message.location;
-            await db.execute({ 
-                sql: "UPDATE users SET latitude = ?, longitude = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
-                args: [latitude, longitude, ctx.from.id] 
-            });
-            return await ctx.reply("✅ မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်! /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
-        }
-        return await ctx.reply("📍 Location button ကိုနှိပ်ပြီး သင့်နေရာကို ပို့ပေးပါ:", Markup.keyboard([['📍 Share Location']]).resize().oneTime());
+        await db.execute({ sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
+        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
     }
 });
 
@@ -276,7 +238,6 @@ bot.command('help', async (ctx) => {
 🔹 /find - Find matches (🔍 Find Match)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
-🔹 /location - Update your location 📍
 🔹 /update - Change preferences
 🔹 /help - Show this help message
 
@@ -286,11 +247,6 @@ bot.command('help', async (ctx) => {
 bot.command('update', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
     await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
-});
-
-bot.command('location', async (ctx) => {
-    await db.execute({ sql: "UPDATE users SET step = 'update_location' WHERE telegram_id = ?", args: [ctx.from.id] });
-    await ctx.reply("📍 သင့်နေရာအသစ်ကို ပို့ပေးပါ:", Markup.keyboard([['📍 Share Location']]).resize().oneTime());
 });
 
 async function showMyProfile(ctx) {
@@ -332,14 +288,7 @@ async function showNextProfile(ctx) {
         // Mark as viewed in background
         markProfileAsViewed(ctx.from.id, target.telegram_id).catch(e => console.error('markViewed error:', e));
         
-        // Calculate distance
-        const distance = calculateDistance(user.latitude, user.longitude, target.latitude, target.longitude);
-        const distanceText = formatDistance(distance);
-        
-        const caption = `👤 ${target.nickname} (${target.age})
-📍 ${target.address} - ${distanceText}
-
-📝 ${target.bio}`;
+        const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
@@ -480,30 +429,12 @@ bot.action('close_profile', async (ctx) => {
 
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
-    
-    // Handle location update
-    if (user.step === 'update_location') {
-        if (ctx.message.location) {
-            const { latitude, longitude } = ctx.message.location;
-            await db.execute({ 
-                sql: "UPDATE users SET latitude = ?, longitude = ?, step = 'done' WHERE telegram_id = ?", 
-                args: [latitude, longitude, ctx.from.id] 
-            });
-            return await ctx.reply("✅ Location updated successfully!", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
-        }
-        return await ctx.reply("📍 Please share your location using the button:", Markup.keyboard([['📍 Share Location']]).resize().oneTime());
-    }
-    
     if (text === '/find' || text === '🔍 Find Match') return await showNextProfile(ctx);
     if (text === '/edit' || text === '⚙️ Edit Profile') {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
     if (text === '/profile' || text === '👤 Profile') return await showMyProfile(ctx);
-    if (text === '/location') {
-        await db.execute({ sql: "UPDATE users SET step = 'update_location' WHERE telegram_id = ?", args: [ctx.from.id] });
-        return await ctx.reply("📍 Please share your new location:", Markup.keyboard([['📍 Share Location']]).resize().oneTime());
-    }
     if (text === '/help') {
         const helpText = `📋 **MM Match Bot Commands**
 
@@ -511,7 +442,6 @@ async function handleChat(ctx, user) {
 🔹 /find - Find matches (🔍 Find Match)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
-🔹 /location - Update your location
 🔹 /update - Change preferences
 🔹 /help - Show this help message
 
