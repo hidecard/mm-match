@@ -232,7 +232,17 @@ bot.command('edit', async (ctx) => {
 });
 bot.command('profile', async (ctx) => await showMyProfile(ctx));
 bot.command('help', async (ctx) => {
-    await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile\n/profile - My Profile\n/update - Change Preference");
+    const helpText = `📋 **MM Match Bot Commands**
+
+🔹 /start - Register your profile
+🔹 /find - Find matches (🔍 Find Match)
+🔹 /profile - View your profile (👤 Profile)
+🔹 /edit - Edit your profile (⚙️ Edit Profile)
+🔹 /update - Change preferences
+🔹 /help - Show this help message
+
+💕 Happy matching!`;
+    await ctx.reply(helpText, { parse_mode: 'Markdown' });
 });
 bot.command('update', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -425,7 +435,19 @@ async function handleChat(ctx, user) {
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
     if (text === '/profile' || text === '👤 Profile') return await showMyProfile(ctx);
-    if (text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile\n/profile - My Profile");
+    if (text === '/help') {
+        const helpText = `📋 **MM Match Bot Commands**
+
+🔹 /start - Register your profile
+🔹 /find - Find matches (🔍 Find Match)
+🔹 /profile - View your profile (👤 Profile)
+🔹 /edit - Edit your profile (⚙️ Edit Profile)
+🔹 /update - Change preferences
+🔹 /help - Show this help message
+
+💕 Happy matching!`;
+        return await ctx.reply(helpText, { parse_mode: 'Markdown' });
+    }
 }
 
 // Vercel Handler - Ensures all async operations complete
