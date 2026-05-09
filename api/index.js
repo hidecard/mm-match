@@ -254,13 +254,14 @@ async function showNextProfile(ctx) {
         
         // Try sending photo, fallback to text if photo fails
         try {
+            console.log('Sending photo with ID:', target.photo_id?.substring(0, 20) + '...');
             return await ctx.replyWithPhoto(target.photo_id, {
                 caption: caption,
-                ...keyboard
+                reply_markup: keyboard.reply_markup
             });
         } catch (photoError) {
             console.error('Photo send failed, sending text instead:', photoError.message);
-            return await ctx.reply(caption, keyboard);
+            return await ctx.reply(caption, { reply_markup: keyboard.reply_markup });
         }
     } catch (error) {
         console.error('Error in showNextProfile:', error);
@@ -268,15 +269,21 @@ async function showNextProfile(ctx) {
     }
 }
 
+// Bot-level error handler
+bot.catch((err, ctx) => {
+    console.error('Bot error:', err);
+    console.error('Context:', ctx.updateType);
+});
+
 // Action handlers
 bot.action('next_profile', async (ctx) => {
-    console.log('Next button clicked by:', ctx.from.id);
+    console.log('Next button clicked by:', ctx.from?.id);
     try {
-        await ctx.answerCbQuery('⏳...').catch((e) => console.log('Answer error:', e.message));
+        await ctx.answerCbQuery('⏳ Loading...').catch((e) => console.log('Answer error:', e.message));
         return await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile action error:', error);
-        await ctx.answerCbQuery('အမှား!').catch(() => {});
+        await ctx.answerCbQuery('Error!').catch(() => {});
         return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။").catch(() => {});
     }
 });
