@@ -139,7 +139,7 @@ bot.on('message', async (ctx) => {
         }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
         }
     }
 
@@ -157,13 +157,13 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
-        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
+        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
     }
 
     if (user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
+        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
     }
 
     if (user.is_registered) return await handleChat(ctx, user);
@@ -201,7 +201,7 @@ bot.on('message', async (ctx) => {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
-        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['/help']]).resize());
+        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
     }
 });
 
@@ -230,13 +230,32 @@ bot.command('edit', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
     await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
 });
+bot.command('profile', async (ctx) => await showMyProfile(ctx));
 bot.command('help', async (ctx) => {
-    await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile\n/update - Change Preference");
+    await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile\n/profile - My Profile\n/update - Change Preference");
 });
 bot.command('update', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
     await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
 });
+
+async function showMyProfile(ctx) {
+    try {
+        const user = await getUser(ctx.from.id);
+        if (!user) return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
+        
+        const caption = `👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${user.address}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
+        
+        try {
+            return await ctx.replyWithPhoto(user.photo_id, { caption: caption });
+        } catch (e) {
+            return await ctx.reply(caption);
+        }
+    } catch (error) {
+        console.error('Error in showMyProfile:', error);
+        return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။");
+    }
+}
 
 async function showNextProfile(ctx) {
     try {
@@ -405,7 +424,8 @@ async function handleChat(ctx, user) {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
-    if (text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile");
+    if (text === '/profile' || text === '👤 Profile') return await showMyProfile(ctx);
+    if (text === '/help') return await ctx.reply("MM Match Guide:\n/start - Register\n/find - Find Match\n/edit - Edit Profile\n/profile - My Profile");
 }
 
 // Vercel Handler - Ensures all async operations complete
