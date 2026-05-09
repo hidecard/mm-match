@@ -221,30 +221,47 @@ bot.command('update', async (ctx) => {
 
 async function showNextProfile(ctx) {
     try {
+        console.log('showNextProfile called for user:', ctx.from?.id);
+        
         const user = await getUser(ctx.from.id);
-        if (!user || !user.looking_for) return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+        if (!user || !user.looking_for) {
+            console.log('User not registered or no looking_for:', user);
+            return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+        }
         
         const target = await getRandomProfile(ctx.from.id, user.looking_for);
-        if (!target) return await ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+        if (!target) {
+            console.log('No target found for user:', ctx.from.id);
+            return await ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+        }
         
-        // Mark as viewed in background to speed up response
+        console.log('Showing profile:', target.telegram_id, 'to user:', ctx.from.id);
+        
+        // Mark as viewed in background
         markProfileAsViewed(ctx.from.id, target.telegram_id).catch(e => console.error('markViewed error:', e));
         
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
-        const markup = Markup.inlineKeyboard([
+        const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
         // If it's a callback query, delete the old message first
         if (ctx.callbackQuery) {
-            await ctx.deleteMessage().catch(() => {});
+            console.log('Deleting previous message');
+            await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
         }
         
-        return await ctx.replyWithPhoto(target.photo_id, {
-            caption: caption,
-            ...markup
-        });
+        // Try sending photo, fallback to text if photo fails
+        try {
+            return await ctx.replyWithPhoto(target.photo_id, {
+                caption: caption,
+                ...keyboard
+            });
+        } catch (photoError) {
+            console.error('Photo send failed, sending text instead:', photoError.message);
+            return await ctx.reply(caption, keyboard);
+        }
     } catch (error) {
         console.error('Error in showNextProfile:', error);
         return await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
@@ -253,8 +270,9 @@ async function showNextProfile(ctx) {
 
 // Action handlers
 bot.action('next_profile', async (ctx) => {
+    console.log('Next button clicked by:', ctx.from.id);
     try {
-        await ctx.answerCbQuery('⏳...').catch(() => {});
+        await ctx.answerCbQuery('⏳...').catch((e) => console.log('Answer error:', e.message));
         return await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile action error:', error);
@@ -266,6 +284,8 @@ bot.action('next_profile', async (ctx) => {
 bot.action(/^like_(.+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
+    
+    console.log('Like button clicked - sender:', senderId, 'target:', targetId);
     
     // Validate inputs
     if (!targetId || !senderId) {
@@ -282,19 +302,22 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     
     try {
         // Answer callback query first to stop loading animation
-        await ctx.answerCbQuery('❤️ Like!').catch(() => {});
+        await ctx.answerCbQuery('❤️ Like!').catch((e) => console.log('Answer error:', e.message));
         
         // Record the like and wait for it to complete
+        console.log('Recording like...');
         await db.execute({ 
             sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", 
             args: [senderId, targetId] 
         });
+        console.log('Like recorded successfully');
         
         // Check for mutual like
         const mutualLike = await db.execute({
             sql: "SELECT * FROM likes WHERE from_user = ? AND to_user = ?",
             args: [targetId, senderId]
         });
+        console.log('Mutual like check:', mutualLike.rows.length > 0 ? 'Match!' : 'No match yet');
 
         if (mutualLike.rows.length > 0) {
             const me = await getUser(senderId);
@@ -325,6 +348,7 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     }
     
     // Always show next profile after processing the like
+    console.log('Showing next profile...');
     return await showNextProfile(ctx);
 });
 
