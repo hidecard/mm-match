@@ -206,6 +206,25 @@ bot.on('message', async (ctx) => {
 });
 
 // --- Discovery & Actions ---
+bot.command('test', async (ctx) => {
+    await ctx.reply('Bot is working! Buttons test:', 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('❤️ Test Like', 'test_like')],
+            [Markup.button.callback('➡️ Test Next', 'test_next')]
+        ])
+    );
+});
+
+bot.action('test_like', async (ctx) => {
+    await ctx.answerCbQuery('Like button works!');
+    await ctx.reply('✅ Like button is working!');
+});
+
+bot.action('test_next', async (ctx) => {
+    await ctx.answerCbQuery('Next button works!');
+    await ctx.reply('✅ Next button is working!');
+});
+
 bot.command('find', async (ctx) => await showNextProfile(ctx));
 bot.command('edit', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -396,7 +415,9 @@ async function handleChat(ctx, user) {
 
 // Vercel Handler - Ensures all async operations complete
 export default async (req, res) => {
-    if (req.method !== 'POST') return res.status(200).send('Bot is running...');
+    if (req.method !== 'POST') return res.status(200).send('Bot is running. POST to this endpoint for webhook.');
+    
+    console.log('Received update:', req.body?.update_id, 'Type:', Object.keys(req.body || {})[1]);
     
     try {
         // Create a promise that resolves when all bot processing is done
@@ -404,13 +425,13 @@ export default async (req, res) => {
             const timeout = setTimeout(() => {
                 console.warn('Bot processing timeout - forcing response');
                 resolve();
-            }, 8000); // 8 second timeout for Vercel
+            }, 9000); // 9 second timeout for Vercel
             
             bot.handleUpdate(req.body)
                 .then(() => {
                     clearTimeout(timeout);
                     // Give a small delay for any background DB operations
-                    setTimeout(resolve, 100);
+                    setTimeout(resolve, 200);
                 })
                 .catch((err) => {
                     clearTimeout(timeout);
@@ -418,6 +439,7 @@ export default async (req, res) => {
                 });
         });
         
+        console.log('Update processed successfully');
         res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Webhook Error:', error);
