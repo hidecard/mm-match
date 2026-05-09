@@ -294,8 +294,6 @@ bot.action('next_profile', async (ctx) => {
     console.log('Next button clicked by:', ctx.from?.id);
     try {
         await ctx.answerCbQuery('⏳ Loading...').catch((e) => console.log('Answer error:', e.message));
-        // Delete the message immediately
-        await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
         return await showNextProfile(ctx);
     } catch (error) {
         console.error('Next profile action error:', error);
@@ -322,10 +320,6 @@ bot.action(/^like_(.+)$/, async (ctx) => {
         await ctx.answerCbQuery('Database error').catch(() => {});
         return await ctx.reply("Database မချိတ်ဆက်နိုင်ပါ။").catch(() => {});
     }
-    
-    // Delete the message immediately before processing
-    console.log('Deleting message before processing like');
-    await ctx.deleteMessage().catch((e) => console.log('Delete error:', e.message));
     
     try {
         // Answer callback query
