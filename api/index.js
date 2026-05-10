@@ -748,18 +748,16 @@ async function handleDashboardAPI(req, res) {
             
             // Get total users
             const totalResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
+                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1",
+                args: []
             });
             const totalUsers = totalResult.rows[0]?.count || 0;
             console.log('Total users:', totalUsers);
             
             // Get total matches (mutual likes count)
             const matchesResult = await db.execute({
-                sql: `SELECT COUNT(*) as count FROM likes l
-                      WHERE EXISTS (
-                          SELECT 1 FROM likes l2 
-                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
-                      )`
+                sql: "SELECT COUNT(*) as count FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user)",
+                args: []
             });
             const totalMatches = Math.floor((matchesResult.rows[0]?.count || 0) / 2);
             console.log('Total matches:', totalMatches);
@@ -776,15 +774,13 @@ async function handleDashboardAPI(req, res) {
             console.log('Fetching users...');
             
             const usersResult = await db.execute({
-                sql: `SELECT telegram_id, nickname, age, gender, looking_for, address, 
-                             is_registered, created_at 
-                      FROM users 
-                      ORDER BY created_at DESC 
-                      LIMIT 50`
+                sql: "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, created_at FROM users ORDER BY created_at DESC LIMIT 50",
+                args: []
             });
             
             const countResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
+                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1",
+                args: []
             });
             
             console.log('Users fetched:', usersResult.rows.length);
@@ -801,17 +797,8 @@ async function handleDashboardAPI(req, res) {
             
             // Get all mutual likes (matches) - simpler query for SQLite
             const matchesResult = await db.execute({
-                sql: `SELECT 
-                        l.from_user as user1_id,
-                        l.to_user as user2_id,
-                        l.created_at as matched_at
-                      FROM likes l
-                      WHERE EXISTS (
-                          SELECT 1 FROM likes l2 
-                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
-                      )
-                      ORDER BY l.created_at DESC
-                      LIMIT 100`
+                sql: "SELECT l.from_user as user1_id, l.to_user as user2_id, l.created_at as matched_at FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user) ORDER BY l.created_at DESC LIMIT 100",
+                args: []
             });
             
             // Get unique matches (each match appears twice)
