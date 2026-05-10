@@ -716,9 +716,118 @@ async function handleChat(ctx, user) {
     }
 }
 
+// Dashboard API Routes
+async function handleDashboardAPI(req, res) {
+    const path = req.url?.replace('/api/', '') || req.url;
+    
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    try {
+        // API: /api/stats - Get dashboard stats
+        if (path === 'stats' || path === 'api/stats') {
+            const { online, matches, total } = await stats.getRealStats();
+            return res.status(200).json({
+                totalUsers: total,
+                todayMatches: matches,
+                lastUpdated: new Date().toISOString()
+            });
+        }
+        
+        // API: /api/users - Get user list
+        if (path === 'users' || path === 'api/users') {
+            const limit = parseInt(req.query?.limit) || 50;
+            const offset = parseInt(req.query?.offset) || 0;
+            
+            const usersResult = await db.execute({
+                sql: `SELECT telegram_id, nickname, age, gender, looking_for, address, 
+                             is_registered, created_at 
+                      FROM users 
+                      ORDER BY created_at DESC 
+                      LIMIT ? OFFSET ?`,
+                args: [limit, offset]
+            });
+            
+            const countResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
+            });
+            
+            return res.status(200).json({
+                users: usersResult.rows,
+                total: countResult.rows[0]?.count || 0,
+                limit,
+                offset
+            });
+        }
+        
+        // API: /api/matches - Get match list
+        if (path === 'matches' || path === 'api/matches') {
+            const matchesResult = await db.execute({
+                sql: `SELECT l.from_user, l.to_user, l.created_at,
+                             u1.nickname as from_nickname,
+                             u2.nickname as to_nickname
+                      FROM likes l
+                      JOIN users u1 ON l.from_user = u1.telegram_id
+                      JOIN users u2 ON l.to_user = u2.telegram_id
+                      WHERE EXISTS (
+                          SELECT 1 FROM likes l2 
+                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
+                      )
+                      ORDER BY l.created_at DESC
+                      LIMIT 50`
+            });
+            
+            // Get unique matches (each match appears twice in likes table)
+            const uniqueMatches = [];
+            const seen = new Set();
+            
+            for (const row of matchesResult.rows) {
+                const key = [row.from_user, row.to_user].sort().join('-');
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueMatches.push({
+                        user1: { id: row.from_user, nickname: row.from_nickname },
+                        user2: { id: row.to_user, nickname: row.to_nickname },
+                        matched_at: row.created_at
+                    });
+                }
+            }
+            
+            return res.status(200).json({
+                matches: uniqueMatches,
+                total: uniqueMatches.length
+            });
+        }
+        
+        return res.status(404).json({ error: 'Not found' });
+    } catch (error) {
+        console.error('Dashboard API Error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
 // Vercel Handler - Ensures all async operations complete
 export default async (req, res) => {
-    if (req.method !== 'POST') return res.status(200).send('Bot is running. POST to this endpoint for webhook.');
+    // Handle Dashboard API routes
+    if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
+        req.url === '/stats' || req.url === '/users' || req.url === '/matches') {
+        return handleDashboardAPI(req, res);
+    }
+    
+    // Serve dashboard HTML for root path
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard' || req.url === '/api' || req.url === '/api/')) {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(dashboardHTML);
+    }
+    
+    // Bot webhook handler
+    if (req.method !== 'POST') return res.status(200).send('Bot is running. POST to this endpoint for webhook. Dashboard at /');
     
     console.log('Received update:', req.body?.update_id, 'Type:', Object.keys(req.body || {})[1]);
     
@@ -749,3 +858,298 @@ export default async (req, res) => {
         res.status(200).json({ ok: true });
     }
 };
+
+// Dashboard HTML with React
+const dashboardHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MM Cupid Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Card Component
+        const StatCard = ({ title, value, icon, color, trend }) => (
+            <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm text-gray-500 mb-1">{title}</p>
+                        <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
+                        {trend && (
+                            <p className="text-xs text-green-500 mt-1">
+                                <i className="fas fa-arrow-up mr-1"></i>{trend}
+                            </p>
+                        )}
+                    </div>
+                    <div className={\`w-12 h-12 rounded-full \${color} flex items-center justify-center text-white text-xl\`}>
+                        <i className={\`fas \${icon}\`}></i>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // User List Component
+        const UserList = ({ users, loading }) => {
+            if (loading) return <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-3xl text-pink-500"></i></div>;
+            
+            return (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Looking For</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {users.map((user) => (
+                                    <tr key={user.telegram_id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white text-sm font-medium mr-3">
+                                                    {user.nickname?.charAt(0)?.toUpperCase() || '?'}
+                                                </div>
+                                                <span className="font-medium text-gray-800">{user.nickname}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">{user.age}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}\`}>
+                                                {user.gender?.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.looking_for === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}\`}>
+                                                {user.looking_for?.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.is_registered ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}\`}>
+                                                {user.is_registered ? 'Active' : 'Pending'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-500 text-sm">
+                                            {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        // Match List Component
+        const MatchList = ({ matches, loading }) => {
+            if (loading) return <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-3xl text-pink-500"></i></div>;
+            
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {matches.map((match, index) => (
+                        <div key={index} className="bg-white rounded-xl shadow-md p-4 border border-gray-100">
+                            <div className="flex items-center justify-center mb-4">
+                                <div className="flex items-center">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-medium">
+                                        {match.user1.nickname?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                    <div className="mx-2 text-red-500">
+                                        <i className="fas fa-heart"></i>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white font-medium">
+                                        {match.user2.nickname?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <p className="font-medium text-gray-800">{match.user1.nickname} ❤️ {match.user2.nickname}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    <i className="far fa-clock mr-1"></i>
+                                    {match.matched_at ? new Date(match.matched_at).toLocaleString() : 'Recently'}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // Main Dashboard Component
+        const Dashboard = () => {
+            const [stats, setStats] = useState({ totalUsers: 0, todayMatches: 0 });
+            const [users, setUsers] = useState([]);
+            const [matches, setMatches] = useState([]);
+            const [activeTab, setActiveTab] = useState('overview');
+            const [loading, setLoading] = useState(true);
+            const [lastUpdate, setLastUpdate] = useState(new Date());
+
+            const API_URL = '';
+
+            const fetchData = async () => {
+                try {
+                    setLoading(true);
+                    const [statsRes, usersRes, matchesRes] = await Promise.all([
+                        fetch(\`\${API_URL}/api/stats\`).then(r => r.json()),
+                        fetch(\`\${API_URL}/api/users\`).then(r => r.json()),
+                        fetch(\`\${API_URL}/api/matches\`).then(r => r.json())
+                    ]);
+                    
+                    setStats(statsRes);
+                    setUsers(usersRes.users || []);
+                    setMatches(matchesRes.matches || []);
+                    setLastUpdate(new Date());
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+                return () => clearInterval(interval);
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b border-gray-200">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-red-600 flex items-center justify-center text-white mr-3">
+                                        <i className="fas fa-heart"></i>
+                                    </div>
+                                    <div>
+                                        <h1 className="text-xl font-bold text-gray-800">MM Cupid</h1>
+                                        <p className="text-xs text-gray-500">Admin Dashboard</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <span className="text-sm text-gray-500">
+                                        Last updated: {lastUpdate.toLocaleTimeString()}
+                                    </span>
+                                    <button 
+                                        onClick={fetchData}
+                                        className="p-2 rounded-lg bg-pink-50 text-pink-600 hover:bg-pink-100 transition-colors"
+                                    >
+                                        <i className={\`fas fa-sync-alt \${loading ? 'fa-spin' : ''}\`}></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Navigation */}
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
+                            {[
+                                { id: 'overview', label: 'Overview', icon: 'fa-chart-line' },
+                                { id: 'users', label: 'Users', icon: 'fa-users' },
+                                { id: 'matches', label: 'Matches', icon: 'fa-heart' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={\`px-4 py-2 rounded-md text-sm font-medium transition-all \${
+                                        activeTab === tab.id 
+                                            ? 'bg-white text-pink-600 shadow-sm' 
+                                            : 'text-gray-600 hover:text-gray-800'
+                                    }\`}
+                                >
+                                    <i className={\`fas \${tab.icon} mr-2\`}></i>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Content */}
+                        {activeTab === 'overview' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <StatCard 
+                                        title="Total Users" 
+                                        value={stats.totalUsers} 
+                                        icon="fa-users" 
+                                        color="bg-blue-500"
+                                        trend="All time"
+                                    />
+                                    <StatCard 
+                                        title="Today's Matches" 
+                                        value={stats.todayMatches} 
+                                        icon="fa-heart" 
+                                        color="bg-pink-500"
+                                        trend="Real-time"
+                                    />
+                                    <StatCard 
+                                        title="Active Now" 
+                                        value={users.filter(u => u.is_registered).length} 
+                                        icon="fa-signal" 
+                                        color="bg-green-500"
+                                        trend="Registered"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-xl shadow-md p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                            <i className="fas fa-users mr-2 text-blue-500"></i>
+                                            Recent Users
+                                        </h3>
+                                        <UserList users={users.slice(0, 5)} loading={loading} />
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                            <i className="fas fa-heart mr-2 text-pink-500"></i>
+                                            Recent Matches
+                                        </h3>
+                                        <MatchList matches={matches.slice(0, 6)} loading={loading} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'users' && (
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-gray-800">All Users</h2>
+                                    <span className="text-sm text-gray-500">Total: {users.length}</span>
+                                </div>
+                                <UserList users={users} loading={loading} />
+                            </div>
+                        )}
+
+                        {activeTab === 'matches' && (
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-gray-800">All Matches</h2>
+                                    <span className="text-sm text-gray-500">Total: {matches.length}</span>
+                                </div>
+                                <MatchList matches={matches} loading={loading} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Dashboard />);
+    </script>
+</body>
+</html>`;
