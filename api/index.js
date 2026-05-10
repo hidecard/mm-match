@@ -774,7 +774,7 @@ async function handleDashboardAPI(req, res) {
             console.log('Fetching users...');
             
             const usersResult = await db.execute({
-                sql: "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, created_at FROM users ORDER BY created_at DESC LIMIT 50",
+                sql: "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 50",
                 args: []
             });
             
@@ -797,7 +797,7 @@ async function handleDashboardAPI(req, res) {
             
             // Get all mutual likes (matches) - simpler query for SQLite
             const matchesResult = await db.execute({
-                sql: "SELECT l.from_user as user1_id, l.to_user as user2_id, l.created_at as matched_at FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user) ORDER BY l.created_at DESC LIMIT 100",
+                sql: "SELECT l.from_user as user1_id, l.to_user as user2_id FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user) LIMIT 100",
                 args: []
             });
             
@@ -839,8 +839,7 @@ async function handleDashboardAPI(req, res) {
                     user2: { 
                         id: match.user2_id, 
                         nickname: user2Res.rows[0]?.nickname || 'Unknown'
-                    },
-                    matched_at: match.matched_at
+                    }
                 });
             }
             
@@ -964,7 +963,6 @@ const dashboardHTML = `<!DOCTYPE html>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Looking For</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -993,9 +991,6 @@ const dashboardHTML = `<!DOCTYPE html>
                                             <span className={\`px-2 py-1 rounded-full text-xs \${user.is_registered ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}\`}>
                                                 {user.is_registered ? 'Active' : 'Pending'}
                                             </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-500 text-sm">
-                                            {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                                         </td>
                                     </tr>
                                 ))}
@@ -1029,9 +1024,8 @@ const dashboardHTML = `<!DOCTYPE html>
                             </div>
                             <div className="text-center">
                                 <p className="font-medium text-gray-800">{match.user1.nickname} ❤️ {match.user2.nickname}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    <i className="far fa-clock mr-1"></i>
-                                    {match.matched_at ? new Date(match.matched_at).toLocaleString() : 'Recently'}
+                                <p className="text-xs text-pink-500 mt-1">
+                                    <i className="fas fa-heart mr-1"></i>Match!
                                 </p>
                             </div>
                         </div>
