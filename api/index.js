@@ -753,19 +753,20 @@ async function handleDashboardAPI(req, res) {
             const totalUsers = totalResult.rows[0]?.count || 0;
             console.log('Total users:', totalUsers);
             
-            // Get today's matches (mutual likes today)
-            const todayMatchesResult = await db.execute({
-                sql: `SELECT COUNT(DISTINCT l.from_user || '-' || l.to_user) as count 
-                      FROM likes l
-                      JOIN likes l2 ON l.from_user = l2.to_user AND l.to_user = l2.from_user
-                      WHERE date(l.created_at) = date('now')`
+            // Get total matches (mutual likes count)
+            const matchesResult = await db.execute({
+                sql: `SELECT COUNT(*) as count FROM likes l
+                      WHERE EXISTS (
+                          SELECT 1 FROM likes l2 
+                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
+                      )`
             });
-            const todayMatches = todayMatchesResult.rows[0]?.count || 0;
-            console.log('Today matches:', todayMatches);
+            const totalMatches = Math.floor((matchesResult.rows[0]?.count || 0) / 2);
+            console.log('Total matches:', totalMatches);
             
             return res.status(200).json({
                 totalUsers: totalUsers,
-                todayMatches: todayMatches,
+                todayMatches: totalMatches,
                 lastUpdated: new Date().toISOString()
             });
         }
@@ -798,33 +799,69 @@ async function handleDashboardAPI(req, res) {
         if (path === 'api/matches' || path === 'matches') {
             console.log('Fetching matches...');
             
+            // Get all mutual likes (matches) - simpler query for SQLite
             const matchesResult = await db.execute({
                 sql: `SELECT 
-                        MIN(l.from_user) as user1_id,
-                        MAX(l.from_user) as user2_id,
-                        u1.nickname as user1_nickname,
-                        u2.nickname as user2_nickname,
-                        MAX(l.created_at) as matched_at
+                        l.from_user as user1_id,
+                        l.to_user as user2_id,
+                        l.created_at as matched_at
                       FROM likes l
-                      JOIN likes l2 ON l.from_user = l2.to_user AND l.to_user = l2.from_user
-                      JOIN users u1 ON MIN(l.from_user) = u1.telegram_id
-                      JOIN users u2 ON MAX(l.from_user) = u2.telegram_id
-                      GROUP BY l.from_user, l.to_user
-                      ORDER BY MAX(l.created_at) DESC
-                      LIMIT 50`
+                      WHERE EXISTS (
+                          SELECT 1 FROM likes l2 
+                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
+                      )
+                      ORDER BY l.created_at DESC
+                      LIMIT 100`
             });
             
-            const matches = (matchesResult.rows || []).map(row => ({
-                user1: { id: row.user1_id, nickname: row.user1_nickname },
-                user2: { id: row.user2_id, nickname: row.user2_nickname },
-                matched_at: row.matched_at
-            }));
+            // Get unique matches (each match appears twice)
+            const seen = new Set();
+            const uniqueMatches = [];
             
-            console.log('Matches fetched:', matches.length);
+            for (const row of matchesResult.rows || []) {
+                // Create a unique key (smaller ID first)
+                const u1 = row.user1_id;
+                const u2 = row.user2_id;
+                const key = u1 < u2 ? u1 + '-' + u2 : u2 + '-' + u1;
+                
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueMatches.push(row);
+                }
+            }
+            
+            // Fetch user nicknames for each match
+            const matchesWithNames = [];
+            for (const match of uniqueMatches.slice(0, 50)) {
+                const [user1Res, user2Res] = await Promise.all([
+                    db.execute({
+                        sql: "SELECT nickname FROM users WHERE telegram_id = ?",
+                        args: [match.user1_id]
+                    }),
+                    db.execute({
+                        sql: "SELECT nickname FROM users WHERE telegram_id = ?",
+                        args: [match.user2_id]
+                    })
+                ]);
+                
+                matchesWithNames.push({
+                    user1: { 
+                        id: match.user1_id, 
+                        nickname: user1Res.rows[0]?.nickname || 'Unknown'
+                    },
+                    user2: { 
+                        id: match.user2_id, 
+                        nickname: user2Res.rows[0]?.nickname || 'Unknown'
+                    },
+                    matched_at: match.matched_at
+                });
+            }
+            
+            console.log('Matches fetched:', matchesWithNames.length);
             
             return res.status(200).json({
-                matches: matches,
-                total: matches.length
+                matches: matchesWithNames,
+                total: matchesWithNames.length
             });
         }
         
