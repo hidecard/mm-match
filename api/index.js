@@ -201,7 +201,14 @@ bot.on('message', async (ctx) => {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
-        return await ctx.reply("မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။ /find ကိုနှိပ်ပြီး Match ရှာနိုင်ပါပြီ။", Markup.keyboard([['🔍 Find Match', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize());
+        const welcomeText = `✅ *အားလုံးအဆင်ပြေသွားပါပြီ။*
+
+အခုဆိုရင် သင်ဟာ MM Cupid ရဲ့ အဖွဲ့ဝင်တစ်ဦး ဖြစ်သွားပါပြီ။ 💕
+အောက်က ခလုတ်ကိုနှိပ်ပြီး သင့်ရဲ့ ဖူးစာရှင်ကို စတင်ရှာဖွေနိုင်ပါပြီ။ 👇`;
+        return await ctx.reply(welcomeText, {
+            parse_mode: 'Markdown',
+            ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '⚙️ Edit Profile'], ['👤 Profile', '/help']]).resize()
+        });
     }
 });
 
@@ -232,16 +239,16 @@ bot.command('edit', async (ctx) => {
 });
 bot.command('profile', async (ctx) => await showMyProfile(ctx));
 bot.command('help', async (ctx) => {
-    const helpText = `📋 **MM Match Bot Commands**
+    const helpText = `📋 **MM Cupid Bot Commands**
 
 🔹 /start - Register your profile
-🔹 /find - Find matches (🔍 Find Match)
+🔹 /find - Find matches (🔍 ဖူးစာရှင်ရှာမည်)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
 🔹 /update - Change preferences
 🔹 /help - Show this help message
 
-💕 Happy matching!`;
+💕 ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
     await ctx.reply(helpText, { parse_mode: 'Markdown' });
 });
 bot.command('update', async (ctx) => {
@@ -280,7 +287,13 @@ async function showNextProfile(ctx) {
         const target = await getRandomProfile(ctx.from.id, user.looking_for);
         if (!target) {
             console.log('No target found for user:', ctx.from.id);
-            return await ctx.reply("ရှာမတွေ့သေးပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+            const emptyText = `⌛ *ခေတ္တစောင့်ဆိုင်းပေးပါဦး...*
+
+အခုလောလောဆယ် သင့်အနီးအနားမှာ Profile အသစ်တွေ ကုန်နေပါပြီ။
+User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာမို့ ခဏနေရင် ပြန်လာကြည့်ပေးပါဦးနော်။ ✨
+
+🚀 *သူငယ်ချင်းတွေကို Invite လုပ်ပြီး Match ပိုရှာချင်ရင်: /help*`;
+            return await ctx.reply(emptyText, { parse_mode: 'Markdown' });
         }
         
         console.log('Showing profile:', target.telegram_id, 'to user:', ctx.from.id);
@@ -376,19 +389,41 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                 const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
                 const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
                 
-                await ctx.reply(`Match ဖြစ်သွားပါပြီ! ❤️\nသူ့ဆီ စကားပြောလိုက်ပါ: ${partnerLink}`);
+                const matchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+
+သင်နဲ့ *${partner.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍
+အခုပဲ စကားစပြောကြည့်လိုက်တော့နော်!
+
+🔗 *စကားပြောရန်:* ${partnerLink}
+
+💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+                await ctx.reply(matchText, { parse_mode: 'Markdown' });
                 try {
-                    await bot.telegram.sendMessage(targetId, `သူက သင့်ကို Like ပြန်လုပ်လိုက်ပါတယ်! Match ဖြစ်သွားပါပြီ! ❤️\nစကားပြောရန်: ${myLink}`);
+                    const partnerMatchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+
+သင်နဲ့ *${me.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍
+အခုပဲ စကားစပြောကြည့်လိုက်တော့နော်!
+
+🔗 *စကားပြောရန်:* ${myLink}
+
+💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+                    await bot.telegram.sendMessage(targetId, partnerMatchText, { parse_mode: 'Markdown' });
                 } catch (e) {}
             }
         } else {
             try {
                 const me = await getUser(senderId);
                 if (me) {
-                    await bot.telegram.sendMessage(targetId, `${me.nickname} က သင့်ကို သဘောကျနေပါတယ်! သူ့ Profile ကို ပြန်ကြည့်မလား?`, 
-                        Markup.inlineKeyboard([
-                            [Markup.button.callback('သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
-                        ]));
+                    const likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*
+
+*${me.nickname}* က သင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉
+အဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
+                    await bot.telegram.sendMessage(targetId, likeNotifyText, {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('👀 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
+                        ])
+                    });
                 }
             } catch (e) {}
         }
@@ -429,23 +464,23 @@ bot.action('close_profile', async (ctx) => {
 
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
-    if (text === '/find' || text === '🔍 Find Match') return await showNextProfile(ctx);
+    if (text === '/find' || text === '🔍 Find Match' || text === '🔍 ဖူးစာရှင်ရှာမည်') return await showNextProfile(ctx);
     if (text === '/edit' || text === '⚙️ Edit Profile') {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
     if (text === '/profile' || text === '👤 Profile') return await showMyProfile(ctx);
     if (text === '/help') {
-        const helpText = `📋 **MM Match Bot Commands**
+        const helpText = `📋 **MM Cupid Bot Commands**
 
 🔹 /start - Register your profile
-🔹 /find - Find matches (🔍 Find Match)
+🔹 /find - Find matches (🔍 ဖူးစာရှင်ရှာမည်)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
 🔹 /update - Change preferences
 🔹 /help - Show this help message
 
-💕 Happy matching!`;
+💕 ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
         return await ctx.reply(helpText, { parse_mode: 'Markdown' });
     }
 }
