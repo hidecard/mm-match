@@ -716,10 +716,8 @@ async function handleChat(ctx, user) {
     }
 }
 
-// Dashboard API Routes
+// Dashboard API Routes - Simplified for Vercel
 async function handleDashboardAPI(req, res) {
-    const path = req.url?.replace('/api/', '') || req.url;
-    
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -729,86 +727,116 @@ async function handleDashboardAPI(req, res) {
         return res.status(200).end();
     }
     
+    // Get path from URL
+    let path = req.url || '';
+    console.log('Dashboard API request:', path);
+    
+    // Remove query params and normalize
+    path = path.split('?')[0].replace(/^\//, '');
+    console.log('Normalized path:', path);
+    
     try {
+        // Check database connection
+        if (!db) {
+            console.error('Database not connected');
+            return res.status(500).json({ error: 'Database not connected' });
+        }
+        
         // API: /api/stats - Get dashboard stats
-        if (path === 'stats' || path === 'api/stats') {
-            const { online, matches, total } = await stats.getRealStats();
+        if (path === 'api/stats' || path === 'stats') {
+            console.log('Fetching stats...');
+            
+            // Get total users
+            const totalResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
+            });
+            const totalUsers = totalResult.rows[0]?.count || 0;
+            console.log('Total users:', totalUsers);
+            
+            // Get today's matches (mutual likes today)
+            const todayMatchesResult = await db.execute({
+                sql: `SELECT COUNT(DISTINCT l.from_user || '-' || l.to_user) as count 
+                      FROM likes l
+                      JOIN likes l2 ON l.from_user = l2.to_user AND l.to_user = l2.from_user
+                      WHERE date(l.created_at) = date('now')`
+            });
+            const todayMatches = todayMatchesResult.rows[0]?.count || 0;
+            console.log('Today matches:', todayMatches);
+            
             return res.status(200).json({
-                totalUsers: total,
-                todayMatches: matches,
+                totalUsers: totalUsers,
+                todayMatches: todayMatches,
                 lastUpdated: new Date().toISOString()
             });
         }
         
         // API: /api/users - Get user list
-        if (path === 'users' || path === 'api/users') {
-            const limit = parseInt(req.query?.limit) || 50;
-            const offset = parseInt(req.query?.offset) || 0;
+        if (path === 'api/users' || path === 'users') {
+            console.log('Fetching users...');
             
             const usersResult = await db.execute({
                 sql: `SELECT telegram_id, nickname, age, gender, looking_for, address, 
                              is_registered, created_at 
                       FROM users 
                       ORDER BY created_at DESC 
-                      LIMIT ? OFFSET ?`,
-                args: [limit, offset]
+                      LIMIT 50`
             });
             
             const countResult = await db.execute({
                 sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
             });
             
+            console.log('Users fetched:', usersResult.rows.length);
+            
             return res.status(200).json({
-                users: usersResult.rows,
-                total: countResult.rows[0]?.count || 0,
-                limit,
-                offset
+                users: usersResult.rows || [],
+                total: countResult.rows[0]?.count || 0
             });
         }
         
         // API: /api/matches - Get match list
-        if (path === 'matches' || path === 'api/matches') {
+        if (path === 'api/matches' || path === 'matches') {
+            console.log('Fetching matches...');
+            
             const matchesResult = await db.execute({
-                sql: `SELECT l.from_user, l.to_user, l.created_at,
-                             u1.nickname as from_nickname,
-                             u2.nickname as to_nickname
+                sql: `SELECT 
+                        MIN(l.from_user) as user1_id,
+                        MAX(l.from_user) as user2_id,
+                        u1.nickname as user1_nickname,
+                        u2.nickname as user2_nickname,
+                        MAX(l.created_at) as matched_at
                       FROM likes l
-                      JOIN users u1 ON l.from_user = u1.telegram_id
-                      JOIN users u2 ON l.to_user = u2.telegram_id
-                      WHERE EXISTS (
-                          SELECT 1 FROM likes l2 
-                          WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user
-                      )
-                      ORDER BY l.created_at DESC
+                      JOIN likes l2 ON l.from_user = l2.to_user AND l.to_user = l2.from_user
+                      JOIN users u1 ON MIN(l.from_user) = u1.telegram_id
+                      JOIN users u2 ON MAX(l.from_user) = u2.telegram_id
+                      GROUP BY l.from_user, l.to_user
+                      ORDER BY MAX(l.created_at) DESC
                       LIMIT 50`
             });
             
-            // Get unique matches (each match appears twice in likes table)
-            const uniqueMatches = [];
-            const seen = new Set();
+            const matches = (matchesResult.rows || []).map(row => ({
+                user1: { id: row.user1_id, nickname: row.user1_nickname },
+                user2: { id: row.user2_id, nickname: row.user2_nickname },
+                matched_at: row.matched_at
+            }));
             
-            for (const row of matchesResult.rows) {
-                const key = [row.from_user, row.to_user].sort().join('-');
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    uniqueMatches.push({
-                        user1: { id: row.from_user, nickname: row.from_nickname },
-                        user2: { id: row.to_user, nickname: row.to_nickname },
-                        matched_at: row.created_at
-                    });
-                }
-            }
+            console.log('Matches fetched:', matches.length);
             
             return res.status(200).json({
-                matches: uniqueMatches,
-                total: uniqueMatches.length
+                matches: matches,
+                total: matches.length
             });
         }
         
-        return res.status(404).json({ error: 'Not found' });
+        console.log('Unknown path:', path);
+        return res.status(404).json({ error: 'Not found', path });
     } catch (error) {
         console.error('Dashboard API Error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ 
+            error: 'Internal server error', 
+            message: error.message,
+            stack: error.stack 
+        });
     }
 }
 
@@ -996,17 +1024,39 @@ const dashboardHTML = `<!DOCTYPE html>
             const [activeTab, setActiveTab] = useState('overview');
             const [loading, setLoading] = useState(true);
             const [lastUpdate, setLastUpdate] = useState(new Date());
+            const [error, setError] = useState(null);
 
             const API_URL = '';
 
             const fetchData = async () => {
                 try {
                     setLoading(true);
+                    setError(null);
+                    
+                    console.log('Fetching dashboard data...');
+                    
                     const [statsRes, usersRes, matchesRes] = await Promise.all([
-                        fetch(\`\${API_URL}/api/stats\`).then(r => r.json()),
-                        fetch(\`\${API_URL}/api/users\`).then(r => r.json()),
-                        fetch(\`\${API_URL}/api/matches\`).then(r => r.json())
+                        fetch(\`\${API_URL}/api/stats\`).then(async r => {
+                            if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/users\`).then(async r => {
+                            if (!r.ok) throw new Error(\`Users API error: \${r.status}\`);
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/matches\`).then(async r => {
+                            if (!r.ok) throw new Error(\`Matches API error: \${r.status}\`);
+                            return r.json();
+                        })
                     ]);
+                    
+                    console.log('Stats:', statsRes);
+                    console.log('Users:', usersRes);
+                    console.log('Matches:', matchesRes);
+                    
+                    if (statsRes.error) throw new Error(statsRes.error);
+                    if (usersRes.error) throw new Error(usersRes.error);
+                    if (matchesRes.error) throw new Error(matchesRes.error);
                     
                     setStats(statsRes);
                     setUsers(usersRes.users || []);
@@ -1014,6 +1064,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     setLastUpdate(new Date());
                 } catch (error) {
                     console.error('Error fetching data:', error);
+                    setError(error.message);
                 } finally {
                     setLoading(false);
                 }
@@ -1077,6 +1128,19 @@ const dashboardHTML = `<!DOCTYPE html>
                                 </button>
                             ))}
                         </div>
+
+                        {/* Error Display */}
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-center">
+                                    <i className="fas fa-exclamation-circle text-red-500 mr-3"></i>
+                                    <div>
+                                        <p className="text-red-800 font-medium">Error loading data</p>
+                                        <p className="text-red-600 text-sm">{error}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Content */}
                         {activeTab === 'overview' && (
