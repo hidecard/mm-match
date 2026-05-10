@@ -14,21 +14,14 @@ let db;
 // Note: This is per-instance cache, works best for warm serverless functions
 const sessionViewedCache = new Map();
 
-// Live stats tracking
+// Live stats tracking - Queries real database data
 const stats = {
-    onlineUsers: new Set(),           // Set of user IDs currently active
-    todayMatches: 0,                  // Matches today
+    // In-memory for quick match tracking
+    todayMatches: 0,
     lastMatchDate: new Date().toDateString(),
+    cachedTotalUsers: 0,
+    lastCacheTime: 0,
     
-    addOnline(userId) {
-        this.onlineUsers.add(userId);
-    },
-    removeOnline(userId) {
-        this.onlineUsers.delete(userId);
-    },
-    getOnlineCount() {
-        return this.onlineUsers.size;
-    },
     addMatch() {
         const today = new Date().toDateString();
         if (this.lastMatchDate !== today) {
@@ -37,6 +30,50 @@ const stats = {
         }
         this.todayMatches++;
     },
+    
+    // Get real stats from database
+    async getRealStats() {
+        if (!db) return { online: 0, matches: 0, total: 0 };
+        
+        try {
+            // Get total registered users (cache for 5 minutes)
+            const now = Date.now();
+            if (now - this.lastCacheTime > 300000) {
+                const totalResult = await db.execute({
+                    sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
+                });
+                this.cachedTotalUsers = totalResult.rows[0]?.count || 0;
+                this.lastCacheTime = now;
+            }
+            
+            // Get today's matches from database (count mutual likes today)
+            const today = new Date().toISOString().split('T')[0];
+            const matchesResult = await db.execute({
+                sql: `SELECT COUNT(*) as count FROM likes 
+                      WHERE date(created_at) = date('now') 
+                      OR (created_at IS NULL AND date('now') = date('now'))`  
+            });
+            
+            // Use in-memory count + database estimate
+            const dbMatches = matchesResult.rows[0]?.count || 0;
+            const estimatedMatches = Math.max(this.todayMatches, Math.floor(dbMatches / 2)); // Divide by 2 since each match = 2 likes
+            
+            return {
+                online: this.cachedTotalUsers,  // Total registered users
+                matches: estimatedMatches,     // Today's matches
+                total: this.cachedTotalUsers
+            };
+        } catch (error) {
+            console.error('Error getting real stats:', error);
+            return {
+                online: this.cachedTotalUsers || 0,
+                matches: this.todayMatches,
+                total: this.cachedTotalUsers || 0
+            };
+        }
+    },
+    
+    // Legacy sync method for compatibility
     getStats() {
         const today = new Date().toDateString();
         if (this.lastMatchDate !== today) {
@@ -44,7 +81,7 @@ const stats = {
             this.lastMatchDate = today;
         }
         return {
-            online: this.getOnlineCount(),
+            online: this.cachedTotalUsers,
             matches: this.todayMatches
         };
     }
@@ -396,16 +433,15 @@ bot.action('test_next', async (ctx) => {
 });
 
 bot.command('pulse', async (ctx) => {
-    const { online, matches } = stats.getStats();
+    const { online, matches } = await stats.getRealStats();
     const pulseText = `💓 *Matching Pulse*\n\n` +
-        `👥 လက်ရှိအွန်လိုင်းပေါ်မှာ: *${online}* ယောက်\n` +
+        `👥 စုစုပေါင်း Register လုပ်ထားသူ: *${online}* ယောက်\n` +
         `❤️ ဒီနေ့ Match အရေအတွက်: *${matches}* စုံ\n\n` +
         `🔥 MM Cupid မှာ သင့်ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
     await ctx.reply(pulseText, { parse_mode: 'Markdown' });
 });
 
 bot.command('find', async (ctx) => {
-    stats.addOnline(ctx.from.id);
     await showNextProfile(ctx);
 });
 bot.command('edit', async (ctx) => {
@@ -649,15 +685,14 @@ bot.action('close_profile', async (ctx) => {
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
     if (text === '/pulse' || text === '💓 Pulse') {
-        const { online, matches } = stats.getStats();
+        const { online, matches } = await stats.getRealStats();
         const pulseText = `💓 *Matching Pulse*\n\n` +
-            `👥 လက်ရှိအွန်လိုင်းပေါ်မှာ: *${online}* ယောက်\n` +
+            `👥 စုစုပေါင်း Register လုပ်ထားသူ: *${online}* ယောက်\n` +
             `❤️ ဒီနေ့ Match အရေအတွက်: *${matches}* စုံ\n\n` +
             `🔥 MM Cupid မှာ သင့်ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
         return await ctx.reply(pulseText, { parse_mode: 'Markdown' });
     }
     if (text === '/find' || text === '🔍 Find Match' || text === '🔍 ဖူးစာရှင်ရှာမည်') {
-        stats.addOnline(ctx.from.id);
         return await showNextProfile(ctx);
     }
     if (text === '/edit' || text === '⚙️ Edit Profile') {
