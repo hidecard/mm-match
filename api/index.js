@@ -119,25 +119,26 @@ const getUser = async (id) => {
 
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
-        // Build the NOT IN clause if we have session viewed IDs
+        // Build the NOT IN clause for session viewed IDs (temporary - only current session)
         const allViewedIds = [...viewedIds];
         const notInClause = allViewedIds.length > 0 
             ? `AND u.telegram_id NOT IN (${allViewedIds.map(() => '?').join(',')})`
             : '';
         const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
         
-        // Try with profile_views join and session viewed IDs
+        // Main query: exclude session viewed + exclude LIKED profiles (permanent)
         try {
             const sql = `SELECT u.* FROM users u 
-                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                       WHERE u.is_registered = 1 
                         AND u.telegram_id != ? 
                         AND u.gender = ? 
-                        AND pv.viewed_profile_id IS NULL
+                        AND u.telegram_id NOT IN (
+                            SELECT to_user FROM likes WHERE from_user = ?
+                        )
                         ${notInClause}
                       ORDER BY RANDOM() LIMIT 1`;
             
-            const args = [userId, userId, lookingFor, ...notInArgs];
+            const args = [userId, lookingFor, userId, ...notInArgs];
             
             console.log('Fetching random profile with viewedIds:', allViewedIds.length);
             const unviewedResult = await db.execute({ sql, args });
@@ -146,17 +147,21 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 return unviewedResult.rows[0];
             }
             
-            // If no results with strict filtering, try without session viewed IDs
+            // If no results with strict filtering, try without session viewed IDs (but keep liked exclusion)
             if (allViewedIds.length > 0) {
                 console.log('No new profiles, clearing session cache and retrying...');
                 sessionViewedCache.delete(userId);
                 
                 const fallbackResult = await db.execute({
                     sql: `SELECT u.* FROM users u 
-                          LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                          WHERE u.is_registered = 1 AND u.telegram_id != ? AND u.gender = ? AND pv.viewed_profile_id IS NULL
+                          WHERE u.is_registered = 1 
+                            AND u.telegram_id != ? 
+                            AND u.gender = ? 
+                            AND u.telegram_id NOT IN (
+                                SELECT to_user FROM likes WHERE from_user = ?
+                            )
                           ORDER BY RANDOM() LIMIT 1`,
-                    args: [userId, userId, lookingFor]
+                    args: [userId, lookingFor, userId]
                 });
                 
                 if (fallbackResult.rows.length > 0) {
@@ -164,18 +169,19 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 }
             }
         } catch (dbError) {
-            console.error('Profile views query failed:', dbError.message);
+            console.error('Profile query failed:', dbError.message);
         }
         
-        // Fallback: get any random profile excluding session viewed
-        const fallbackArgs = [userId, lookingFor, ...notInArgs];
-        const fallbackWhere = allViewedIds.length > 0 
-            ? `AND telegram_id NOT IN (${allViewedIds.map(() => '?').join(',')})`
-            : '';
-            
+        // Fallback: get any random profile (excluding liked only)
         const allResult = await db.execute({
-            sql: `SELECT * FROM users WHERE is_registered = 1 AND telegram_id != ? AND gender = ? ${fallbackWhere} ORDER BY RANDOM() LIMIT 1`,
-            args: fallbackArgs
+            sql: `SELECT * FROM users WHERE is_registered = 1 
+                  AND telegram_id != ? 
+                  AND gender = ? 
+                  AND telegram_id NOT IN (
+                      SELECT to_user FROM likes WHERE from_user = ?
+                  )
+                  ORDER BY RANDOM() LIMIT 1`,
+            args: [userId, lookingFor, userId]
         });
         
         return allResult.rows[0] || null;
@@ -510,9 +516,9 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         
         console.log('Showing profile:', target.telegram_id, 'to user:', ctx.from.id);
         
-        // Add to session cache and mark as viewed in background
+        // Add to session cache only (temporary, clears when user restarts)
+        // Liked profiles are excluded via likes table in getRandomProfile
         addToSessionViewed(ctx.from.id, target.telegram_id);
-        markProfileAsViewed(ctx.from.id, target.telegram_id).catch(e => console.error('markViewed error:', e));
         
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
