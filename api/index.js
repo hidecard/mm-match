@@ -716,24 +716,45 @@ async function handleChat(ctx, user) {
     }
 }
 
+// Dashboard Password (set via env var or use default)
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'hidecard';
+
 // Dashboard API Routes - Simplified for Vercel
 async function handleDashboardAPI(req, res) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Password');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
     
+    // Password check (skip for login check endpoint)
+    const url = req.url || '';
+    if (!url.includes('/api/check-auth')) {
+        const password = req.headers['x-password'] || req.query?.password;
+        if (password !== DASHBOARD_PASSWORD) {
+            return res.status(401).json({ error: 'Unauthorized - Invalid password' });
+        }
+    }
+    
     // Get path from URL
-    let path = req.url || '';
+    let path = url;
     console.log('Dashboard API request:', path);
     
     // Remove query params and normalize
     path = path.split('?')[0].replace(/^\//, '');
     console.log('Normalized path:', path);
+    
+    // Check password endpoint
+    if (path === 'api/check-auth' || path === 'check-auth') {
+        const password = req.headers['x-password'] || req.query?.password;
+        if (password === DASHBOARD_PASSWORD) {
+            return res.status(200).json({ success: true });
+        }
+        return res.status(401).json({ error: 'Invalid password' });
+    }
     
     try {
         // Check database connection
@@ -1034,6 +1055,78 @@ const dashboardHTML = `<!DOCTYPE html>
             );
         };
 
+        // Login Component
+        const LoginScreen = ({ onLogin, loginError }) => {
+            const [password, setPassword] = useState('');
+            const [showPassword, setShowPassword] = useState(false);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onLogin(password);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-purple-600 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 to-red-600 flex items-center justify-center text-white text-3xl mx-auto mb-4">
+                                <i className="fas fa-heart"></i>
+                            </div>
+                            <h1 className="text-2xl font-bold text-gray-800">MM Cupid</h1>
+                            <p className="text-gray-500">Admin Dashboard</p>
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none"
+                                        placeholder="Enter password"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <i className={\`fas \${showPassword ? 'fa-eye-slash' : 'fa-eye'}\`}></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {loginError && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                    <p className="text-red-600 text-sm">
+                                        <i className="fas fa-exclamation-circle mr-2"></i>
+                                        {loginError}
+                                    </p>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                className="w-full py-3 bg-gradient-to-r from-pink-500 to-red-600 text-white rounded-lg font-medium hover:from-pink-600 hover:to-red-700 transition-all transform hover:scale-[1.02]"
+                            >
+                                <i className="fas fa-lock mr-2"></i>Login
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <p className="text-xs text-gray-400">
+                                Default: admin123
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // Main Dashboard Component
         const Dashboard = () => {
             const [stats, setStats] = useState({ totalUsers: 0, todayMatches: 0 });
@@ -1043,26 +1136,58 @@ const dashboardHTML = `<!DOCTYPE html>
             const [loading, setLoading] = useState(true);
             const [lastUpdate, setLastUpdate] = useState(new Date());
             const [error, setError] = useState(null);
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [password, setPassword] = useState('');
+            const [loginError, setLoginError] = useState('');
 
             const API_URL = '';
 
+            const handleLogin = async (pwd) => {
+                setPassword(pwd);
+                setLoginError('');
+                
+                try {
+                    const res = await fetch(\`\${API_URL}/api/check-auth?password=\${encodeURIComponent(pwd)}\`);
+                    if (res.ok) {
+                        setIsLoggedIn(true);
+                        sessionStorage.setItem('dashboardPassword', pwd);
+                    } else {
+                        setLoginError('Invalid password');
+                    }
+                } catch (err) {
+                    setLoginError('Connection error');
+                }
+            };
+
+            // Check for saved password on mount
+            useEffect(() => {
+                const savedPwd = sessionStorage.getItem('dashboardPassword');
+                if (savedPwd) {
+                    handleLogin(savedPwd);
+                }
+            }, []);
+
             const fetchData = async () => {
+                if (!isLoggedIn || !password) return;
+                
                 try {
                     setLoading(true);
                     setError(null);
                     
                     console.log('Fetching dashboard data...');
                     
+                    const headers = { 'X-Password': password };
+                    
                     const [statsRes, usersRes, matchesRes] = await Promise.all([
-                        fetch(\`\${API_URL}/api/stats\`).then(async r => {
+                        fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
                             return r.json();
                         }),
-                        fetch(\`\${API_URL}/api/users\`).then(async r => {
+                        fetch(\`\${API_URL}/api/users\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Users API error: \${r.status}\`);
                             return r.json();
                         }),
-                        fetch(\`\${API_URL}/api/matches\`).then(async r => {
+                        fetch(\`\${API_URL}/api/matches\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Matches API error: \${r.status}\`);
                             return r.json();
                         })
@@ -1089,10 +1214,17 @@ const dashboardHTML = `<!DOCTYPE html>
             };
 
             useEffect(() => {
-                fetchData();
-                const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-                return () => clearInterval(interval);
-            }, []);
+                if (isLoggedIn && password) {
+                    fetchData();
+                    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+                    return () => clearInterval(interval);
+                }
+            }, [isLoggedIn, password]);
+
+            // Show login screen if not authenticated
+            if (!isLoggedIn) {
+                return <LoginScreen onLogin={handleLogin} loginError={loginError} />;
+            }
 
             return (
                 <div className="min-h-screen bg-gray-50">
