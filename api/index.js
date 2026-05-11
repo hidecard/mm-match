@@ -36,39 +36,33 @@ const stats = {
         if (!db) return { online: 0, matches: 0, total: 0 };
         
         try {
-            // Get total registered users (cache for 5 minutes)
-            const now = Date.now();
-            if (now - this.lastCacheTime > 300000) {
-                const totalResult = await db.execute({
-                    sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1"
-                });
-                this.cachedTotalUsers = totalResult.rows[0]?.count || 0;
-                this.lastCacheTime = now;
-            }
-            
-            // Get today's matches from database (count mutual likes today)
-            const today = new Date().toISOString().split('T')[0];
-            const matchesResult = await db.execute({
-                sql: `SELECT COUNT(*) as count FROM likes 
-                      WHERE date(created_at) = date('now') 
-                      OR (created_at IS NULL AND date('now') = date('now'))`  
+            // Get total registered users (always fresh data)
+            const totalResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1",
+                args: []
             });
+            const totalUsers = totalResult.rows[0]?.count || 0;
             
-            // Use in-memory count + database estimate
-            const dbMatches = matchesResult.rows[0]?.count || 0;
-            const estimatedMatches = Math.max(this.todayMatches, Math.floor(dbMatches / 2)); // Divide by 2 since each match = 2 likes
+            // Get total mutual matches (all time)
+            const matchesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user)",
+                args: []
+            });
+            const totalMatches = Math.floor((matchesResult.rows[0]?.count || 0) / 2);
+            
+            console.log('Real stats - Users:', totalUsers, 'Matches:', totalMatches);
             
             return {
-                online: this.cachedTotalUsers,  // Total registered users
-                matches: estimatedMatches,     // Today's matches
-                total: this.cachedTotalUsers
+                online: totalUsers,  // Total registered users
+                matches: totalMatches, // Total mutual matches
+                total: totalUsers
             };
         } catch (error) {
             console.error('Error getting real stats:', error);
             return {
-                online: this.cachedTotalUsers || 0,
-                matches: this.todayMatches,
-                total: this.cachedTotalUsers || 0
+                online: 0,
+                matches: 0,
+                total: 0
             };
         }
     },
