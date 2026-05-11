@@ -19,6 +19,11 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 - **Scalable Architecture**: Optimized for 100,000+ users
 - **Zero Storage Cost**: Uses Telegram photo_id instead of storing images
 - **Smart User Links**: Fallback to tg://user?id=xxx when username not set
+- **Welcome Back Feature**: Returning users see their profile without re-registration
+- **Matching Pulse**: Live stats showing total users and matches
+- **Smart Session Cache**: No duplicate profiles shown in same session
+- **Admin Dashboard**: Password-protected web dashboard with real-time data
+- **Profile View**: Users can view their own profile anytime
 
 ## 🛠️ Tech Stack
 
@@ -104,7 +109,33 @@ Match ဖြစ်သွားပါပြီ! ❤️
 [📄 Bio] [❌ Cancel]
 ```
 
-## 📱 Complete User Guide
+### **Main Menu Keyboard**
+```
+[🔍 ဖူးစာရှင်ရှာမည်] [💓 Pulse]
+[⚙️ Edit Profile] [👤 Profile]
+[/help]
+```
+
+### **Welcome Back Screen**
+```
+🎉 Welcome Back!
+
+[Nickname] ဟာ MM Cupid ကို ပြန်လည်ရောက်ရှိလာပါပြီ။ 💕
+
+သင့်ရဲ့ Profile အချက်အလက်များက အောက်ပါအတိုင်းဖြစ်ပါတယ်။ �
+```
+
+### **Matching Pulse**
+```
+💓 Matching Pulse
+
+👥 စုစုပေါင်း Register လုပ်ထားသူ: 540 ယောက်
+❤️ ဒီနေ့ Match အရေအတွက်: 12 စုံ
+
+🔥 MM Cupid မှာ သင့်ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!
+```
+
+## � Complete User Guide
 
 ### **1. Getting Started**
 1. Open Telegram and search for **@mmcupid_bot**
@@ -144,18 +175,58 @@ CREATE TABLE users (
     is_registered BOOLEAN DEFAULT 0
 );
 
+-- Likes table for tracking user interactions
+CREATE TABLE likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user INTEGER,
+    to_user INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_user) REFERENCES users(telegram_id),
+    FOREIGN KEY (to_user) REFERENCES users(telegram_id),
+    UNIQUE(from_user, to_user)
+);
+
+-- Profile views tracking
+CREATE TABLE profile_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    viewed_profile_id INTEGER,
+    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
+    FOREIGN KEY (viewed_profile_id) REFERENCES users(telegram_id)
+);
+
 -- Performance indexes
 CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
 CREATE INDEX idx_interests ON users(interests);
 CREATE INDEX idx_mood_status ON users(mood_status);
+CREATE INDEX idx_likes_from ON likes(from_user);
+CREATE INDEX idx_likes_to ON likes(to_user);
+CREATE INDEX idx_profile_views ON profile_views(user_id, viewed_profile_id);
 ```
 
 ### 🚀 Installation & Setup
 
 #### Prerequisites
 - Node.js 18+ installed
-- Telegram Bot Token
-- Turso Database URL and Token
+- Telegram Bot Token ([@BotFather](https://t.me/botfather))
+- Turso Database ([turso.tech](https://turso.tech))
+- Vercel Account ([vercel.com](https://vercel.com))
+
+#### Environment Variables
+Create `.env` file with:
+```bash
+BOT_TOKEN=your_telegram_bot_token
+TURSO_URL=libsql://your-db-name.turso.io
+TURSO_TOKEN=your_turso_token
+DASHBOARD_PASSWORD=your_secure_password
+```
+
+#### Database Setup
+```bash
+# Apply schema to Turso
+turso db shell your-db-name < schema.sql
+```
 
 #### Local Development
 ```bash
@@ -174,18 +245,66 @@ cp .env.example .env
 npm run dev
 ```
 
+#### Production Deployment
+```bash
+# Deploy to Vercel
+vercel --prod
+
+# Set environment variables on Vercel
+vercel env add BOT_TOKEN
+vercel env add TURSO_URL
+vercel env add TURSO_TOKEN
+vercel env add DASHBOARD_PASSWORD
+
+# Set webhook (replace with your Vercel URL)
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://mm-match.vercel.app/api" \
+  -d "allowed_updates=[\"message\",\"callback_query\"]"
+```
+
 ### **Security Features**
 - **Input Validation**: All user inputs validated
 - **SQL Injection Protection**: Parameterized queries
 - **Webhook Security**: Telegram webhook verification
 - **Data Privacy**: Minimal data collection
+- **Dashboard Protection**: Password-protected admin panel
+
+## 📊 Admin Dashboard
+
+Access the web dashboard at your Vercel URL: `https://your-app.vercel.app/`
+
+### **Features**
+- **Real-time Stats**: Total users, today's matches, active users
+- **User List**: View all registered users with details
+- **Match List**: See all mutual matches
+- **Auto-refresh**: Data updates every 30 seconds
+- **Password Protected**: Secure login with configurable password
+
+### **Dashboard Password**
+Default password: `admin123` (or set via environment variable)
+
+```bash
+# Set custom password
+vercel env add DASHBOARD_PASSWORD
+# Enter your secure password
+vercel --prod
+```
+
+### **API Endpoints**
+- `GET /api/stats` - Dashboard statistics
+- `GET /api/users` - User list
+- `GET /api/matches` - Match list
+
+All endpoints require password in header: `X-Password: yourpassword`
 
 ## 🎯 Bot Commands Reference
 
 | Command | Description | Usage |
 |---------|-------------|-------|
-| `/start` | Begin registration | New users |
+| `/start` | Begin registration or welcome back | All users |
 | `/find` | Discover profiles | Registered users |
+| `/pulse` | View live stats | All users |
+| `/profile` | View your own profile | Registered users |
 | `/edit` | Update profile info | Registered users |
 | `/update` | Change gender preferences | Registered users |
 | `/help` | Show user guide | All users |
@@ -204,6 +323,15 @@ npm run dev
 - **Modern Tech**: Latest JavaScript and serverless architecture
 - **Well Documented**: Complete setup and usage guides
 
+## ✅ Completed Features
+
+- ✅ Welcome Back feature for returning users
+- ✅ Matching Pulse with live stats
+- ✅ Session-based cache (no duplicate profiles)
+- ✅ Admin Dashboard with password protection
+- ✅ Profile view command
+- ✅ Improved UI/UX with better messages
+
 ## 📈 Future Enhancements
 
 - **Location-based Matching**: Geographic proximity filtering
@@ -211,6 +339,8 @@ npm run dev
 - **Photo Verification**: Enhanced profile authenticity
 - **Chat Features**: In-bot messaging capabilities
 - **Premium Features**: Advanced matching algorithms
+- **Push Notifications**: Real-time match alerts
+- **Analytics**: User behavior insights
 
 ## 🤝 Contributing
 
