@@ -99,19 +99,6 @@ const getSessionViewed = (userId) => {
     return sessionViewedCache.has(userId) ? Array.from(sessionViewedCache.get(userId)) : [];
 };
 
-// Track current profile message for each user (to edit/remove buttons when going to next)
-const currentProfileMap = new Map();
-
-// Helper to set current profile
-const setCurrentProfile = (userId, messageId, targetId) => {
-    currentProfileMap.set(userId, { messageId, targetId });
-};
-
-// Helper to get current profile
-const getCurrentProfile = (userId) => {
-    return currentProfileMap.get(userId);
-};
-
 try {
     db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
 } catch (error) {
@@ -527,45 +514,23 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         addToSessionViewed(ctx.from.id, target.telegram_id);
         markProfileAsViewed(ctx.from.id, target.telegram_id).catch(e => console.error('markViewed error:', e));
         
-        // Disable buttons on previous profile message
-        const prevProfile = getCurrentProfile(ctx.from.id);
-        if (prevProfile && prevProfile.messageId) {
-            try {
-                await ctx.telegram.editMessageReplyMarkup(
-                    ctx.chat.id, 
-                    prevProfile.messageId, 
-                    undefined, 
-                    { inline_keyboard: [] }
-                );
-                console.log('Disabled buttons on previous message:', prevProfile.messageId);
-            } catch (editError) {
-                // Message might be too old or deleted, ignore error
-                console.log('Could not edit previous message:', editError.message);
-            }
-        }
-        
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
+        
         // Try sending photo, fallback to text if photo fails
         try {
             console.log('Sending photo with ID:', target.photo_id?.substring(0, 20) + '...');
-            const message = await ctx.replyWithPhoto(target.photo_id, {
+            return await ctx.replyWithPhoto(target.photo_id, {
                 caption: caption,
                 reply_markup: keyboard.reply_markup
             });
-            // Track this message and target
-            setCurrentProfile(ctx.from.id, message.message_id, target.telegram_id);
-            return message;
         } catch (photoError) {
             console.error('Photo send failed, sending text instead:', photoError.message);
-            const message = await ctx.reply(caption, { reply_markup: keyboard.reply_markup });
-            // Track this message and target
-            setCurrentProfile(ctx.from.id, message.message_id, target.telegram_id);
-            return message;
+            return await ctx.reply(caption, { reply_markup: keyboard.reply_markup });
         }
     } catch (error) {
         console.error('Error in showNextProfile:', error);
@@ -609,14 +574,6 @@ bot.action(/^like_(.+)$/, async (ctx) => {
         console.error('Database not connected');
         await ctx.answerCbQuery('Database error').catch(() => {});
         return await ctx.reply("Database မချိတ်ဆက်နိုင်ပါ။").catch(() => {});
-    }
-    
-    // Check if this is the current profile being viewed
-    const currentProfile = getCurrentProfile(senderId);
-    if (!currentProfile || currentProfile.targetId !== targetId) {
-        console.log('Attempted to like old profile. Current:', currentProfile?.targetId, 'Clicked:', targetId);
-        await ctx.answerCbQuery('⚠️ ဒီ Profile ကို Like လို့မရတော့ပါ။ နောက်ဆုံး Profile ကို ကြည့်ပါ။').catch(() => {});
-        return;
     }
     
     try {
