@@ -784,64 +784,6 @@ async function handleDashboardAPI(req, res) {
             });
         }
         
-        // API: /api/advanced-stats - Get detailed statistics
-        if (path === 'api/advanced-stats' || path === 'advanced-stats') {
-            console.log('Fetching advanced stats...');
-            
-            // Gender distribution
-            const genderResult = await db.execute({
-                sql: "SELECT gender, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY gender",
-                args: []
-            });
-            const genderStats = {};
-            for (const row of genderResult.rows || []) {
-                genderStats[row.gender || 'unknown'] = row.count;
-            }
-            
-            // Total likes
-            const likesResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM likes",
-                args: []
-            });
-            const totalLikes = likesResult.rows[0]?.count || 0;
-            
-            // Age distribution
-            const ageResult = await db.execute({
-                sql: "SELECT CASE WHEN age < 20 THEN 'under_20' WHEN age < 30 THEN '20s' WHEN age < 40 THEN '30s' ELSE '40_plus' END as age_group, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY age_group",
-                args: []
-            });
-            const ageStats = {};
-            for (const row of ageResult.rows || []) {
-                ageStats[row.age_group] = row.count;
-            }
-            
-            // City distribution (top 10)
-            const cityResult = await db.execute({
-                sql: "SELECT address, COUNT(*) as count FROM users WHERE is_registered = 1 AND address IS NOT NULL GROUP BY address ORDER BY count DESC LIMIT 10",
-                args: []
-            });
-            const cityStats = cityResult.rows || [];
-            
-            // Match success rate
-            const uniqueLikesResult = await db.execute({
-                sql: "SELECT COUNT(DISTINCT from_user || '-' || to_user) as count FROM likes",
-                args: []
-            });
-            const uniqueLikes = uniqueLikesResult.rows[0]?.count || 0;
-            const matchRate = uniqueLikes > 0 ? ((totalMatches / uniqueLikes) * 100).toFixed(1) : 0;
-            
-            return res.status(200).json({
-                totalUsers: totalUsers,
-                totalMatches: totalMatches,
-                totalLikes: totalLikes,
-                genderDistribution: genderStats,
-                ageDistribution: ageStats,
-                topCities: cityStats,
-                matchSuccessRate: matchRate + '%',
-                lastUpdated: new Date().toISOString()
-            });
-        }
-        
         // API: /api/users - Get user list
         if (path === 'api/users' || path === 'users') {
             console.log('Fetching users...');
@@ -923,92 +865,161 @@ async function handleDashboardAPI(req, res) {
                 total: matchesWithNames.length
             });
         }
-        
-        // API: /api/search - Search users
-        if (path === 'api/search' || path === 'search') {
-            const searchTerm = req.query?.q || '';
-            const searchType = req.query?.type || 'nickname'; // nickname, city, age
+
+        // API: /api/analytics - Advanced statistics
+        if (path === 'api/analytics' || path === 'analytics') {
+            console.log('Fetching analytics...');
             
-            console.log('Searching for:', searchTerm, 'type:', searchType);
+            // Gender distribution
+            const genderResult = await db.execute({
+                sql: "SELECT gender, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY gender",
+                args: []
+            });
             
-            if (!searchTerm) {
-                return res.status(200).json({ users: [], total: 0 });
-            }
+            // Total likes
+            const likesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM likes",
+                args: []
+            });
             
-            let sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered FROM users WHERE is_registered = 1";
-            let args = [];
+            // Daily active users (users who liked/viewed today)
+            const activeTodayResult = await db.execute({
+                sql: "SELECT COUNT(DISTINCT user_id) as count FROM profile_views WHERE date(viewed_at) = date('now')",
+                args: []
+            });
             
-            if (searchType === 'nickname') {
-                sql += " AND nickname LIKE ?";
-                args = ['%' + searchTerm + '%'];
-            } else if (searchType === 'city') {
-                sql += " AND address LIKE ?";
-                args = ['%' + searchTerm + '%'];
-            } else if (searchType === 'age') {
-                sql += " AND age = ?";
-                args = [parseInt(searchTerm) || 0];
-            }
+            // Users by city
+            const citiesResult = await db.execute({
+                sql: "SELECT address, COUNT(*) as count FROM users WHERE is_registered = 1 AND address IS NOT NULL GROUP BY address ORDER BY count DESC LIMIT 10",
+                args: []
+            });
             
-            sql += " LIMIT 50";
+            // Age distribution
+            const ageResult = await db.execute({
+                sql: "SELECT CASE WHEN age < 20 THEN 'Under 20' WHEN age BETWEEN 20 AND 30 THEN '20-30' WHEN age BETWEEN 31 AND 40 THEN '31-40' ELSE '40+' END as range, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY range",
+                args: []
+            });
             
-            const searchResult = await db.execute({ sql, args });
+            // Calculate match success rate
+            const totalUsers = (await db.execute({ sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1", args: [] })).rows[0]?.count || 0;
+            const totalLikes = likesResult.rows[0]?.count || 0;
+            const totalMatches = Math.floor(((await db.execute({ sql: "SELECT COUNT(*) as count FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user)", args: [] })).rows[0]?.count || 0) / 2);
+            
+            const successRate = totalLikes > 0 ? ((totalMatches * 2) / totalLikes * 100).toFixed(1) : 0;
+            
+            console.log('Analytics fetched');
             
             return res.status(200).json({
-                users: searchResult.rows || [],
-                total: searchResult.rows?.length || 0,
-                searchTerm,
-                searchType
+                genderDistribution: genderResult.rows || [],
+                totalLikes: totalLikes,
+                dailyActiveUsers: activeTodayResult.rows[0]?.count || 0,
+                topCities: citiesResult.rows || [],
+                ageDistribution: ageResult.rows || [],
+                matchSuccessRate: successRate + '%',
+                totalMatches: totalMatches
             });
         }
-        
-        // API: /api/user-action - Moderation actions (ban/delete)
-        if (path === 'api/user-action' || path === 'user-action') {
-            const action = req.query?.action; // ban, unban, delete
-            const userId = req.query?.userId;
+
+        // API: /api/search - Search users
+        if (path === 'api/search' || path === 'search') {
+            const searchQuery = req.query?.q || '';
+            const searchType = req.query?.type || 'nickname'; // nickname, city, age
             
-            if (!action || !userId) {
-                return res.status(400).json({ error: 'Missing action or userId' });
+            console.log('Searching:', searchType, searchQuery);
+            
+            let sql, params = [];
+            
+            if (searchType === 'nickname' && searchQuery) {
+                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE nickname LIKE ? AND is_registered = 1 LIMIT 50";
+                params = ['%' + searchQuery + '%'];
+            } else if (searchType === 'city' && searchQuery) {
+                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE address LIKE ? AND is_registered = 1 LIMIT 50";
+                params = ['%' + searchQuery + '%'];
+            } else if (searchType === 'age' && searchQuery) {
+                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE age = ? AND is_registered = 1 LIMIT 50";
+                params = [parseInt(searchQuery)];
+            } else {
+                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE is_registered = 1 LIMIT 50";
             }
             
-            console.log('User action:', action, 'on user:', userId);
+            const usersResult = await db.execute({ sql, args: params });
             
-            try {
-                if (action === 'delete') {
-                    // Delete user and their likes
-                    await db.execute({
-                        sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?",
-                        args: [userId, userId]
-                    });
-                    await db.execute({
-                        sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?",
-                        args: [userId, userId]
-                    });
-                    await db.execute({
-                        sql: "DELETE FROM users WHERE telegram_id = ?",
-                        args: [userId]
-                    });
-                    return res.status(200).json({ success: true, message: 'User deleted' });
-                } else if (action === 'ban') {
-                    // Mark user as not registered (soft ban)
-                    await db.execute({
-                        sql: "UPDATE users SET is_registered = 0, step = 'banned' WHERE telegram_id = ?",
-                        args: [userId]
-                    });
-                    return res.status(200).json({ success: true, message: 'User banned' });
-                } else if (action === 'unban') {
-                    // Restore user
-                    await db.execute({
-                        sql: "UPDATE users SET is_registered = 1, step = 'edit_menu' WHERE telegram_id = ?",
-                        args: [userId]
-                    });
-                    return res.status(200).json({ success: true, message: 'User unbanned' });
-                }
-                
-                return res.status(400).json({ error: 'Invalid action' });
-            } catch (err) {
-                console.error('User action error:', err);
-                return res.status(500).json({ error: err.message });
+            return res.status(200).json({
+                users: usersResult.rows || [],
+                query: searchQuery,
+                type: searchType
+            });
+        }
+
+        // API: /api/ban - Ban/unban user
+        if (path === 'api/ban' || path === 'ban') {
+            if (req.method !== 'POST') {
+                return res.status(405).json({ error: 'Method not allowed' });
             }
+            
+            const { userId, action } = req.body || {};
+            
+            if (!userId) {
+                return res.status(400).json({ error: 'User ID required' });
+            }
+            
+            console.log('Ban action:', action, 'User:', userId);
+            
+            // Create banned_users table if not exists
+            await db.execute({
+                sql: "CREATE TABLE IF NOT EXISTS banned_users (telegram_id INTEGER PRIMARY KEY, banned_at DATETIME DEFAULT CURRENT_TIMESTAMP, reason TEXT)",
+                args: []
+            });
+            
+            if (action === 'ban') {
+                await db.execute({
+                    sql: "INSERT OR REPLACE INTO banned_users (telegram_id) VALUES (?)",
+                    args: [userId]
+                });
+                return res.status(200).json({ success: true, message: 'User banned' });
+            } else if (action === 'unban') {
+                await db.execute({
+                    sql: "DELETE FROM banned_users WHERE telegram_id = ?",
+                    args: [userId]
+                });
+                return res.status(200).json({ success: true, message: 'User unbanned' });
+            }
+            
+            return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        // API: /api/delete-user - Delete user
+        if (path === 'api/delete-user' || path === 'delete-user') {
+            if (req.method !== 'POST') {
+                return res.status(405).json({ error: 'Method not allowed' });
+            }
+            
+            const { userId } = req.body || {};
+            
+            if (!userId) {
+                return res.status(400).json({ error: 'User ID required' });
+            }
+            
+            console.log('Deleting user:', userId);
+            
+            // Delete from all related tables
+            await db.execute({ sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?", args: [userId, userId] });
+            await db.execute({ sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?", args: [userId, userId] });
+            await db.execute({ sql: "DELETE FROM users WHERE telegram_id = ?", args: [userId] });
+            
+            return res.status(200).json({ success: true, message: 'User deleted' });
+        }
+
+        // API: /api/banned-users - Get banned users list
+        if (path === 'api/banned-users' || path === 'banned-users') {
+            const bannedResult = await db.execute({
+                sql: "SELECT b.telegram_id, b.banned_at, b.reason, u.nickname FROM banned_users b LEFT JOIN users u ON b.telegram_id = u.telegram_id ORDER BY b.banned_at DESC",
+                args: []
+            });
+            
+            return res.status(200).json({
+                bannedUsers: bannedResult.rows || []
+            });
         }
         
         console.log('Unknown path:', path);
@@ -1027,9 +1038,12 @@ async function handleDashboardAPI(req, res) {
 export default async (req, res) => {
     // Handle Dashboard API routes
     if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
-        req.url?.startsWith('/api/advanced-stats') || req.url?.startsWith('/api/search') || req.url?.startsWith('/api/user-action') ||
-        req.url?.startsWith('/api/check-auth') ||
-        req.url === '/stats' || req.url === '/users' || req.url === '/matches') {
+        req.url?.startsWith('/api/analytics') || req.url?.startsWith('/api/search') || 
+        req.url?.startsWith('/api/ban') || req.url?.startsWith('/api/delete-user') || 
+        req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/check-auth') ||
+        req.url === '/stats' || req.url === '/users' || req.url === '/matches' || req.url === '/analytics' || 
+        req.url === '/search' || req.url === '/ban' || req.url === '/delete-user' || req.url === '/banned-users' ||
+        req.url === '/check-auth') {
         return handleDashboardAPI(req, res);
     }
     
@@ -1271,7 +1285,6 @@ const dashboardHTML = `<!DOCTYPE html>
         // Main Dashboard Component
         const Dashboard = () => {
             const [stats, setStats] = useState({ totalUsers: 0, todayMatches: 0 });
-            const [advancedStats, setAdvancedStats] = useState(null);
             const [users, setUsers] = useState([]);
             const [matches, setMatches] = useState([]);
             const [activeTab, setActiveTab] = useState('overview');
@@ -1282,11 +1295,26 @@ const dashboardHTML = `<!DOCTYPE html>
             const [password, setPassword] = useState('');
             const [loginError, setLoginError] = useState('');
             
+            // Analytics state
+            const [analytics, setAnalytics] = useState({
+                genderDistribution: [],
+                totalLikes: 0,
+                dailyActiveUsers: 0,
+                topCities: [],
+                ageDistribution: [],
+                matchSuccessRate: '0%',
+                totalMatches: 0
+            });
+            
             // Search state
-            const [searchTerm, setSearchTerm] = useState('');
+            const [searchQuery, setSearchQuery] = useState('');
             const [searchType, setSearchType] = useState('nickname');
             const [searchResults, setSearchResults] = useState([]);
             const [searchLoading, setSearchLoading] = useState(false);
+            
+            // Moderation state
+            const [bannedUsers, setBannedUsers] = useState([]);
+            const [actionMessage, setActionMessage] = useState('');
 
             const API_URL = '';
 
@@ -1326,13 +1354,9 @@ const dashboardHTML = `<!DOCTYPE html>
                     
                     const headers = { 'X-Password': password };
                     
-                    const [statsRes, advancedStatsRes, usersRes, matchesRes] = await Promise.all([
+                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes] = await Promise.all([
                         fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/advanced-stats\`, { headers }).then(async r => {
-                            if (!r.ok) throw new Error(\`Advanced stats API error: \${r.status}\`);
                             return r.json();
                         }),
                         fetch(\`\${API_URL}/api/users\`, { headers }).then(async r => {
@@ -1342,23 +1366,31 @@ const dashboardHTML = `<!DOCTYPE html>
                         fetch(\`\${API_URL}/api/matches\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Matches API error: \${r.status}\`);
                             return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/analytics\`, { headers }).then(async r => {
+                            if (!r.ok) throw new Error(\`Analytics API error: \${r.status}\`);
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/banned-users\`, { headers }).then(async r => {
+                            if (!r.ok) return { bannedUsers: [] };
+                            return r.json();
                         })
                     ]);
                     
                     console.log('Stats:', statsRes);
-                    console.log('Advanced Stats:', advancedStatsRes);
                     console.log('Users:', usersRes);
                     console.log('Matches:', matchesRes);
+                    console.log('Analytics:', analyticsRes);
                     
                     if (statsRes.error) throw new Error(statsRes.error);
-                    if (advancedStatsRes.error) throw new Error(advancedStatsRes.error);
                     if (usersRes.error) throw new Error(usersRes.error);
                     if (matchesRes.error) throw new Error(matchesRes.error);
                     
                     setStats(statsRes);
-                    setAdvancedStats(advancedStatsRes);
                     setUsers(usersRes.users || []);
                     setMatches(matchesRes.matches || []);
+                    setAnalytics(analyticsRes || {});
+                    setBannedUsers(bannedRes?.bannedUsers || []);
                     setLastUpdate(new Date());
                 } catch (error) {
                     console.error('Error fetching data:', error);
@@ -1367,47 +1399,71 @@ const dashboardHTML = `<!DOCTYPE html>
                     setLoading(false);
                 }
             };
-            
+
             // Search function
-            const handleSearch = async (e) => {
-                e.preventDefault();
-                if (!searchTerm.trim()) return;
+            const handleSearch = async () => {
+                if (!searchQuery.trim()) return;
                 
                 setSearchLoading(true);
                 try {
                     const headers = { 'X-Password': password };
-                    const res = await fetch(
-                        \`\${API_URL}/api/search?q=\${encodeURIComponent(searchTerm)}&type=\${searchType}\`,
-                        { headers }
-                    );
-                    if (!res.ok) throw new Error('Search failed');
+                    const res = await fetch(\`\${API_URL}/api/search?type=\${searchType}&q=\${encodeURIComponent(searchQuery)}\`, { headers });
                     const data = await res.json();
                     setSearchResults(data.users || []);
                 } catch (err) {
                     console.error('Search error:', err);
-                    setError(err.message);
                 } finally {
                     setSearchLoading(false);
                 }
             };
-            
-            // User action function (ban/delete)
-            const handleUserAction = async (userId, action) => {
-                if (!confirm(\`Are you sure you want to \${action} this user?\`)) return;
+
+            // Ban user function
+            const handleBanUser = async (userId, action) => {
+                try {
+                    const headers = { 
+                        'X-Password': password,
+                        'Content-Type': 'application/json'
+                    };
+                    const res = await fetch(\`\${API_URL}/api/ban\`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ userId, action })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setActionMessage(\`User \${action === 'ban' ? 'banned' : 'unbanned'} successfully\`);
+                        fetchData(); // Refresh data
+                        setTimeout(() => setActionMessage(''), 3000);
+                    }
+                } catch (err) {
+                    console.error('Ban error:', err);
+                    setActionMessage('Error performing action');
+                }
+            };
+
+            // Delete user function
+            const handleDeleteUser = async (userId) => {
+                if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
                 
                 try {
-                    const headers = { 'X-Password': password };
-                    const res = await fetch(
-                        \`\${API_URL}/api/user-action?userId=\${userId}&action=\${action}\`,
-                        { headers }
-                    );
-                    if (!res.ok) throw new Error('Action failed');
+                    const headers = { 
+                        'X-Password': password,
+                        'Content-Type': 'application/json'
+                    };
+                    const res = await fetch(\`\${API_URL}/api/delete-user\`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ userId })
+                    });
                     const data = await res.json();
-                    alert(data.message);
-                    fetchData(); // Refresh data
+                    if (data.success) {
+                        setActionMessage('User deleted successfully');
+                        fetchData(); // Refresh data
+                        setTimeout(() => setActionMessage(''), 3000);
+                    }
                 } catch (err) {
-                    console.error('User action error:', err);
-                    alert('Error: ' + err.message);
+                    console.error('Delete error:', err);
+                    setActionMessage('Error deleting user');
                 }
             };
 
@@ -1456,10 +1512,10 @@ const dashboardHTML = `<!DOCTYPE html>
 
                     {/* Navigation */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
+                        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
                             {[
                                 { id: 'overview', label: 'Overview', icon: 'fa-chart-line' },
-                                { id: 'statistics', label: 'Statistics', icon: 'fa-chart-pie' },
+                                { id: 'analytics', label: 'Analytics', icon: 'fa-chart-pie' },
                                 { id: 'users', label: 'Users', icon: 'fa-users' },
                                 { id: 'search', label: 'Search', icon: 'fa-search' },
                                 { id: 'matches', label: 'Matches', icon: 'fa-heart' },
@@ -1559,94 +1615,99 @@ const dashboardHTML = `<!DOCTYPE html>
                             </div>
                         )}
 
-                        {activeTab === 'statistics' && (
+                        {activeTab === 'analytics' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold text-gray-800">
-                                    <i className="fas fa-chart-pie mr-2 text-purple-500"></i>
-                                    Detailed Statistics
-                                </h2>
+                                <h2 className="text-xl font-bold text-gray-800">Analytics</h2>
                                 
-                                {advancedStats && (
-                                    <>
-                                        {/* Gender Distribution */}
-                                        <div className="bg-white rounded-xl shadow-md p-6">
-                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                                <i className="fas fa-venus-mars mr-2 text-pink-500"></i>
-                                                Gender Distribution
-                                            </h3>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                {Object.entries(advancedStats.genderDistribution || {}).map(([gender, count]) => (
-                                                    <div key={gender} className="bg-gray-50 rounded-lg p-4 text-center">
-                                                        <p className="text-2xl font-bold text-gray-800">{count}</p>
-                                                        <p className="text-sm text-gray-500 capitalize">{gender}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
+                                {/* Stats Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Total Likes</p>
+                                        <p className="text-2xl font-bold text-pink-600">{analytics.totalLikes || 0}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Daily Active Users</p>
+                                        <p className="text-2xl font-bold text-blue-600">{analytics.dailyActiveUsers || 0}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Match Success Rate</p>
+                                        <p className="text-2xl font-bold text-green-600">{analytics.matchSuccessRate || '0%'}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Total Matches</p>
+                                        <p className="text-2xl font-bold text-red-600">{analytics.totalMatches || 0}</p>
+                                    </div>
+                                </div>
 
-                                        {/* Age Distribution */}
-                                        <div className="bg-white rounded-xl shadow-md p-6">
-                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                                <i className="fas fa-birthday-cake mr-2 text-blue-500"></i>
-                                                Age Distribution
-                                            </h3>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                {Object.entries(advancedStats.ageDistribution || {}).map(([age, count]) => (
-                                                    <div key={age} className="bg-gray-50 rounded-lg p-4 text-center">
-                                                        <p className="text-2xl font-bold text-gray-800">{count}</p>
-                                                        <p className="text-sm text-gray-500">{age.replace('_', ' ')}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Gender Distribution */}
+                                    <div className="bg-white rounded-xl shadow-md p-6">
+                                        <h3 className="text-lg font-semibold mb-4">Gender Distribution</h3>
+                                        <div className="space-y-3">
+                                            {(analytics.genderDistribution || []).map((g, i) => (
+                                                <div key={i} className="flex items-center justify-between">
+                                                    <span className="capitalize">{g.gender || 'Unknown'}</span>
+                                                    <div className="flex items-center">
+                                                        <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
+                                                            <div 
+                                                                className={\`h-2 rounded-full \${g.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'}\`}
+                                                                style={{ width: \`\${(g.count / (stats.totalUsers || 1)) * 100}%\` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">{g.count}</span>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                </div>
+                                            ))}
                                         </div>
+                                    </div>
 
-                                        {/* Top Cities */}
-                                        <div className="bg-white rounded-xl shadow-md p-6">
-                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                                <i className="fas fa-city mr-2 text-green-500"></i>
-                                                Top Cities
-                                            </h3>
-                                            <div className="space-y-2">
-                                                {(advancedStats.topCities || []).map((city, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                                                        <span className="font-medium text-gray-700">{city.address || 'Unknown'}</span>
-                                                        <span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-sm font-medium">
-                                                            {city.count} users
-                                                        </span>
+                                    {/* Age Distribution */}
+                                    <div className="bg-white rounded-xl shadow-md p-6">
+                                        <h3 className="text-lg font-semibold mb-4">Age Distribution</h3>
+                                        <div className="space-y-3">
+                                            {(analytics.ageDistribution || []).map((a, i) => (
+                                                <div key={i} className="flex items-center justify-between">
+                                                    <span>{a.range}</span>
+                                                    <div className="flex items-center">
+                                                        <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
+                                                            <div 
+                                                                className="h-2 rounded-full bg-purple-500"
+                                                                style={{ width: \`\${(a.count / (stats.totalUsers || 1)) * 100}%\` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">{a.count}</span>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                </div>
+                                            ))}
                                         </div>
+                                    </div>
+                                </div>
 
-                                        {/* Match Success Rate */}
-                                        <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl shadow-md p-6 text-white">
-                                            <h3 className="text-lg font-bold mb-2">
-                                                <i className="fas fa-percentage mr-2"></i>
-                                                Match Success Rate
-                                            </h3>
-                                            <p className="text-4xl font-bold">{advancedStats.matchSuccessRate}</p>
-                                            <p className="text-sm opacity-80">
-                                                {advancedStats.totalLikes} likes → {advancedStats.totalMatches} mutual matches
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
+                                {/* Top Cities */}
+                                <div className="bg-white rounded-xl shadow-md p-6">
+                                    <h3 className="text-lg font-semibold mb-4">Top Cities</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        {(analytics.topCities || []).map((city, i) => (
+                                            <div key={i} className="bg-gray-50 rounded-lg p-3 text-center">
+                                                <p className="text-sm font-medium text-gray-800">{city.address}</p>
+                                                <p className="text-xs text-gray-500">{city.count} users</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
                         {activeTab === 'search' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold text-gray-800">
-                                    <i className="fas fa-search mr-2 text-blue-500"></i>
-                                    Search Users
-                                </h2>
+                                <h2 className="text-xl font-bold text-gray-800">Search Users</h2>
                                 
-                                <form onSubmit={handleSearch} className="bg-white rounded-xl shadow-md p-6">
-                                    <div className="flex flex-col md:flex-row gap-4">
-                                        <select
-                                            value={searchType}
+                                <div className="bg-white rounded-xl shadow-md p-4">
+                                    <div className="flex gap-2 mb-4">
+                                        <select 
+                                            value={searchType} 
                                             onChange={(e) => setSearchType(e.target.value)}
-                                            className="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 outline-none"
+                                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
                                         >
                                             <option value="nickname">Nickname</option>
                                             <option value="city">City</option>
@@ -1654,102 +1715,135 @@ const dashboardHTML = `<!DOCTYPE html>
                                         </select>
                                         <input
                                             type="text"
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                            placeholder="Enter search term..."
-                                            className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 outline-none"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder={\`Search by \${searchType}...\`}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
+                                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                                         />
                                         <button
-                                            type="submit"
+                                            onClick={handleSearch}
                                             disabled={searchLoading}
-                                            className="px-6 py-3 bg-gradient-to-r from-pink-500 to-red-600 text-white rounded-lg font-medium hover:from-pink-600 hover:to-red-700 transition-all disabled:opacity-50"
+                                            className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors disabled:opacity-50"
                                         >
-                                            {searchLoading ? (
-                                                <i className="fas fa-spinner fa-spin"></i>
-                                            ) : (
-                                                <><i className="fas fa-search mr-2"></i>Search</>
-                                            )}
+                                            <i className={\`fas \${searchLoading ? 'fa-spinner fa-spin' : 'fa-search'}\`}></i>
                                         </button>
                                     </div>
-                                </form>
 
-                                {searchResults.length > 0 && (
-                                    <div className="bg-white rounded-xl shadow-md p-6">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                            Search Results ({searchResults.length} found)
-                                        </h3>
-                                        <UserList users={searchResults} loading={false} />
-                                    </div>
-                                )}
+                                    {searchResults.length > 0 && (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left">Nickname</th>
+                                                        <th className="px-4 py-2 text-left">Age</th>
+                                                        <th className="px-4 py-2 text-left">Gender</th>
+                                                        <th className="px-4 py-2 text-left">City</th>
+                                                        <th className="px-4 py-2 text-left">Bio</th>
+                                                        <th className="px-4 py-2 text-left">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {searchResults.map((user) => (
+                                                        <tr key={user.telegram_id}>
+                                                            <td className="px-4 py-2 font-medium">{user.nickname}</td>
+                                                            <td className="px-4 py-2">{user.age}</td>
+                                                            <td className="px-4 py-2 capitalize">{user.gender}</td>
+                                                            <td className="px-4 py-2">{user.address}</td>
+                                                            <td className="px-4 py-2 text-sm text-gray-500 max-w-xs truncate">{user.bio}</td>
+                                                            <td className="px-4 py-2">
+                                                                <button
+                                                                    onClick={() => handleBanUser(user.telegram_id, 'ban')}
+                                                                    className="text-red-500 hover:text-red-700 mr-2"
+                                                                    title="Ban User"
+                                                                >
+                                                                    <i className="fas fa-ban"></i>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteUser(user.telegram_id)}
+                                                                    className="text-red-600 hover:text-red-800"
+                                                                    title="Delete User"
+                                                                >
+                                                                    <i className="fas fa-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {searchResults.length === 0 && searchQuery && !searchLoading && (
+                                        <p className="text-center text-gray-500 py-4">No users found</p>
+                                    )}
+                                </div>
                             </div>
                         )}
 
                         {activeTab === 'moderation' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold text-gray-800">
-                                    <i className="fas fa-shield-alt mr-2 text-red-500"></i>
-                                    User Moderation
-                                </h2>
+                                <h2 className="text-xl font-bold text-gray-800">Moderation</h2>
                                 
-                                <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100">
-                                                {users.map((user) => (
-                                                    <tr key={user.telegram_id} className="hover:bg-gray-50">
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center">
-                                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white text-sm font-medium mr-3">
-                                                                    {user.nickname?.charAt(0)?.toUpperCase() || '?'}
-                                                                </div>
-                                                                <span className="font-medium text-gray-800">{user.nickname}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-gray-600">{user.age}</td>
-                                                        <td className="px-4 py-3 text-gray-600">{user.address || 'N/A'}</td>
-                                                        <td className="px-4 py-3">
-                                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.is_registered ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}\`}>
-                                                                {user.is_registered ? 'Active' : 'Banned'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex space-x-2">
-                                                                {user.is_registered ? (
-                                                                    <button
-                                                                        onClick={() => handleUserAction(user.telegram_id, 'ban')}
-                                                                        className="px-3 py-1 bg-yellow-100 text-yellow-600 rounded text-sm hover:bg-yellow-200 transition-colors"
-                                                                    >
-                                                                        <i className="fas fa-ban mr-1"></i>Ban
-                                                                    </button>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => handleUserAction(user.telegram_id, 'unban')}
-                                                                        className="px-3 py-1 bg-green-100 text-green-600 rounded text-sm hover:bg-green-200 transition-colors"
-                                                                    >
-                                                                        <i className="fas fa-check mr-1"></i>Unban
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => handleUserAction(user.telegram_id, 'delete')}
-                                                                    className="px-3 py-1 bg-red-100 text-red-600 rounded text-sm hover:bg-red-200 transition-colors"
-                                                                >
-                                                                    <i className="fas fa-trash mr-1"></i>Delete
-                                                                </button>
-                                                            </div>
-                                                        </td>
+                                {actionMessage && (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                        <p className="text-green-600 text-sm">{actionMessage}</p>
+                                    </div>
+                                )}
+
+                                {/* Banned Users */}
+                                <div className="bg-white rounded-xl shadow-md p-6">
+                                    <h3 className="text-lg font-semibold mb-4">Banned Users ({bannedUsers.length})</h3>
+                                    {bannedUsers.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left">User ID</th>
+                                                        <th className="px-4 py-2 text-left">Nickname</th>
+                                                        <th className="px-4 py-2 text-left">Banned At</th>
+                                                        <th className="px-4 py-2 text-left">Actions</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {bannedUsers.map((user) => (
+                                                        <tr key={user.telegram_id}>
+                                                            <td className="px-4 py-2 font-mono text-sm">{user.telegram_id}</td>
+                                                            <td className="px-4 py-2">{user.nickname || 'Unknown'}</td>
+                                                            <td className="px-4 py-2 text-sm text-gray-500">
+                                                                {user.banned_at ? new Date(user.banned_at).toLocaleString() : 'N/A'}
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <button
+                                                                    onClick={() => handleBanUser(user.telegram_id, 'unban')}
+                                                                    className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                                                                >
+                                                                    Unban
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 text-center py-4">No banned users</p>
+                                    )}
+                                </div>
+
+                                {/* Quick Stats */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Total Users</p>
+                                        <p className="text-2xl font-bold text-blue-600">{stats.totalUsers}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Banned Users</p>
+                                        <p className="text-2xl font-bold text-red-600">{bannedUsers.length}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Active Users</p>
+                                        <p className="text-2xl font-bold text-green-600">{stats.totalUsers - bannedUsers.length}</p>
                                     </div>
                                 </div>
                             </div>
