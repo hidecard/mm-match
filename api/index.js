@@ -784,6 +784,64 @@ async function handleDashboardAPI(req, res) {
             });
         }
         
+        // API: /api/advanced-stats - Get detailed statistics
+        if (path === 'api/advanced-stats' || path === 'advanced-stats') {
+            console.log('Fetching advanced stats...');
+            
+            // Gender distribution
+            const genderResult = await db.execute({
+                sql: "SELECT gender, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY gender",
+                args: []
+            });
+            const genderStats = {};
+            for (const row of genderResult.rows || []) {
+                genderStats[row.gender || 'unknown'] = row.count;
+            }
+            
+            // Total likes
+            const likesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM likes",
+                args: []
+            });
+            const totalLikes = likesResult.rows[0]?.count || 0;
+            
+            // Age distribution
+            const ageResult = await db.execute({
+                sql: "SELECT CASE WHEN age < 20 THEN 'under_20' WHEN age < 30 THEN '20s' WHEN age < 40 THEN '30s' ELSE '40_plus' END as age_group, COUNT(*) as count FROM users WHERE is_registered = 1 GROUP BY age_group",
+                args: []
+            });
+            const ageStats = {};
+            for (const row of ageResult.rows || []) {
+                ageStats[row.age_group] = row.count;
+            }
+            
+            // City distribution (top 10)
+            const cityResult = await db.execute({
+                sql: "SELECT address, COUNT(*) as count FROM users WHERE is_registered = 1 AND address IS NOT NULL GROUP BY address ORDER BY count DESC LIMIT 10",
+                args: []
+            });
+            const cityStats = cityResult.rows || [];
+            
+            // Match success rate
+            const uniqueLikesResult = await db.execute({
+                sql: "SELECT COUNT(DISTINCT from_user || '-' || to_user) as count FROM likes",
+                args: []
+            });
+            const uniqueLikes = uniqueLikesResult.rows[0]?.count || 0;
+            const matchRate = uniqueLikes > 0 ? ((totalMatches / uniqueLikes) * 100).toFixed(1) : 0;
+            
+            return res.status(200).json({
+                totalUsers: totalUsers,
+                totalMatches: totalMatches,
+                totalLikes: totalLikes,
+                genderDistribution: genderStats,
+                ageDistribution: ageStats,
+                topCities: cityStats,
+                matchSuccessRate: matchRate + '%',
+                lastUpdated: new Date().toISOString()
+            });
+        }
+        
         // API: /api/users - Get user list
         if (path === 'api/users' || path === 'users') {
             console.log('Fetching users...');
@@ -866,6 +924,93 @@ async function handleDashboardAPI(req, res) {
             });
         }
         
+        // API: /api/search - Search users
+        if (path === 'api/search' || path === 'search') {
+            const searchTerm = req.query?.q || '';
+            const searchType = req.query?.type || 'nickname'; // nickname, city, age
+            
+            console.log('Searching for:', searchTerm, 'type:', searchType);
+            
+            if (!searchTerm) {
+                return res.status(200).json({ users: [], total: 0 });
+            }
+            
+            let sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered FROM users WHERE is_registered = 1";
+            let args = [];
+            
+            if (searchType === 'nickname') {
+                sql += " AND nickname LIKE ?";
+                args = ['%' + searchTerm + '%'];
+            } else if (searchType === 'city') {
+                sql += " AND address LIKE ?";
+                args = ['%' + searchTerm + '%'];
+            } else if (searchType === 'age') {
+                sql += " AND age = ?";
+                args = [parseInt(searchTerm) || 0];
+            }
+            
+            sql += " LIMIT 50";
+            
+            const searchResult = await db.execute({ sql, args });
+            
+            return res.status(200).json({
+                users: searchResult.rows || [],
+                total: searchResult.rows?.length || 0,
+                searchTerm,
+                searchType
+            });
+        }
+        
+        // API: /api/user-action - Moderation actions (ban/delete)
+        if (path === 'api/user-action' || path === 'user-action') {
+            const action = req.query?.action; // ban, unban, delete
+            const userId = req.query?.userId;
+            
+            if (!action || !userId) {
+                return res.status(400).json({ error: 'Missing action or userId' });
+            }
+            
+            console.log('User action:', action, 'on user:', userId);
+            
+            try {
+                if (action === 'delete') {
+                    // Delete user and their likes
+                    await db.execute({
+                        sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?",
+                        args: [userId, userId]
+                    });
+                    await db.execute({
+                        sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?",
+                        args: [userId, userId]
+                    });
+                    await db.execute({
+                        sql: "DELETE FROM users WHERE telegram_id = ?",
+                        args: [userId]
+                    });
+                    return res.status(200).json({ success: true, message: 'User deleted' });
+                } else if (action === 'ban') {
+                    // Mark user as not registered (soft ban)
+                    await db.execute({
+                        sql: "UPDATE users SET is_registered = 0, step = 'banned' WHERE telegram_id = ?",
+                        args: [userId]
+                    });
+                    return res.status(200).json({ success: true, message: 'User banned' });
+                } else if (action === 'unban') {
+                    // Restore user
+                    await db.execute({
+                        sql: "UPDATE users SET is_registered = 1, step = 'edit_menu' WHERE telegram_id = ?",
+                        args: [userId]
+                    });
+                    return res.status(200).json({ success: true, message: 'User unbanned' });
+                }
+                
+                return res.status(400).json({ error: 'Invalid action' });
+            } catch (err) {
+                console.error('User action error:', err);
+                return res.status(500).json({ error: err.message });
+            }
+        }
+        
         console.log('Unknown path:', path);
         return res.status(404).json({ error: 'Not found', path });
     } catch (error) {
@@ -882,6 +1027,8 @@ async function handleDashboardAPI(req, res) {
 export default async (req, res) => {
     // Handle Dashboard API routes
     if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
+        req.url?.startsWith('/api/advanced-stats') || req.url?.startsWith('/api/search') || req.url?.startsWith('/api/user-action') ||
+        req.url?.startsWith('/api/check-auth') ||
         req.url === '/stats' || req.url === '/users' || req.url === '/matches') {
         return handleDashboardAPI(req, res);
     }
@@ -1124,6 +1271,7 @@ const dashboardHTML = `<!DOCTYPE html>
         // Main Dashboard Component
         const Dashboard = () => {
             const [stats, setStats] = useState({ totalUsers: 0, todayMatches: 0 });
+            const [advancedStats, setAdvancedStats] = useState(null);
             const [users, setUsers] = useState([]);
             const [matches, setMatches] = useState([]);
             const [activeTab, setActiveTab] = useState('overview');
@@ -1133,6 +1281,12 @@ const dashboardHTML = `<!DOCTYPE html>
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [password, setPassword] = useState('');
             const [loginError, setLoginError] = useState('');
+            
+            // Search state
+            const [searchTerm, setSearchTerm] = useState('');
+            const [searchType, setSearchType] = useState('nickname');
+            const [searchResults, setSearchResults] = useState([]);
+            const [searchLoading, setSearchLoading] = useState(false);
 
             const API_URL = '';
 
@@ -1172,9 +1326,13 @@ const dashboardHTML = `<!DOCTYPE html>
                     
                     const headers = { 'X-Password': password };
                     
-                    const [statsRes, usersRes, matchesRes] = await Promise.all([
+                    const [statsRes, advancedStatsRes, usersRes, matchesRes] = await Promise.all([
                         fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/advanced-stats\`, { headers }).then(async r => {
+                            if (!r.ok) throw new Error(\`Advanced stats API error: \${r.status}\`);
                             return r.json();
                         }),
                         fetch(\`\${API_URL}/api/users\`, { headers }).then(async r => {
@@ -1188,14 +1346,17 @@ const dashboardHTML = `<!DOCTYPE html>
                     ]);
                     
                     console.log('Stats:', statsRes);
+                    console.log('Advanced Stats:', advancedStatsRes);
                     console.log('Users:', usersRes);
                     console.log('Matches:', matchesRes);
                     
                     if (statsRes.error) throw new Error(statsRes.error);
+                    if (advancedStatsRes.error) throw new Error(advancedStatsRes.error);
                     if (usersRes.error) throw new Error(usersRes.error);
                     if (matchesRes.error) throw new Error(matchesRes.error);
                     
                     setStats(statsRes);
+                    setAdvancedStats(advancedStatsRes);
                     setUsers(usersRes.users || []);
                     setMatches(matchesRes.matches || []);
                     setLastUpdate(new Date());
@@ -1204,6 +1365,49 @@ const dashboardHTML = `<!DOCTYPE html>
                     setError(error.message);
                 } finally {
                     setLoading(false);
+                }
+            };
+            
+            // Search function
+            const handleSearch = async (e) => {
+                e.preventDefault();
+                if (!searchTerm.trim()) return;
+                
+                setSearchLoading(true);
+                try {
+                    const headers = { 'X-Password': password };
+                    const res = await fetch(
+                        \`\${API_URL}/api/search?q=\${encodeURIComponent(searchTerm)}&type=\${searchType}\`,
+                        { headers }
+                    );
+                    if (!res.ok) throw new Error('Search failed');
+                    const data = await res.json();
+                    setSearchResults(data.users || []);
+                } catch (err) {
+                    console.error('Search error:', err);
+                    setError(err.message);
+                } finally {
+                    setSearchLoading(false);
+                }
+            };
+            
+            // User action function (ban/delete)
+            const handleUserAction = async (userId, action) => {
+                if (!confirm(\`Are you sure you want to \${action} this user?\`)) return;
+                
+                try {
+                    const headers = { 'X-Password': password };
+                    const res = await fetch(
+                        \`\${API_URL}/api/user-action?userId=\${userId}&action=\${action}\`,
+                        { headers }
+                    );
+                    if (!res.ok) throw new Error('Action failed');
+                    const data = await res.json();
+                    alert(data.message);
+                    fetchData(); // Refresh data
+                } catch (err) {
+                    console.error('User action error:', err);
+                    alert('Error: ' + err.message);
                 }
             };
 
@@ -1252,11 +1456,14 @@ const dashboardHTML = `<!DOCTYPE html>
 
                     {/* Navigation */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
+                        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
                             {[
                                 { id: 'overview', label: 'Overview', icon: 'fa-chart-line' },
+                                { id: 'statistics', label: 'Statistics', icon: 'fa-chart-pie' },
                                 { id: 'users', label: 'Users', icon: 'fa-users' },
-                                { id: 'matches', label: 'Matches', icon: 'fa-heart' }
+                                { id: 'search', label: 'Search', icon: 'fa-search' },
+                                { id: 'matches', label: 'Matches', icon: 'fa-heart' },
+                                { id: 'moderation', label: 'Moderation', icon: 'fa-shield-alt' }
                             ].map((tab) => (
                                 <button
                                     key={tab.id}
@@ -1349,6 +1556,202 @@ const dashboardHTML = `<!DOCTYPE html>
                                     <span className="text-sm text-gray-500">Total: {matches.length}</span>
                                 </div>
                                 <MatchList matches={matches} loading={loading} />
+                            </div>
+                        )}
+
+                        {activeTab === 'statistics' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">
+                                    <i className="fas fa-chart-pie mr-2 text-purple-500"></i>
+                                    Detailed Statistics
+                                </h2>
+                                
+                                {advancedStats && (
+                                    <>
+                                        {/* Gender Distribution */}
+                                        <div className="bg-white rounded-xl shadow-md p-6">
+                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                                <i className="fas fa-venus-mars mr-2 text-pink-500"></i>
+                                                Gender Distribution
+                                            </h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {Object.entries(advancedStats.genderDistribution || {}).map(([gender, count]) => (
+                                                    <div key={gender} className="bg-gray-50 rounded-lg p-4 text-center">
+                                                        <p className="text-2xl font-bold text-gray-800">{count}</p>
+                                                        <p className="text-sm text-gray-500 capitalize">{gender}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Age Distribution */}
+                                        <div className="bg-white rounded-xl shadow-md p-6">
+                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                                <i className="fas fa-birthday-cake mr-2 text-blue-500"></i>
+                                                Age Distribution
+                                            </h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {Object.entries(advancedStats.ageDistribution || {}).map(([age, count]) => (
+                                                    <div key={age} className="bg-gray-50 rounded-lg p-4 text-center">
+                                                        <p className="text-2xl font-bold text-gray-800">{count}</p>
+                                                        <p className="text-sm text-gray-500">{age.replace('_', ' ')}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Top Cities */}
+                                        <div className="bg-white rounded-xl shadow-md p-6">
+                                            <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                                <i className="fas fa-city mr-2 text-green-500"></i>
+                                                Top Cities
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {(advancedStats.topCities || []).map((city, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                                                        <span className="font-medium text-gray-700">{city.address || 'Unknown'}</span>
+                                                        <span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-sm font-medium">
+                                                            {city.count} users
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Match Success Rate */}
+                                        <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl shadow-md p-6 text-white">
+                                            <h3 className="text-lg font-bold mb-2">
+                                                <i className="fas fa-percentage mr-2"></i>
+                                                Match Success Rate
+                                            </h3>
+                                            <p className="text-4xl font-bold">{advancedStats.matchSuccessRate}</p>
+                                            <p className="text-sm opacity-80">
+                                                {advancedStats.totalLikes} likes → {advancedStats.totalMatches} mutual matches
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'search' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">
+                                    <i className="fas fa-search mr-2 text-blue-500"></i>
+                                    Search Users
+                                </h2>
+                                
+                                <form onSubmit={handleSearch} className="bg-white rounded-xl shadow-md p-6">
+                                    <div className="flex flex-col md:flex-row gap-4">
+                                        <select
+                                            value={searchType}
+                                            onChange={(e) => setSearchType(e.target.value)}
+                                            className="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 outline-none"
+                                        >
+                                            <option value="nickname">Nickname</option>
+                                            <option value="city">City</option>
+                                            <option value="age">Age</option>
+                                        </select>
+                                        <input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            placeholder="Enter search term..."
+                                            className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 outline-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={searchLoading}
+                                            className="px-6 py-3 bg-gradient-to-r from-pink-500 to-red-600 text-white rounded-lg font-medium hover:from-pink-600 hover:to-red-700 transition-all disabled:opacity-50"
+                                        >
+                                            {searchLoading ? (
+                                                <i className="fas fa-spinner fa-spin"></i>
+                                            ) : (
+                                                <><i className="fas fa-search mr-2"></i>Search</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+
+                                {searchResults.length > 0 && (
+                                    <div className="bg-white rounded-xl shadow-md p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                            Search Results ({searchResults.length} found)
+                                        </h3>
+                                        <UserList users={searchResults} loading={false} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'moderation' && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-gray-800">
+                                    <i className="fas fa-shield-alt mr-2 text-red-500"></i>
+                                    User Moderation
+                                </h2>
+                                
+                                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {users.map((user) => (
+                                                    <tr key={user.telegram_id} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center">
+                                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white text-sm font-medium mr-3">
+                                                                    {user.nickname?.charAt(0)?.toUpperCase() || '?'}
+                                                                </div>
+                                                                <span className="font-medium text-gray-800">{user.nickname}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-600">{user.age}</td>
+                                                        <td className="px-4 py-3 text-gray-600">{user.address || 'N/A'}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.is_registered ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}\`}>
+                                                                {user.is_registered ? 'Active' : 'Banned'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex space-x-2">
+                                                                {user.is_registered ? (
+                                                                    <button
+                                                                        onClick={() => handleUserAction(user.telegram_id, 'ban')}
+                                                                        className="px-3 py-1 bg-yellow-100 text-yellow-600 rounded text-sm hover:bg-yellow-200 transition-colors"
+                                                                    >
+                                                                        <i className="fas fa-ban mr-1"></i>Ban
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => handleUserAction(user.telegram_id, 'unban')}
+                                                                        className="px-3 py-1 bg-green-100 text-green-600 rounded text-sm hover:bg-green-200 transition-colors"
+                                                                    >
+                                                                        <i className="fas fa-check mr-1"></i>Unban
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => handleUserAction(user.telegram_id, 'delete')}
+                                                                    className="px-3 py-1 bg-red-100 text-red-600 rounded text-sm hover:bg-red-200 transition-colors"
+                                                                >
+                                                                    <i className="fas fa-trash mr-1"></i>Delete
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
