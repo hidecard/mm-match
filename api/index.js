@@ -522,7 +522,8 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`)],
+            [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`),
+             Markup.button.callback('💌 Like + Message', `like_with_message_${target.telegram_id}`)],
             [Markup.button.callback('➡️ Next', 'next_profile')]
         ]);
         
@@ -563,11 +564,43 @@ bot.action('next_profile', async (ctx) => {
     }
 });
 
-bot.action(/^like_(.+)$/, async (ctx) => {
+// Store pending secret messages before like is confirmed
+const pendingSecretMessages = new Map();
+
+bot.action(/^like_with_message_(.+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const senderId = ctx.from.id;
     
-    console.log('Like button clicked - sender:', senderId, 'target:', targetId);
+    console.log('Like with message clicked - sender:', senderId, 'target:', targetId);
+    
+    // Set user step to waiting for secret message
+    await db.execute({ 
+        sql: "UPDATE users SET step = ? WHERE telegram_id = ?", 
+        args: [`secret_message_${targetId}`, senderId] 
+    });
+    
+    await ctx.answerCbQuery('💌 Message');
+    
+    await ctx.reply(`💌 *စိတ်ကူးလေးရေးပါ*
+
+သင့်စိတ်ကူးကို သုံးပြီး Like လုပ်ချင်ပါတယ်။
+စိတ်ကူးတစ်ကြောင်းရေးပြီး ပို့လိုက်ပါ။
+
+*ဥပမာ:* "You look cute 😊"`, { 
+        parse_mode: 'Markdown',
+        ...Markup.forceReply()
+    });
+});
+
+bot.action(/^like_(.+)$/, async (ctx) => {
+    const targetId = ctx.match[1];
+    const senderId = ctx.from.id;
+    const secretMessage = pendingSecretMessages.get(`${senderId}_${targetId}`);
+    
+    console.log('Like button clicked - sender:', senderId, 'target:', targetId, 'hasMessage:', !!secretMessage);
+    
+    // Clear pending message
+    pendingSecretMessages.delete(`${senderId}_${targetId}`);
     
     // Validate inputs
     if (!targetId || !senderId) {
@@ -584,7 +617,7 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     
     try {
         // Answer callback query
-        await ctx.answerCbQuery('❤️ Like!').catch((e) => console.log('Answer error:', e.message));
+        await ctx.answerCbQuery(secretMessage ? '❤️ Like + Message!' : '❤️ Like!').catch((e) => console.log('Answer error:', e.message));
         
         // Record the like and wait for it to complete
         console.log('Recording like...');
@@ -593,6 +626,19 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             args: [senderId, targetId] 
         });
         console.log('Like recorded successfully');
+        
+        // Store secret message if provided
+        if (secretMessage) {
+            await db.execute({
+                sql: "CREATE TABLE IF NOT EXISTS secret_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, from_user INTEGER, to_user INTEGER, message TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+                args: []
+            });
+            await db.execute({
+                sql: "INSERT INTO secret_messages (from_user, to_user, message) VALUES (?, ?, ?)",
+                args: [senderId, targetId, secretMessage]
+            });
+            console.log('Secret message stored');
+        }
         
         // Check for mutual like
         const mutualLike = await db.execute({
@@ -604,29 +650,49 @@ bot.action(/^like_(.+)$/, async (ctx) => {
         if (mutualLike.rows.length > 0) {
             const me = await getUser(senderId);
             const partner = await getUser(targetId);
+            
+            // Get any secret messages from partner
+            const partnerMsgResult = await db.execute({
+                sql: "SELECT message FROM secret_messages WHERE from_user = ? AND to_user = ? ORDER BY created_at DESC LIMIT 1",
+                args: [targetId, senderId]
+            });
+            const partnerMessage = partnerMsgResult.rows[0]?.message;
+            
             if (me && partner) {
                 const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
                 const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
                 
-                const matchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+                let matchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
 
-သင်နဲ့ *${partner.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍
-အခုပဲ စကားစပြောကြည့်လိုက်တော့နော်!
-
-🔗 *စကားပြောရန်:* ${partnerLink}
-
-💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+သင်နဲ့ *${partner.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍`;
+                
+                if (partnerMessage) {
+                    matchText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${partnerMessage}"`;
+                }
+                
+                if (secretMessage) {
+                    matchText += `\n\n💌 *သင်ပို့တဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
+                }
+                
+                matchText += `\n\n🔗 *စကားပြောရန်:* ${partnerLink}\n\n💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+                
                 stats.addMatch();
                 await ctx.reply(matchText, { parse_mode: 'Markdown' });
                 try {
-                    const partnerMatchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+                    let partnerMatchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
 
-သင်နဲ့ *${me.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍
-အခုပဲ စကားစပြောကြည့်လိုက်တော့နော်!
-
-🔗 *စကားပြောရန်:* ${myLink}
-
-💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+သင်နဲ့ *${me.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍`;
+                    
+                    if (secretMessage) {
+                        partnerMatchText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
+                    }
+                    
+                    if (partnerMessage) {
+                        partnerMatchText += `\n\n💌 *သင်ပို့တဲ့စိတ်ကူးလေး:* "${partnerMessage}"`;
+                    }
+                    
+                    partnerMatchText += `\n\n🔗 *စကားပြောရန်:* ${myLink}\n\n💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
+                    
                     await bot.telegram.sendMessage(targetId, partnerMatchText, { parse_mode: 'Markdown' });
                 } catch (e) {}
             }
@@ -634,10 +700,14 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             try {
                 const me = await getUser(senderId);
                 if (me) {
-                    const likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*
-
-*${me.nickname}* က သင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉
-အဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
+                    let likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*\n\n*${me.nickname}* က သင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉`;
+                    
+                    if (secretMessage) {
+                        likeNotifyText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
+                    }
+                    
+                    likeNotifyText += `\n\nအဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
+                    
                     await bot.telegram.sendMessage(targetId, likeNotifyText, {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
@@ -684,6 +754,31 @@ bot.action('close_profile', async (ctx) => {
 
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
+    
+    // Handle secret message input
+    if (user?.step?.startsWith('secret_message_')) {
+        const targetId = user.step.replace('secret_message_', '');
+        const senderId = ctx.from.id;
+        const secretMessage = text.trim();
+        
+        if (secretMessage.length < 1 || secretMessage.length > 200) {
+            return await ctx.reply("❌ စိတ်ကူးလေးကို ၁လုံးကနေ ၂၀၀လုံးအတွင်းထည့်ပါ။");
+        }
+        
+        // Store the message temporarily
+        pendingSecretMessages.set(`${senderId}_${targetId}`, secretMessage);
+        
+        // Clear step
+        await db.execute({ sql: "UPDATE users SET step = 'browse' WHERE telegram_id = ?", args: [senderId] });
+        
+        await ctx.reply(`💌 စိတ်ကူးလေး သိမ်းဆည်းပြီးပါပြီ။\n\n"${secretMessage}"\n\nအခု Like ခလုတ်နှိပ်လိုက်ရင် စိတ်ကူးလေးနဲ့တွဲပြီး ပို့ပေးပါမယ်။`, {
+            reply_markup: {
+                inline_keyboard: [[{ text: '❤️ Like + Message', callback_data: `like_${targetId}` }]]
+            }
+        });
+        return;
+    }
+    
     if (text === '/pulse' || text === '💓 Pulse') {
         const { online, matches } = await stats.getRealStats();
         const pulseText = `💓 *Matching Pulse*\n\n` +
