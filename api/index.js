@@ -126,19 +126,21 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             : '';
         const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
         
-        // Main query: exclude session viewed + exclude LIKED profiles (permanent)
+        // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles
         try {
             const sql = `SELECT u.* FROM users u 
+                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                       WHERE u.is_registered = 1 
                         AND u.telegram_id != ? 
                         AND u.gender = ? 
+                        AND pv.viewed_profile_id IS NULL
                         AND u.telegram_id NOT IN (
                             SELECT to_user FROM likes WHERE from_user = ?
                         )
                         ${notInClause}
                       ORDER BY RANDOM() LIMIT 1`;
             
-            const args = [userId, lookingFor, userId, ...notInArgs];
+            const args = [userId, userId, lookingFor, userId, ...notInArgs];
             
             console.log('Fetching random profile with viewedIds:', allViewedIds.length);
             const unviewedResult = await db.execute({ sql, args });
@@ -147,21 +149,23 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 return unviewedResult.rows[0];
             }
             
-            // If no results with strict filtering, try without session viewed IDs (but keep liked exclusion)
+            // If no results with strict filtering, try without session viewed IDs (but keep liked and permanently viewed exclusion)
             if (allViewedIds.length > 0) {
-                console.log('No new profiles, clearing session cache and retrying...');
+                console.log('No new profiles in session, clearing session cache and retrying with database history...');
                 sessionViewedCache.delete(userId);
                 
                 const fallbackResult = await db.execute({
                     sql: `SELECT u.* FROM users u 
+                          LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                           WHERE u.is_registered = 1 
                             AND u.telegram_id != ? 
                             AND u.gender = ? 
+                            AND pv.viewed_profile_id IS NULL
                             AND u.telegram_id NOT IN (
                                 SELECT to_user FROM likes WHERE from_user = ?
                             )
                           ORDER BY RANDOM() LIMIT 1`,
-                    args: [userId, lookingFor, userId]
+                    args: [userId, userId, lookingFor, userId]
                 });
                 
                 if (fallbackResult.rows.length > 0) {
@@ -172,16 +176,19 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             console.error('Profile query failed:', dbError.message);
         }
         
-        // Fallback: get any random profile (excluding liked only)
+        // Fallback: get any random profile (excluding liked and permanently viewed only)
         const allResult = await db.execute({
-            sql: `SELECT * FROM users WHERE is_registered = 1 
-                  AND telegram_id != ? 
-                  AND gender = ? 
-                  AND telegram_id NOT IN (
+            sql: `SELECT u.* FROM users WHERE u.is_registered = 1 
+                  AND u.telegram_id != ? 
+                  AND u.gender = ? 
+                  AND u.telegram_id NOT IN (
                       SELECT to_user FROM likes WHERE from_user = ?
                   )
+                  AND u.telegram_id NOT IN (
+                      SELECT viewed_profile_id FROM profile_views WHERE user_id = ?
+                  )
                   ORDER BY RANDOM() LIMIT 1`,
-            args: [userId, lookingFor, userId]
+            args: [userId, lookingFor, userId, userId]
         });
         
         return allResult.rows[0] || null;
@@ -516,9 +523,11 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         
         console.log('Showing profile:', target.telegram_id, 'to user:', ctx.from.id);
         
-        // Add to session cache only (temporary, clears when user restarts)
-        // Liked profiles are excluded via likes table in getRandomProfile
+        // Add to session cache (temporary, clears when user restarts)
         addToSessionViewed(ctx.from.id, target.telegram_id);
+        
+        // Persist to database for permanent deduplication across sessions
+        await markProfileAsViewed(ctx.from.id, target.telegram_id);
         
         const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
