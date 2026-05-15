@@ -475,6 +475,95 @@ bot.command('update', async (ctx) => {
     await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
 });
 
+// Admin commands for ban management
+const ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) : [];
+
+bot.command('ban', async (ctx) => {
+    const adminId = ctx.from.id;
+    if (!ADMIN_IDS.includes(adminId)) {
+        return await ctx.reply("❌ Admin only command");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /ban <user_id> [reason]");
+    }
+    
+    const userId = parseInt(args[1]);
+    const reason = args.slice(2).join(' ') || 'Violation of terms';
+    
+    await db.execute({
+        sql: "UPDATE users SET is_banned = 1, is_shadowbanned = 0, ban_reason = ?, banned_at = CURRENT_TIMESTAMP, banned_by = ? WHERE telegram_id = ?",
+        args: [reason, adminId, userId]
+    });
+    
+    await ctx.reply(`✅ User ${userId} has been banned.\nReason: ${reason}`);
+});
+
+bot.command('unban', async (ctx) => {
+    const adminId = ctx.from.id;
+    if (!ADMIN_IDS.includes(adminId)) {
+        return await ctx.reply("❌ Admin only command");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /unban <user_id>");
+    }
+    
+    const userId = parseInt(args[1]);
+    
+    await db.execute({
+        sql: "UPDATE users SET is_banned = 0, is_shadowbanned = 0, ban_reason = NULL, banned_at = NULL, banned_by = NULL WHERE telegram_id = ?",
+        args: [userId]
+    });
+    
+    await ctx.reply(`✅ User ${userId} has been unbanned.`);
+});
+
+bot.command('shadowban', async (ctx) => {
+    const adminId = ctx.from.id;
+    if (!ADMIN_IDS.includes(adminId)) {
+        return await ctx.reply("❌ Admin only command");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /shadowban <user_id> [reason]");
+    }
+    
+    const userId = parseInt(args[1]);
+    const reason = args.slice(2).join(' ') || 'Shadowban';
+    
+    await db.execute({
+        sql: "UPDATE users SET is_banned = 0, is_shadowbanned = 1, ban_reason = ?, banned_at = CURRENT_TIMESTAMP, banned_by = ? WHERE telegram_id = ?",
+        args: [reason, adminId, userId]
+    });
+    
+    await ctx.reply(`✅ User ${userId} has been shadowbanned.\nReason: ${reason}`);
+});
+
+bot.command('unshadowban', async (ctx) => {
+    const adminId = ctx.from.id;
+    if (!ADMIN_IDS.includes(adminId)) {
+        return await ctx.reply("❌ Admin only command");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /unshadowban <user_id>");
+    }
+    
+    const userId = parseInt(args[1]);
+    
+    await db.execute({
+        sql: "UPDATE users SET is_shadowbanned = 0, ban_reason = NULL, banned_at = NULL, banned_by = NULL WHERE telegram_id = ?",
+        args: [userId]
+    });
+    
+    await ctx.reply(`✅ User ${userId} has been unshadowbanned.`);
+});
+
 async function showMyProfile(ctx) {
     try {
         const user = await getUser(ctx.from.id);
@@ -533,7 +622,8 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`),
              Markup.button.callback('💌 Like + Message', `like_with_message_${target.telegram_id}`)],
-            [Markup.button.callback('➡️ Next', 'next_profile')]
+            [Markup.button.callback('➡️ Next', 'next_profile')],
+            [Markup.button.callback('🚨 Report', `report_${target.telegram_id}`)]
         ]);
         
         
@@ -761,8 +851,100 @@ bot.action('close_profile', async (ctx) => {
     await ctx.deleteMessage().catch(() => {});
 });
 
+// Report user functionality
+bot.action(/^report_(.+)$/, async (ctx) => {
+    const targetId = ctx.match[1];
+    const reporterId = ctx.from.id;
+    
+    console.log('Report button clicked - reporter:', reporterId, 'target:', targetId);
+    
+    // Set user step to waiting for report reason
+    await db.execute({ 
+        sql: "UPDATE users SET step = ? WHERE telegram_id = ?", 
+        args: [`report_reason_${targetId}`, reporterId] 
+    });
+    
+    await ctx.answerCbQuery('🚨 Report');
+    
+    await ctx.reply(`🚨 *Report User*
+
+ဘယ်အကြောင်းကြောင့် Report လုပ်ချင်ပါသလဲ။
+
+အောက်က ခလုတ်များထဲမှ ရွေးပါ:`, { 
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('🎭 Fake Profile', `report_fake_${targetId}`)],
+            [Markup.button.callback('📢 Spam', `report_spam_${targetId}`)],
+            [Markup.button.callback('⚠️ Inappropriate', `report_inappropriate_${targetId}`)],
+            [Markup.button.callback('❌ Cancel', 'cancel_report')]
+        ])
+    });
+});
+
+bot.action(/^report_(fake|spam|inappropriate)_(.+)$/, async (ctx) => {
+    const reason = ctx.match[1];
+    const targetId = ctx.match[2];
+    const reporterId = ctx.from.id;
+    
+    console.log('Report reason selected:', reason, 'target:', targetId);
+    
+    // Set user step to waiting for report description
+    await db.execute({ 
+        sql: "UPDATE users SET step = ? WHERE telegram_id = ?", 
+        args: [`report_desc_${reason}_${targetId}`, reporterId] 
+    });
+    
+    await ctx.answerCbQuery();
+    
+    const reasonText = {
+        'fake': '🎭 Fake Profile',
+        'spam': '📢 Spam',
+        'inappropriate': '⚠️ Inappropriate'
+    };
+    
+    await ctx.reply(`${reasonText[reason]}
+
+အသေးစိတ် ရှင်းပြချက် ရေးပေးပါ (Optional):
+ဥပမာ - "ပုံက လူစစ်မဟုတ်ဘူး"`, {
+        ...Markup.forceReply()
+    });
+});
+
+bot.action('cancel_report', async (ctx) => {
+    await ctx.answerCbQuery();
+    await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+    await ctx.reply('Report ပယ်ဖျက်လိုက်ပါပြီ။');
+    return await showNextProfile(ctx);
+});
+
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
+    
+    // Handle report description input
+    if (user?.step?.startsWith('report_desc_')) {
+        const stepParts = user.step.replace('report_desc_', '').split('_');
+        const reason = stepParts[0];
+        const targetId = stepParts[1];
+        const reporterId = ctx.from.id;
+        const description = text.trim();
+        
+        console.log('Submitting report - reporter:', reporterId, 'target:', targetId, 'reason:', reason);
+        
+        // Insert report into database
+        await db.execute({
+            sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description, status) VALUES (?, ?, ?, ?, 'pending')",
+            args: [reporterId, targetId, reason, description]
+        });
+        
+        // Clear step
+        await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [reporterId] });
+        
+        await ctx.reply(`✅ Report တင်ပြီးပါပြီ။
+
+သင့် Report ကို Admin team က စစ်ဆေးပါမည်။
+ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        return;
+    }
     
     // Handle secret message input
     if (user?.step?.startsWith('secret_message_')) {
@@ -1061,38 +1243,44 @@ async function handleDashboardAPI(req, res) {
             });
         }
 
-        // API: /api/ban - Ban/unban user
+        // API: /api/ban - Ban/unban/shadowban user
         if (path === 'api/ban' || path === 'ban') {
             if (req.method !== 'POST') {
                 return res.status(405).json({ error: 'Method not allowed' });
             }
             
-            const { userId, action } = req.body || {};
+            const { userId, action, reason } = req.body || {};
             
             if (!userId) {
                 return res.status(400).json({ error: 'User ID required' });
             }
             
-            console.log('Ban action:', action, 'User:', userId);
-            
-            // Create banned_users table if not exists
-            await db.execute({
-                sql: "CREATE TABLE IF NOT EXISTS banned_users (telegram_id INTEGER PRIMARY KEY, banned_at DATETIME DEFAULT CURRENT_TIMESTAMP, reason TEXT)",
-                args: []
-            });
+            console.log('Ban action:', action, 'User:', userId, 'Reason:', reason);
             
             if (action === 'ban') {
                 await db.execute({
-                    sql: "INSERT OR REPLACE INTO banned_users (telegram_id) VALUES (?)",
-                    args: [userId]
+                    sql: "UPDATE users SET is_banned = 1, is_shadowbanned = 0, ban_reason = ?, banned_at = CURRENT_TIMESTAMP, banned_by = ? WHERE telegram_id = ?",
+                    args: [reason || 'Violation of terms', req.headers['x-admin-id'] || 0, userId]
                 });
                 return res.status(200).json({ success: true, message: 'User banned' });
             } else if (action === 'unban') {
                 await db.execute({
-                    sql: "DELETE FROM banned_users WHERE telegram_id = ?",
+                    sql: "UPDATE users SET is_banned = 0, is_shadowbanned = 0, ban_reason = NULL, banned_at = NULL, banned_by = NULL WHERE telegram_id = ?",
                     args: [userId]
                 });
                 return res.status(200).json({ success: true, message: 'User unbanned' });
+            } else if (action === 'shadowban') {
+                await db.execute({
+                    sql: "UPDATE users SET is_banned = 0, is_shadowbanned = 1, ban_reason = ?, banned_at = CURRENT_TIMESTAMP, banned_by = ? WHERE telegram_id = ?",
+                    args: [reason || 'Shadowban', req.headers['x-admin-id'] || 0, userId]
+                });
+                return res.status(200).json({ success: true, message: 'User shadowbanned' });
+            } else if (action === 'unshadowban') {
+                await db.execute({
+                    sql: "UPDATE users SET is_shadowbanned = 0, ban_reason = NULL, banned_at = NULL, banned_by = NULL WHERE telegram_id = ?",
+                    args: [userId]
+                });
+                return res.status(200).json({ success: true, message: 'User unshadowbanned' });
             }
             
             return res.status(400).json({ error: 'Invalid action' });
@@ -1123,13 +1311,56 @@ async function handleDashboardAPI(req, res) {
         // API: /api/banned-users - Get banned users list
         if (path === 'api/banned-users' || path === 'banned-users') {
             const bannedResult = await db.execute({
-                sql: "SELECT b.telegram_id, b.banned_at, b.reason, u.nickname FROM banned_users b LEFT JOIN users u ON b.telegram_id = u.telegram_id ORDER BY b.banned_at DESC",
+                sql: "SELECT telegram_id, nickname, is_banned, is_shadowbanned, ban_reason, banned_at FROM users WHERE is_banned = 1 OR is_shadowbanned = 1 ORDER BY banned_at DESC",
                 args: []
             });
             
             return res.status(200).json({
                 bannedUsers: bannedResult.rows || []
             });
+        }
+
+        // API: /api/reports - Get reports list
+        if (path === 'api/reports' || path === 'reports') {
+            const reportsResult = await db.execute({
+                sql: `SELECT r.*, 
+                      reporter.nickname as reporter_name, 
+                      reported.nickname as reported_name 
+                      FROM reports r 
+                      LEFT JOIN users reporter ON r.reporter_id = reporter.telegram_id 
+                      LEFT JOIN users reported ON r.reported_user_id = reported.telegram_id 
+                      ORDER BY r.created_at DESC LIMIT 100`,
+                args: []
+            });
+            
+            return res.status(200).json({
+                reports: reportsResult.rows || []
+            });
+        }
+
+        // API: /api/review-report - Review and take action on a report
+        if (path === 'api/review-report' || path === 'review-report') {
+            if (req.method !== 'POST') {
+                return res.status(405).json({ error: 'Method not allowed' });
+            }
+            
+            const { reportId, action, actionTaken } = req.body || {};
+            
+            if (!reportId || !action) {
+                return res.status(400).json({ error: 'Report ID and action required' });
+            }
+            
+            console.log('Review report:', reportId, 'Action:', action, 'ActionTaken:', actionTaken);
+            
+            const adminId = req.headers['x-admin-id'] || 0;
+            
+            // Update report status
+            await db.execute({
+                sql: "UPDATE reports SET status = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, action_taken = ? WHERE id = ?",
+                args: [action, adminId, actionTaken || 'no_action', reportId]
+            });
+            
+            return res.status(200).json({ success: true, message: 'Report reviewed' });
         }
         
         console.log('Unknown path:', path);
@@ -1150,10 +1381,11 @@ export default async (req, res) => {
     if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
         req.url?.startsWith('/api/analytics') || req.url?.startsWith('/api/search') || 
         req.url?.startsWith('/api/ban') || req.url?.startsWith('/api/delete-user') || 
-        req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/check-auth') ||
+        req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/reports') ||
+        req.url?.startsWith('/api/review-report') || req.url?.startsWith('/api/check-auth') ||
         req.url === '/stats' || req.url === '/users' || req.url === '/matches' || req.url === '/analytics' || 
         req.url === '/search' || req.url === '/ban' || req.url === '/delete-user' || req.url === '/banned-users' ||
-        req.url === '/check-auth') {
+        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth') {
         return handleDashboardAPI(req, res);
     }
     
@@ -1424,6 +1656,7 @@ const dashboardHTML = `<!DOCTYPE html>
             
             // Moderation state
             const [bannedUsers, setBannedUsers] = useState([]);
+            const [reports, setReports] = useState([]);
             const [actionMessage, setActionMessage] = useState('');
 
             const API_URL = '';
@@ -1464,7 +1697,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     
                     const headers = { 'X-Password': password };
                     
-                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes] = await Promise.all([
+                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes, reportsRes] = await Promise.all([
                         fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
                             return r.json();
@@ -1484,6 +1717,10 @@ const dashboardHTML = `<!DOCTYPE html>
                         fetch(\`\${API_URL}/api/banned-users\`, { headers }).then(async r => {
                             if (!r.ok) return { bannedUsers: [] };
                             return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/reports\`, { headers }).then(async r => {
+                            if (!r.ok) return { reports: [] };
+                            return r.json();
                         })
                     ]);
                     
@@ -1501,6 +1738,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     setMatches(matchesRes.matches || []);
                     setAnalytics(analyticsRes || {});
                     setBannedUsers(bannedRes?.bannedUsers || []);
+                    setReports(reportsRes?.reports || []);
                     setLastUpdate(new Date());
                 } catch (error) {
                     console.error('Error fetching data:', error);
@@ -1577,6 +1815,30 @@ const dashboardHTML = `<!DOCTYPE html>
                 }
             };
 
+            // Review report function
+            const handleReviewReport = async (reportId, action, actionTaken) => {
+                try {
+                    const headers = { 
+                        'X-Password': password,
+                        'Content-Type': 'application/json'
+                    };
+                    const res = await fetch(\`\${API_URL}/api/review-report\`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ reportId, action, actionTaken })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setActionMessage(\`Report \${action} successfully\`);
+                        fetchData(); // Refresh data
+                        setTimeout(() => setActionMessage(''), 3000);
+                    }
+                } catch (err) {
+                    console.error('Review error:', err);
+                    setActionMessage('Error reviewing report');
+                }
+            };
+
             useEffect(() => {
                 if (isLoggedIn && password) {
                     fetchData();
@@ -1629,6 +1891,7 @@ const dashboardHTML = `<!DOCTYPE html>
                                 { id: 'users', label: 'Users', icon: 'fa-users' },
                                 { id: 'search', label: 'Search', icon: 'fa-search' },
                                 { id: 'matches', label: 'Matches', icon: 'fa-heart' },
+                                { id: 'reports', label: 'Reports', icon: 'fa-flag' },
                                 { id: 'moderation', label: 'Moderation', icon: 'fa-shield-alt' }
                             ].map((tab) => (
                                 <button
@@ -1891,6 +2154,104 @@ const dashboardHTML = `<!DOCTYPE html>
                             </div>
                         )}
 
+                        {activeTab === 'reports' && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-bold text-gray-800">User Reports</h2>
+                                
+                                {actionMessage && (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                        <p className="text-green-600 text-sm">{actionMessage}</p>
+                                    </div>
+                                )}
+
+                                {/* Reports List */}
+                                <div className="bg-white rounded-xl shadow-md p-6">
+                                    <h3 className="text-lg font-semibold mb-4">Reports ({reports.length})</h3>
+                                    {reports.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {reports.map((report) => (
+                                                <div key={report.id} className="border border-gray-200 rounded-lg p-4">
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div>
+                                                            <span className={\`px-2 py-1 rounded-full text-xs font-medium \${
+                                                                report.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                                                                report.status === 'reviewed' ? 'bg-blue-100 text-blue-600' :
+                                                                report.status === 'resolved' ? 'bg-green-100 text-green-600' :
+                                                                'bg-gray-100 text-gray-600'
+                                                            }\`}>
+                                                                {report.status?.toUpperCase()}
+                                                            </span>
+                                                            <span className="ml-2 text-sm text-gray-500">
+                                                                {new Date(report.created_at).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-sm font-mono text-gray-400">#{report.id}</span>
+                                                    </div>
+                                                    
+                                                    <div className="mb-3">
+                                                        <p className="text-sm text-gray-600">
+                                                            <span className="font-medium">Reporter:</span> {report.reporter_name || 'Unknown'} (ID: {report.reporter_id})
+                                                        </p>
+                                                        <p className="text-sm text-gray-600">
+                                                            <span className="font-medium">Reported:</span> {report.reported_name || 'Unknown'} (ID: {report.reported_user_id})
+                                                        </p>
+                                                        <p className="text-sm text-gray-600">
+                                                            <span className="font-medium">Reason:</span> 
+                                                            <span className={\`ml-1 px-2 py-0.5 rounded text-xs \${
+                                                                report.reason === 'fake' ? 'bg-purple-100 text-purple-600' :
+                                                                report.reason === 'spam' ? 'bg-orange-100 text-orange-600' :
+                                                                'bg-red-100 text-red-600'
+                                                            }\`}>
+                                                                {report.reason?.toUpperCase()}
+                                                            </span>
+                                                        </p>
+                                                        {report.description && (
+                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                <span className="font-medium">Description:</span> {report.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {report.status === 'pending' && (
+                                                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                                                            <button
+                                                                onClick={() => handleReviewReport(report.id, 'resolved', 'banned')}
+                                                                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                                                            >
+                                                                Ban User
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleReviewReport(report.id, 'resolved', 'shadowbanned')}
+                                                                className="px-3 py-1 bg-orange-500 text-white rounded text-sm hover:bg-orange-600"
+                                                            >
+                                                                Shadowban
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleReviewReport(report.id, 'dismissed', 'no_action')}
+                                                                className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                                                            >
+                                                                Dismiss
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {report.status !== 'pending' && (
+                                                        <div className="mt-3 pt-3 border-t border-gray-100">
+                                                            <p className="text-sm text-gray-500">
+                                                                <span className="font-medium">Action Taken:</span> {report.action_taken || 'None'}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 text-center py-4">No reports</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {activeTab === 'moderation' && (
                             <div className="space-y-6">
                                 <h2 className="text-xl font-bold text-gray-800">Moderation</h2>
@@ -1911,6 +2272,8 @@ const dashboardHTML = `<!DOCTYPE html>
                                                     <tr>
                                                         <th className="px-4 py-2 text-left">User ID</th>
                                                         <th className="px-4 py-2 text-left">Nickname</th>
+                                                        <th className="px-4 py-2 text-left">Type</th>
+                                                        <th className="px-4 py-2 text-left">Reason</th>
                                                         <th className="px-4 py-2 text-left">Banned At</th>
                                                         <th className="px-4 py-2 text-left">Actions</th>
                                                     </tr>
@@ -1920,15 +2283,23 @@ const dashboardHTML = `<!DOCTYPE html>
                                                         <tr key={user.telegram_id}>
                                                             <td className="px-4 py-2 font-mono text-sm">{user.telegram_id}</td>
                                                             <td className="px-4 py-2">{user.nickname || 'Unknown'}</td>
+                                                            <td className="px-4 py-2">
+                                                                <span className={\`px-2 py-1 rounded-full text-xs \${
+                                                                    user.is_banned ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
+                                                                }\`}>
+                                                                    {user.is_banned ? 'Banned' : 'Shadowbanned'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-gray-500">{user.ban_reason || 'N/A'}</td>
                                                             <td className="px-4 py-2 text-sm text-gray-500">
                                                                 {user.banned_at ? new Date(user.banned_at).toLocaleString() : 'N/A'}
                                                             </td>
                                                             <td className="px-4 py-2">
                                                                 <button
-                                                                    onClick={() => handleBanUser(user.telegram_id, 'unban')}
+                                                                    onClick={() => handleBanUser(user.telegram_id, user.is_banned ? 'unban' : 'unshadowban')}
                                                                     className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
                                                                 >
-                                                                    Unban
+                                                                    {user.is_banned ? 'Unban' : 'Unshadowban'}
                                                                 </button>
                                                             </td>
                                                         </tr>
@@ -1942,18 +2313,22 @@ const dashboardHTML = `<!DOCTYPE html>
                                 </div>
 
                                 {/* Quick Stats */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="bg-white rounded-xl shadow-md p-4">
                                         <p className="text-sm text-gray-500">Total Users</p>
                                         <p className="text-2xl font-bold text-blue-600">{stats.totalUsers}</p>
                                     </div>
                                     <div className="bg-white rounded-xl shadow-md p-4">
                                         <p className="text-sm text-gray-500">Banned Users</p>
-                                        <p className="text-2xl font-bold text-red-600">{bannedUsers.length}</p>
+                                        <p className="text-2xl font-bold text-red-600">{bannedUsers.filter(u => u.is_banned).length}</p>
                                     </div>
                                     <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Active Users</p>
-                                        <p className="text-2xl font-bold text-green-600">{stats.totalUsers - bannedUsers.length}</p>
+                                        <p className="text-sm text-gray-500">Shadowbanned</p>
+                                        <p className="text-2xl font-bold text-orange-600">{bannedUsers.filter(u => u.is_shadowbanned).length}</p>
+                                    </div>
+                                    <div className="bg-white rounded-xl shadow-md p-4">
+                                        <p className="text-sm text-gray-500">Pending Reports</p>
+                                        <p className="text-2xl font-bold text-yellow-600">{reports.filter(r => r.status === 'pending').length}</p>
                                     </div>
                                 </div>
                             </div>

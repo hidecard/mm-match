@@ -34,9 +34,37 @@ CREATE TABLE likes (
     PRIMARY KEY (from_user, to_user)
 );
 
+-- Ban status fields for users
+ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0;
+ALTER TABLE users ADD COLUMN is_shadowbanned BOOLEAN DEFAULT 0;
+ALTER TABLE users ADD COLUMN ban_reason TEXT;
+ALTER TABLE users ADD COLUMN banned_at DATETIME;
+ALTER TABLE users ADD COLUMN banned_by INTEGER; -- Admin telegram_id who banned the user
+
+-- Reports table - tracks user reports for trust & safety
+CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL, -- User who filed the report
+    reported_user_id INTEGER NOT NULL, -- User being reported
+    reason TEXT NOT NULL, -- 'fake_profile', 'spam', 'inappropriate'
+    description TEXT, -- Additional details
+    status TEXT DEFAULT 'pending', -- 'pending', 'reviewed', 'resolved', 'dismissed'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    reviewed_by INTEGER, -- Admin telegram_id who reviewed
+    action_taken TEXT, -- 'banned', 'shadowbanned', 'warned', 'no_action'
+    FOREIGN KEY (reporter_id) REFERENCES users(telegram_id),
+    FOREIGN KEY (reported_user_id) REFERENCES users(telegram_id)
+);
+
 -- Index for efficient discovery queries
 CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
 CREATE INDEX idx_interests ON users(interests);
 CREATE INDEX idx_mood_status ON users(mood_status);
 CREATE INDEX idx_likes_from ON likes(from_user);
 CREATE INDEX idx_likes_to ON likes(to_user);
+CREATE INDEX idx_reports_reported ON reports(reported_user_id, status);
+CREATE INDEX idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_users_banned ON users(is_banned);
+CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
