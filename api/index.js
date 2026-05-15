@@ -126,13 +126,15 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             : '';
         const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
         
-        // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles
+        // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles + exclude BANNED users
         try {
             const sql = `SELECT u.* FROM users u 
                       LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                       WHERE u.is_registered = 1 
                         AND u.telegram_id != ? 
                         AND u.gender = ? 
+                        AND u.is_banned = 0
+                        AND u.is_shadowbanned = 0
                         AND pv.viewed_profile_id IS NULL
                         AND u.telegram_id NOT IN (
                             SELECT to_user FROM likes WHERE from_user = ?
@@ -160,6 +162,8 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                           WHERE u.is_registered = 1 
                             AND u.telegram_id != ? 
                             AND u.gender = ? 
+                            AND u.is_banned = 0
+                            AND u.is_shadowbanned = 0
                             AND pv.viewed_profile_id IS NULL
                             AND u.telegram_id NOT IN (
                                 SELECT to_user FROM likes WHERE from_user = ?
@@ -176,11 +180,13 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             console.error('Profile query failed:', dbError.message);
         }
         
-        // Fallback: get any random profile (excluding liked and permanently viewed only)
+        // Fallback: get any random profile (excluding liked and permanently viewed and banned users)
         const allResult = await db.execute({
             sql: `SELECT u.* FROM users WHERE u.is_registered = 1 
                   AND u.telegram_id != ? 
                   AND u.gender = ? 
+                  AND u.is_banned = 0
+                  AND u.is_shadowbanned = 0
                   AND u.telegram_id NOT IN (
                       SELECT to_user FROM likes WHERE from_user = ?
                   )
