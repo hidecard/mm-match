@@ -858,7 +858,7 @@ bot.action('close_profile', async (ctx) => {
 });
 
 // Report user functionality
-bot.action(/^report_(.+)$/, async (ctx) => {
+bot.action(/^report_(\d+)$/, async (ctx) => {
     const targetId = ctx.match[1];
     const reporterId = ctx.from.id;
     
@@ -874,7 +874,7 @@ bot.action(/^report_(.+)$/, async (ctx) => {
     
     await ctx.reply(`🚨 *Report User*
 
-ဘယ်အကြောင်းကြောင့် Report လုပ်ချင်ပါသလဲ။
+ဘယ်အကြောင်းကြောင့် Report လုပ်ချင်ပါသလဲ。
 
 အောက်က ခလုတ်များထဲမှ ရွေးပါ:`, { 
         parse_mode: 'Markdown',
@@ -2349,3 +2349,13 @@ const dashboardHTML = `<!DOCTYPE html>
     </script>
 </body>
 </html>`;
+
+// Local development - start bot with polling if not in Vercel environment
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    console.log('Starting bot in polling mode for local development...');
+    bot.launch().then(() => {
+        console.log('Bot started successfully!');
+    }).catch((err) => {
+        console.error('Failed to start bot:', err);
+    });
+}
