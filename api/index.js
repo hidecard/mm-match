@@ -117,8 +117,26 @@ const getUser = async (id) => {
     }
 };
 
+// Calculate distance between two coordinates using Haversine formula (in km)
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+};
+
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
+        // Get current user's location and max distance preference
+        const currentUser = await getUser(userId);
+        const userLat = currentUser?.latitude;
+        const userLon = currentUser?.longitude;
+        const maxDistance = currentUser?.max_distance_km || 50;
+        
         // Build the NOT IN clause for session viewed IDs (temporary - only current session)
         const allViewedIds = [...viewedIds];
         const notInClause = allViewedIds.length > 0 
@@ -128,36 +146,14 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
         
         // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles + exclude BANNED users
         try {
-            const sql = `SELECT u.* FROM users u 
-                      LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                      WHERE u.is_registered = 1 
-                        AND u.telegram_id != ? 
-                        AND u.gender = ? 
-                        AND u.is_banned = 0
-                        AND u.is_shadowbanned = 0
-                        AND pv.viewed_profile_id IS NULL
-                        AND u.telegram_id NOT IN (
-                            SELECT to_user FROM likes WHERE from_user = ?
-                        )
-                        ${notInClause}
-                      ORDER BY RANDOM() LIMIT 1`;
+            let sql, args;
             
-            const args = [userId, userId, lookingFor, userId, ...notInArgs];
-            
-            console.log('Fetching random profile with viewedIds:', allViewedIds.length);
-            const unviewedResult = await db.execute({ sql, args });
-            
-            if (unviewedResult.rows.length > 0) {
-                return unviewedResult.rows[0];
-            }
-            
-            // If no results with strict filtering, try without session viewed IDs (but keep liked and permanently viewed exclusion)
-            if (allViewedIds.length > 0) {
-                console.log('No new profiles in session, clearing session cache and retrying with database history...');
-                sessionViewedCache.delete(userId);
+            if (userLat && userLon && maxDistance < 9999) {
+                // Use bounding box approximation for location filtering (1 degree ≈ 111 km)
+                const latDelta = maxDistance / 111;
+                const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
                 
-                const fallbackResult = await db.execute({
-                    sql: `SELECT u.* FROM users u 
+                sql = `SELECT u.* FROM users u 
                           LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                           WHERE u.is_registered = 1 
                             AND u.telegram_id != ? 
@@ -168,12 +164,116 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                             AND u.telegram_id NOT IN (
                                 SELECT to_user FROM likes WHERE from_user = ?
                             )
-                          ORDER BY RANDOM() LIMIT 1`,
-                    args: [userId, userId, lookingFor, userId]
-                });
+                            AND u.latitude IS NOT NULL
+                            AND u.longitude IS NOT NULL
+                            AND u.latitude BETWEEN ? AND ?
+                            AND u.longitude BETWEEN ? AND ?
+                            ${notInClause}
+                          ORDER BY RANDOM() LIMIT 1`;
+                
+                args = [userId, userId, lookingFor, userId, 
+                       userLat - latDelta, userLat + latDelta,
+                       userLon - lonDelta, userLon + lonDelta,
+                       ...notInArgs];
+            } else {
+                // No location filtering
+                sql = `SELECT u.* FROM users u 
+                          LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                          WHERE u.is_registered = 1 
+                            AND u.telegram_id != ? 
+                            AND u.gender = ? 
+                            AND u.is_banned = 0
+                            AND u.is_shadowbanned = 0
+                            AND pv.viewed_profile_id IS NULL
+                            AND u.telegram_id NOT IN (
+                                SELECT to_user FROM likes WHERE from_user = ?
+                            )
+                            ${notInClause}
+                          ORDER BY RANDOM() LIMIT 1`;
+                
+                args = [userId, userId, lookingFor, userId, ...notInArgs];
+            }
+            
+            console.log('Fetching random profile with viewedIds:', allViewedIds.length);
+            const unviewedResult = await db.execute({ sql, args });
+            
+            if (unviewedResult.rows.length > 0) {
+                // Precise distance filtering for location-based results
+                if (userLat && userLon && maxDistance < 9999) {
+                    const profile = unviewedResult.rows[0];
+                    if (profile.latitude && profile.longitude) {
+                        const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
+                        if (distance <= maxDistance) {
+                            return profile;
+                        }
+                    }
+                } else {
+                    return unviewedResult.rows[0];
+                }
+            }
+            
+            // If no results with strict filtering, try without session viewed IDs (but keep liked and permanently viewed exclusion)
+            if (allViewedIds.length > 0) {
+                console.log('No new profiles in session, clearing session cache and retrying with database history...');
+                sessionViewedCache.delete(userId);
+                
+                let fallbackSql, fallbackArgs;
+                
+                if (userLat && userLon && maxDistance < 9999) {
+                    const latDelta = maxDistance / 111;
+                    const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
+                    
+                    fallbackSql = `SELECT u.* FROM users u 
+                                   LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                                   WHERE u.is_registered = 1 
+                                     AND u.telegram_id != ? 
+                                     AND u.gender = ? 
+                                     AND u.is_banned = 0
+                                     AND u.is_shadowbanned = 0
+                                     AND pv.viewed_profile_id IS NULL
+                                     AND u.telegram_id NOT IN (
+                                         SELECT to_user FROM likes WHERE from_user = ?
+                                     )
+                                     AND u.latitude IS NOT NULL
+                                     AND u.longitude IS NOT NULL
+                                     AND u.latitude BETWEEN ? AND ?
+                                     AND u.longitude BETWEEN ? AND ?
+                                   ORDER BY RANDOM() LIMIT 1`;
+                    
+                    fallbackArgs = [userId, userId, lookingFor, userId,
+                                  userLat - latDelta, userLat + latDelta,
+                                  userLon - lonDelta, userLon + lonDelta];
+                } else {
+                    fallbackSql = `SELECT u.* FROM users u 
+                                   LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
+                                   WHERE u.is_registered = 1 
+                                     AND u.telegram_id != ? 
+                                     AND u.gender = ? 
+                                     AND u.is_banned = 0
+                                     AND u.is_shadowbanned = 0
+                                     AND pv.viewed_profile_id IS NULL
+                                     AND u.telegram_id NOT IN (
+                                         SELECT to_user FROM likes WHERE from_user = ?
+                                     )
+                                   ORDER BY RANDOM() LIMIT 1`;
+                    
+                    fallbackArgs = [userId, userId, lookingFor, userId];
+                }
+                
+                const fallbackResult = await db.execute({ sql: fallbackSql, args: fallbackArgs });
                 
                 if (fallbackResult.rows.length > 0) {
-                    return fallbackResult.rows[0];
+                    if (userLat && userLon && maxDistance < 9999) {
+                        const profile = fallbackResult.rows[0];
+                        if (profile.latitude && profile.longitude) {
+                            const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
+                            if (distance <= maxDistance) {
+                                return profile;
+                            }
+                        }
+                    } else {
+                        return fallbackResult.rows[0];
+                    }
                 }
             }
         } catch (dbError) {
@@ -197,7 +297,21 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             args: [userId, lookingFor, userId, userId]
         });
         
-        return allResult.rows[0] || null;
+        if (allResult.rows.length > 0) {
+            if (userLat && userLon && maxDistance < 9999) {
+                const profile = allResult.rows[0];
+                if (profile.latitude && profile.longitude) {
+                    const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
+                    if (distance <= maxDistance) {
+                        return profile;
+                    }
+                }
+            } else {
+                return allResult.rows[0];
+            }
+        }
+        
+        return null;
     } catch (error) {
         console.error('Error in getRandomProfile:', error);
         return null;
@@ -392,6 +506,13 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
     if (user.step === 'ask_address') {
+        // Handle location message
+        if (ctx.message.location) {
+            const latitude = ctx.message.location.latitude;
+            const longitude = ctx.message.location.longitude;
+            await db.execute({ sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text || 'Location shared', latitude, longitude, ctx.from.id] });
+            return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        }
         await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
@@ -413,7 +534,19 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_looking_for') {
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
-        await db.execute({ sql: "UPDATE users SET looking_for = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
+        await db.execute({ sql: "UPDATE users SET looking_for = ?, step = 'ask_distance' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
+        return await ctx.reply("သင်နှင့် မည်မျှအကွာအဝေးအတွင်း ရှာဖွေချင်ပါသလဲ?\n(ဥပမာ- 10, 25, 50):", Markup.keyboard([['10 km', '25 km', '50 km'], ['100 km', 'Any']]).resize());
+    }
+    if (user.step === 'ask_distance') {
+        let distance = 50; // default
+        if (text === '10 km') distance = 10;
+        else if (text === '25 km') distance = 25;
+        else if (text === '50 km') distance = 50;
+        else if (text === '100 km') distance = 100;
+        else if (text === 'Any') distance = 9999;
+        else if (!isNaN(text)) distance = parseInt(text);
+        
+        await db.execute({ sql: "UPDATE users SET max_distance_km = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [distance, ctx.from.id] });
         const welcomeText = `✅ *အားလုံးအဆင်ပြေသွားပါပြီ။*
 
 အခုဆိုရင် သင်ဟာ MM Cupid ရဲ့ အဖွဲ့ဝင်တစ်ဦး ဖြစ်သွားပါပြီ။ 💕

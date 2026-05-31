@@ -15,7 +15,10 @@ CREATE TABLE users (
     interests TEXT, -- Interest tags like #travel #music #food
     mood_status TEXT, -- Current mood status with emoji
     step TEXT DEFAULT 'start', -- Registration step tracking
-    is_registered BOOLEAN DEFAULT 0
+    is_registered BOOLEAN DEFAULT 0,
+    latitude REAL, -- User's location latitude
+    longitude REAL, -- User's location longitude
+    max_distance_km INTEGER DEFAULT 50 -- Maximum distance for matches in km
 );
 
 -- Profile views table - tracks which profiles have been viewed

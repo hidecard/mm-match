@@ -11,7 +11,9 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 ## 🎯 Features
 
 ### **User Features**
-- **Step-by-step Registration**: 7-step process collecting nickname, age, location, photo, bio, gender, and preferences
+- **Step-by-step Registration**: 8-step process collecting nickname, age, location, photo, bio, gender, preferences, and distance radius
+- **Location-based Matching**: Share your live or static location to find matches within your preferred distance radius
+- **Distance Filtering**: Set your preferred search radius (10km, 25km, 50km, 100km, or Any) to find nearby matches
 - **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
 - **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
 - **Match Notification**: When two users like each other, usernames are revealed with a match message
@@ -148,16 +150,17 @@ Match ဖြစ်သွားပါပြီ! ❤️
 ### **1. Getting Started**
 1. Open Telegram and search for **@mmcupid_bot**
 2. Click **"Start"** or type `/start`
-3. Follow the 7-step registration process
+3. Follow the 8-step registration process
 
 ### **2. Registration Process**
 1. **Nickname** - Type your display name
 2. **Age** - Enter your age (numbers only)
-3. **Address** - Enter your city/location
+3. **Address** - Enter your city/location OR send your live location via Telegram
 4. **Photo** - Upload a profile photo
 5. **Bio** - Write a short description about yourself
 6. **Gender** - Select Male or Female (button-based)
 7. **Looking For** - Select which gender you want to see
+8. **Distance Radius** - Set your preferred search distance (10km, 25km, 50km, 100km, or Any)
 
 ### **3. Finding Matches**
 - Type `/find` or click the **🔍 ဖူးစာရှင်ရှာမည်** button
@@ -167,6 +170,7 @@ Match ဖြစ်သွားပါပြီ! ❤️
   - **➡️ Next** - Skip to the next profile
   - **🚨 Report** - Report inappropriate profiles
 - When both users like each other, it's a Match! Usernames are revealed
+- **Location-based Filtering**: If you shared your location, you'll only see profiles within your chosen distance radius
 
 ### **4. Managing Your Profile**
 - **View Profile**: Type `/profile` or click **👤 Profile** button
@@ -269,6 +273,9 @@ CREATE TABLE users (
     mood_status TEXT, -- Current mood status with emoji
     step TEXT DEFAULT 'start', -- Registration step tracking
     is_registered BOOLEAN DEFAULT 0,
+    latitude REAL, -- User's location latitude
+    longitude REAL, -- User's location longitude
+    max_distance_km INTEGER DEFAULT 50, -- Maximum distance for matches in km
     is_banned BOOLEAN DEFAULT 0,
     is_shadowbanned BOOLEAN DEFAULT 0,
     ban_reason TEXT,
@@ -319,9 +326,11 @@ CREATE INDEX idx_reports_reporter ON reports(reporter_id);
 CREATE INDEX idx_reports_status ON reports(status);
 CREATE INDEX idx_users_banned ON users(is_banned);
 CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
+CREATE INDEX idx_location ON users(latitude, longitude) WHERE is_registered = 1;
+CREATE INDEX idx_max_distance ON users(max_distance_km) WHERE is_registered = 1;
 ```
 
-## �📊 Admin Dashboard
+## �� Admin Dashboard
 
 Access the web dashboard at your Vercel URL: `https://your-app.vercel.app/`
 
