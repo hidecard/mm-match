@@ -10,20 +10,28 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 
 ## 🎯 Features
 
-- **Step-by-step Registration**: Collects nickname, age, location, photo, bio, gender, and preferences
-- **Discovery System**: Swipe through profiles with "Next" and "Like" buttons
+### **User Features**
+- **Step-by-step Registration**: 7-step process collecting nickname, age, location, photo, bio, gender, and preferences
+- **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
 - **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
-- **Match Notification**: When two users like each other, usernames are revealed
-- **Profile Editing**: Update any profile information anytime
-- **Smart UI**: Button-based interactions with pinned commands
-- **Scalable Architecture**: Optimized for 100,000+ users
+- **Match Notification**: When two users like each other, usernames are revealed with a match message
+- **Profile Editing**: Update nickname, age, address, photo, and bio anytime
+- **Smart UI**: Button-based interactions with pinned commands and inline keyboards
+- **Welcome Back Feature**: Returning users see their profile without re-registration
+- **Profile View**: Users can view their own profile anytime
+- **Like with Message**: Send a secret message when liking someone for more personal connections
+- **Report System**: Report inappropriate profiles for admin review
+- **Matching Pulse**: Live stats showing total users and matches
+
+### **Technical Features**
+- **Scalable Architecture**: Optimized for 100,000+ users with serverless deployment
 - **Zero Storage Cost**: Uses Telegram photo_id instead of storing images
 - **Smart User Links**: Fallback to tg://user?id=xxx when username not set
-- **Welcome Back Feature**: Returning users see their profile without re-registration
-- **Matching Pulse**: Live stats showing total users and matches
 - **Smart Session Cache**: No duplicate profiles shown in same session
+- **Permanent Profile Tracking**: Database tracks viewed profiles across sessions
+- **Ban/Shadowban System**: Admin tools for user moderation
 - **Admin Dashboard**: Password-protected web dashboard with real-time data
-- **Profile View**: Users can view their own profile anytime
+- **Security**: SQL injection protection, input validation, and webhook security
 
 ## 🛠️ Tech Stack
 
@@ -135,7 +143,7 @@ Match ဖြစ်သွားပါပြီ! ❤️
 🔥 MM Cupid မှာ သင့်ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!
 ```
 
-## � Complete User Guide
+## 📊 Complete User Guide
 
 ### **1. Getting Started**
 1. Open Telegram and search for **@mmcupid_bot**
@@ -152,58 +160,30 @@ Match ဖြစ်သွားပါပြီ! ❤️
 7. **Looking For** - Select which gender you want to see
 
 ### **3. Finding Matches**
-- Type `/find` or click the pinned command
-- Browse through profiles with ❤️ Like or ➡️ Next
-- When both users like each other, it's a Match!
+- Type `/find` or click the **🔍 ဖူးစာရှင်ရှာမည်** button
+- Browse through profiles with:
+  - **❤️ Like** - Express interest in the profile
+  - **💌 Like + Message** - Like with a personal secret message
+  - **➡️ Next** - Skip to the next profile
+  - **🚨 Report** - Report inappropriate profiles
+- When both users like each other, it's a Match! Usernames are revealed
 
 ### **4. Managing Your Profile**
-```sql
--- Users table with enhanced fields
-CREATE TABLE users (
-    telegram_id INTEGER PRIMARY KEY,
-    username TEXT,
-    nickname TEXT,
-    age INTEGER,
-    address TEXT,
-    bio TEXT,
-    photo_id TEXT,
-    gender TEXT,
-    looking_for TEXT,
-    interests TEXT,        -- Interest tags
-    mood_status TEXT,     -- Current mood
-    step TEXT DEFAULT 'start',
-    is_registered BOOLEAN DEFAULT 0
-);
+- **View Profile**: Type `/profile` or click **👤 Profile** button
+- **Edit Profile**: Type `/edit` or click **⚙️ Edit Profile** button
+  - Edit nickname, age, address, photo, or bio
+- **Update Preferences**: Type `/update` to change gender preferences
 
--- Likes table for tracking user interactions
-CREATE TABLE likes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_user INTEGER,
-    to_user INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (from_user) REFERENCES users(telegram_id),
-    FOREIGN KEY (to_user) REFERENCES users(telegram_id),
-    UNIQUE(from_user, to_user)
-);
+### **5. Live Statistics**
+- Type `/pulse` or click **💓 Pulse** button
+- View total registered users and total matches
 
--- Profile views tracking
-CREATE TABLE profile_views (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    viewed_profile_id INTEGER,
-    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
-    FOREIGN KEY (viewed_profile_id) REFERENCES users(telegram_id)
-);
-
--- Performance indexes
-CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
-CREATE INDEX idx_interests ON users(interests);
-CREATE INDEX idx_mood_status ON users(mood_status);
-CREATE INDEX idx_likes_from ON likes(from_user);
-CREATE INDEX idx_likes_to ON likes(to_user);
-CREATE INDEX idx_profile_views ON profile_views(user_id, viewed_profile_id);
-```
+### **6. Main Menu Commands**
+- **🔍 ဖူးစာရှင်ရှာမည်** - Start finding matches
+- **💓 Pulse** - View live statistics
+- **⚙️ Edit Profile** - Update your profile information
+- **👤 Profile** - View your current profile
+- **/help** - Show help message
 
 ### 🚀 Installation & Setup
 
@@ -269,7 +249,79 @@ curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
 - **Data Privacy**: Minimal data collection
 - **Dashboard Protection**: Password-protected admin panel
 
-## 📊 Admin Dashboard
+## �️ Database Schema
+
+The bot uses Turso (SQLite-compatible) database with the following schema:
+
+```sql
+-- Users table - stores user profiles and registration state
+CREATE TABLE users (
+    telegram_id INTEGER PRIMARY KEY,
+    username TEXT,
+    nickname TEXT,
+    age INTEGER,
+    address TEXT,
+    bio TEXT,
+    photo_id TEXT,
+    gender TEXT,
+    looking_for TEXT,
+    interests TEXT, -- Interest tags like #travel #music #food
+    mood_status TEXT, -- Current mood status with emoji
+    step TEXT DEFAULT 'start', -- Registration step tracking
+    is_registered BOOLEAN DEFAULT 0,
+    is_banned BOOLEAN DEFAULT 0,
+    is_shadowbanned BOOLEAN DEFAULT 0,
+    ban_reason TEXT,
+    banned_at DATETIME,
+    banned_by INTEGER -- Admin telegram_id who banned the user
+);
+
+-- Profile views table - tracks which profiles have been viewed
+CREATE TABLE profile_views (
+    user_id INTEGER,
+    viewed_profile_id INTEGER,
+    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, viewed_profile_id)
+);
+
+-- Likes table - tracks who likes whom
+CREATE TABLE likes (
+    from_user INTEGER,
+    to_user INTEGER,
+    status TEXT DEFAULT 'pending', -- 'pending' or 'accepted'
+    PRIMARY KEY (from_user, to_user)
+);
+
+-- Reports table - tracks user reports for trust & safety
+CREATE TABLE reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL, -- User who filed the report
+    reported_user_id INTEGER NOT NULL, -- User being reported
+    reason TEXT NOT NULL, -- 'fake_profile', 'spam', 'inappropriate'
+    description TEXT, -- Additional details
+    status TEXT DEFAULT 'pending', -- 'pending', 'reviewed', 'resolved', 'dismissed'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    reviewed_by INTEGER, -- Admin telegram_id who reviewed
+    action_taken TEXT, -- 'banned', 'shadowbanned', 'warned', 'no_action'
+    FOREIGN KEY (reporter_id) REFERENCES users(telegram_id),
+    FOREIGN KEY (reported_user_id) REFERENCES users(telegram_id)
+);
+
+-- Performance indexes
+CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
+CREATE INDEX idx_interests ON users(interests);
+CREATE INDEX idx_mood_status ON users(mood_status);
+CREATE INDEX idx_likes_from ON likes(from_user);
+CREATE INDEX idx_likes_to ON likes(to_user);
+CREATE INDEX idx_reports_reported ON reports(reported_user_id, status);
+CREATE INDEX idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_users_banned ON users(is_banned);
+CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
+```
+
+## �📊 Admin Dashboard
 
 Access the web dashboard at your Vercel URL: `https://your-app.vercel.app/`
 
