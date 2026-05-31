@@ -198,6 +198,7 @@ Match ဖြစ်သွားပါပြီ! ❤️
 - **💓 Pulse** - View live statistics
 - **⚙️ Edit Profile** - Update your profile information
 - **👤 Profile** - View your current profile
+- **✨ Daily Spark** - Set a temporary 24-hour status with emoji
 - **❌ Delete Account** - Permanently delete your account and all data
 - **/help** - Show help message
 
