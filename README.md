@@ -198,6 +198,7 @@ Match ဖြစ်သွားပါပြီ! ❤️
 - **💓 Pulse** - View live statistics
 - **⚙️ Edit Profile** - Update your profile information
 - **👤 Profile** - View your current profile
+- **❌ Delete Account** - Permanently delete your account and all data
 - **/help** - Show help message
 
 ### 🚀 Installation & Setup

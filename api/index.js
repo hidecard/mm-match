@@ -652,7 +652,7 @@ bot.on('message', async (ctx) => {
     if (user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
     }
 
     if (user.is_registered) return await handleChat(ctx, user);
@@ -715,7 +715,7 @@ bot.on('message', async (ctx) => {
 အောက်က ခလုတ်ကိုနှိပ်ပြီး သင့်ရဲ့ ဖူးစာရှင်ကို စတင်ရှာဖွေနိုင်ပါပြီ။ 👇`;
         return await ctx.reply(welcomeText, {
             parse_mode: 'Markdown',
-            ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize()
+            ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize()
         });
     }
 });
@@ -1331,7 +1331,7 @@ bot.action(/^report_fake_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -1349,7 +1349,7 @@ bot.action(/^report_spam_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -1367,7 +1367,7 @@ bot.action(/^report_inappropriate_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -1489,7 +1489,7 @@ async function handleChat(ctx, user) {
         await ctx.reply(`✅ Report တင်ပြီးပါပြီ။
 
 သင့် Report ကို Admin team က စစ်ဆေးပါမည်။
-ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
         return;
     }
     
@@ -1528,6 +1528,21 @@ async function handleChat(ctx, user) {
     if (text === '/find' || text === '🔍 Find Match' || text === '🔍 ဖူးစာရှင်ရှာမည်') {
         return await showNextProfile(ctx);
     }
+    if (text === '❌ Delete Account') {
+        // Trigger delete account command
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
+        }
+        
+        await db.execute({
+            sql: "UPDATE users SET step = 'confirm_delete' WHERE telegram_id = ?",
+            args: [ctx.from.id]
+        });
+        
+        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။\n\nဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
+        return;
+    }
     if (text === '/edit' || text === '⚙️ Edit Profile') {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
@@ -1541,6 +1556,8 @@ async function handleChat(ctx, user) {
 🔹 /pulse - Live stats (💓 Pulse)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
+🔹 /spark - Set daily spark status
+🔹 /deleteaccount - Delete your account (❌ Delete Account)
 🔹 /help - Show this help message
 
 💕 ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
