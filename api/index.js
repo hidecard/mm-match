@@ -372,7 +372,7 @@ ${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရေ�
             // Show main menu
             return await ctx.reply(
                 `🔥 သင့်ဖူးစာရှင်ကို စတင်ရှာဖွေလိုက်ပါ!`,
-                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize()
+                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize()
             );
         }
         
@@ -486,7 +486,7 @@ bot.on('message', async (ctx) => {
                 args: [ctx.from.id]
             });
             
-            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
             return;
         }
         
@@ -532,7 +532,7 @@ bot.on('message', async (ctx) => {
             if (sessionResult.rows.length === 0) {
                 // No active chat session, exit chat mode
                 await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
             }
             
             const matchedUserId = sessionResult.rows[0].matched_user_id;
@@ -587,8 +587,31 @@ bot.on('message', async (ctx) => {
         }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
         }
+    }
+
+    // Handle confirm delete
+    if (user.step === 'confirm_delete') {
+        if (text === 'ဖျက်မည်') {
+            // Delete user data from all tables
+            await db.execute({ sql: "DELETE FROM chat_sessions WHERE user_id = ?", args: [ctx.from.id] });
+            await db.execute({ sql: "DELETE FROM chat_sessions WHERE matched_user_id = ?", args: [ctx.from.id] });
+            await db.execute({ sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?", args: [ctx.from.id, ctx.from.id] });
+            await db.execute({ sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?", args: [ctx.from.id, ctx.from.id] });
+            await db.execute({ sql: "DELETE FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
+            
+            await ctx.reply("❌ သင့် Account ကို ဖျက်ပြီးပါပြီ။\n\nနောက်ထပ် ပါဝင်ချင်ရင် /start နှိပ်ပါ။");
+            return;
+        }
+        
+        if (text === '/cancel') {
+            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
+            return;
+        }
+        
+        return await ctx.reply("ဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
     }
 
     // Handle spark input
@@ -605,7 +628,7 @@ bot.on('message', async (ctx) => {
             args: [text, expiresAt, ctx.from.id]
         });
         
-        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
         return;
     }
 
@@ -623,7 +646,7 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
-        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['❌ Delete Account'], ['/help']]).resize());
     }
 
     if (user.step === 'edit_photo' && ctx.message.photo) {
@@ -698,6 +721,26 @@ bot.on('message', async (ctx) => {
 });
 
 // --- Discovery & Actions ---
+bot.command('deleteaccount', async (ctx) => {
+    try {
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
+        }
+        
+        // Set user step to confirm delete
+        await db.execute({
+            sql: "UPDATE users SET step = 'confirm_delete' WHERE telegram_id = ?",
+            args: [ctx.from.id]
+        });
+        
+        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။\n\nဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error('Delete account command error:', error);
+        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+});
+
 bot.command('spark', async (ctx) => {
     try {
         const user = await getUser(ctx.from.id);
@@ -1498,7 +1541,6 @@ async function handleChat(ctx, user) {
 🔹 /pulse - Live stats (💓 Pulse)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
-🔹 /update - Change preferences
 🔹 /help - Show this help message
 
 💕 ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
