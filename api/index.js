@@ -591,29 +591,6 @@ bot.on('message', async (ctx) => {
         }
     }
 
-    // Handle confirm delete
-    if (user.step === 'confirm_delete') {
-        if (text && text.trim() === 'ဖျက်မည်') {
-            // Delete user data from all tables
-            await db.execute({ sql: "DELETE FROM chat_sessions WHERE user_id = ?", args: [ctx.from.id] });
-            await db.execute({ sql: "DELETE FROM chat_sessions WHERE matched_user_id = ?", args: [ctx.from.id] });
-            await db.execute({ sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?", args: [ctx.from.id, ctx.from.id] });
-            await db.execute({ sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?", args: [ctx.from.id, ctx.from.id] });
-            await db.execute({ sql: "DELETE FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
-            
-            await ctx.reply("❌ သင့် Account ကို ဖျက်ပြီးပါပြီ။\n\nနောက်ထပ် ပါဝင်ချင်ရင် /start နှိပ်ပါ။");
-            return;
-        }
-        
-        if (text === '/cancel') {
-            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
-            return;
-        }
-        
-        return await ctx.reply("ဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
-    }
-
     // Handle spark input
     if (user.step === 'ask_spark') {
         if (!text || text.trim() === '') {
@@ -728,16 +705,43 @@ bot.command('deleteaccount', async (ctx) => {
             return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
         }
         
-        // Set user step to confirm delete
-        await db.execute({
-            sql: "UPDATE users SET step = 'confirm_delete' WHERE telegram_id = ?",
-            args: [ctx.from.id]
+        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။", {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('❌ ဖျက်မည်', 'delete_confirm')],
+                [Markup.button.callback('ပယ်ဖျက်မည်', 'delete_cancel')]
+            ])
         });
-        
-        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။\n\nဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Delete account command error:', error);
         await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+});
+
+bot.action('delete_confirm', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        
+        // Delete user data from all tables
+        await db.execute({ sql: "DELETE FROM chat_sessions WHERE user_id = ?", args: [ctx.from.id] });
+        await db.execute({ sql: "DELETE FROM chat_sessions WHERE matched_user_id = ?", args: [ctx.from.id] });
+        await db.execute({ sql: "DELETE FROM likes WHERE from_user = ? OR to_user = ?", args: [ctx.from.id, ctx.from.id] });
+        await db.execute({ sql: "DELETE FROM profile_views WHERE user_id = ? OR viewed_profile_id = ?", args: [ctx.from.id, ctx.from.id] });
+        await db.execute({ sql: "DELETE FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
+        
+        await ctx.reply("❌ သင့် Account ကို ဖျက်ပြီးပါပြီ။\n\nနောက်ထပ် ပါဝင်ချင်ရင် /start နှိပ်ပါ။");
+    } catch (error) {
+        console.error('Delete confirm error:', error);
+        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+});
+
+bot.action('delete_cancel', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+    } catch (error) {
+        console.error('Delete cancel error:', error);
     }
 });
 
@@ -1550,12 +1554,13 @@ async function handleChat(ctx, user) {
             return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
         }
         
-        await db.execute({
-            sql: "UPDATE users SET step = 'confirm_delete' WHERE telegram_id = ?",
-            args: [ctx.from.id]
+        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။", {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('❌ ဖျက်မည်', 'delete_confirm')],
+                [Markup.button.callback('ပယ်ဖျက်မည်', 'delete_cancel')]
+            ])
         });
-        
-        await ctx.reply("⚠️ *Account ဖျက်မည်မှာ သေချာပါသလား?*\n\nသင့် Profile နဲ့ အချက်အလက်အားလုံး ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်။\n\nဖျက်ချင်ရင် 'ဖျက်မည်' လို့ ရိုက်ထည့်ပါ။\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
         return;
     }
     if (text === '/edit' || text === '⚙️ Edit Profile') {
