@@ -762,7 +762,6 @@ bot.command('help', async (ctx) => {
 🔹 /pulse - Live stats (💓 Pulse)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
-🔹 /update - Change preferences
 🔹 /help - Show this help message
 
 💕 ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!`;
