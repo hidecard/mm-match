@@ -253,6 +253,28 @@ curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
 - **Data Privacy**: Minimal data collection
 - **Dashboard Protection**: Password-protected admin panel
 
+
+## 📍 Location-based Matching
+
+### **How It Works**
+The bot uses the Haversine formula to calculate the distance between users' coordinates and filters matches based on your preferred distance radius.
+
+### **Technical Implementation**
+- **Bounding Box Approximation**: Uses SQL to filter profiles within a geographic bounding box for performance
+- **Precise Distance Calculation**: Applies Haversine formula in JavaScript for accurate distance filtering
+- **Fallback Logic**: If no profiles found within distance, falls back to broader search
+
+### **Distance Options**
+- **10 km** - Very local matches
+- **25 km** - City-wide matches
+- **50 km** - Regional matches (default)
+- **100 km** - Extended regional matches
+- **Any** - No distance restriction
+
+### **Privacy**
+- Location sharing is optional during registration
+- Users can choose to enter city name instead of sharing coordinates
+- Location data is stored securely in the database
 ## �️ Database Schema
 
 The bot uses Turso (SQLite-compatible) database with the following schema:
