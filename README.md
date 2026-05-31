@@ -16,6 +16,7 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 - **Distance Filtering**: Set your preferred search radius (10km, 25km, 50km, 100km, or Any) to find nearby matches
 - **In-Bot Anonymous Chat**: Chat securely without revealing Telegram handles until both users consent
 - **Identity Reveal**: Choose when to share your Telegram username with mutual consent
+- **Daily Sparks**: Set a temporary 24-hour status with emoji to show your current mood or activity
 - **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
 - **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
 - **Match Notification**: When two users like each other, anonymous chat option is provided
@@ -186,7 +187,13 @@ Match ဖြစ်သွားပါပြီ! ❤️
 - Type `/pulse` or click **💓 Pulse** button
 - View total registered users and total matches
 
-### **6. Main Menu Commands**
+### **6. Daily Sparks**
+- Type `/spark` to set a temporary 24-hour status
+- Add emoji to express your current mood or activity
+- Your spark appears prominently at the top of your profile card
+- Automatically expires after 24 hours without needing cleanup
+
+### **7. Main Menu Commands**
 - **🔍 ဖူးစာရှင်ရှာမည်** - Start finding matches
 - **💓 Pulse** - View live statistics
 - **⚙️ Edit Profile** - Update your profile information

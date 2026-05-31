@@ -592,6 +592,24 @@ bot.on('message', async (ctx) => {
         }
     }
 
+    // Handle spark input
+    if (user.step === 'ask_spark') {
+        if (!text || text.trim() === '') {
+            return await ctx.reply("စာသားထည့်ပေးပါ။ ပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
+        }
+        
+        // Calculate expiration time (24 hours from now)
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        
+        await db.execute({
+            sql: "UPDATE users SET daily_spark = ?, spark_expires_at = ?, step = 'done' WHERE telegram_id = ?",
+            args: [text, expiresAt, ctx.from.id]
+        });
+        
+        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        return;
+    }
+
     // Handle edit inputs
     if (['edit_nickname', 'edit_age', 'edit_address', 'edit_bio'].includes(user.step)) {
         let updateSql = "";
@@ -681,6 +699,26 @@ bot.on('message', async (ctx) => {
 });
 
 // --- Discovery & Actions ---
+bot.command('spark', async (ctx) => {
+    try {
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ သုံးနိုင်ပါမယ်။ /start နှိပ်ပါ။");
+        }
+        
+        // Set user step to ask for spark
+        await db.execute({
+            sql: "UPDATE users SET step = 'ask_spark' WHERE telegram_id = ?",
+            args: [ctx.from.id]
+        });
+        
+        await ctx.reply("✨ *Daily Spark* တင်ပါ\n\nဒီနေ့ ဘာလုပ်ချင်လဲဆိုတဲ့ အခြေအနေကို Emoji လေးနဲ့ ရေးပေးပါ။\n\nဥပမာ: ဒီနေ့ညနေ လှည်းတန်းဘက် ကော်ဖီတူတူသောက်မယ့်သူရှာနေပါတယ် ☕⛈️\n\n(၂၄ နာရီအတွင်း အလိုအလျောက် ပျောက်ပျက်သွားမှာဖြစ်ပါတယ်)", { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error('Spark command error:', error);
+        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+});
+
 bot.command('test', async (ctx) => {
     await ctx.reply('Bot is working! Buttons test:', 
         Markup.inlineKeyboard([
@@ -879,7 +917,17 @@ User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာ�
         // Persist to database for permanent deduplication across sessions
         await markProfileAsViewed(ctx.from.id, target.telegram_id);
         
-        const caption = `👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
+        // Check if spark is still valid (not expired)
+        let sparkText = '';
+        if (target.daily_spark && target.spark_expires_at) {
+            const now = new Date();
+            const expiresAt = new Date(target.spark_expires_at);
+            if (now < expiresAt) {
+                sparkText = `✨ ${target.daily_spark}\n\n`;
+            }
+        }
+        
+        const caption = `${sparkText}👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`),
              Markup.button.callback('💌 Like + Message', `like_with_message_${target.telegram_id}`)],

@@ -18,7 +18,9 @@ CREATE TABLE users (
     is_registered BOOLEAN DEFAULT 0,
     latitude REAL, -- User's location latitude
     longitude REAL, -- User's location longitude
-    max_distance_km INTEGER DEFAULT 50 -- Maximum distance for matches in km
+    max_distance_km INTEGER DEFAULT 50, -- Maximum distance for matches in km
+    daily_spark TEXT, -- Daily spark status with emoji (24-hour temporary status)
+    spark_expires_at DATETIME -- Timestamp when spark expires
 );
 
 -- Profile views table - tracks which profiles have been viewed
