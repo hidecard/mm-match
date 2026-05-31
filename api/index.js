@@ -444,77 +444,7 @@ bot.on('message', async (ctx) => {
 
     // Handle chat mode - proxy message routing
     if (user.step === 'chat_mode') {
-        try {
-            // Get chat session
-            const sessionResult = await db.execute({
-                sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?",
-                args: [ctx.from.id]
-            });
-            
-            if (sessionResult.rows.length === 0) {
-                // No active chat session, exit chat mode
-                await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
-            }
-            
-            const matchedUserId = sessionResult.rows[0].matched_user_id;
-            const sender = await getUser(ctx.from.id);
-            
-            // Handle different message types
-            if (ctx.message.text) {
-                await bot.telegram.sendMessage(matchedUserId, ctx.message.text);
-            } else if (ctx.message.photo) {
-                const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-                const caption = ctx.message.caption || '';
-                await bot.telegram.sendPhoto(matchedUserId, photoId, { caption });
-            } else if (ctx.message.voice) {
-                const voiceId = ctx.message.voice.file_id;
-                await bot.telegram.sendVoice(matchedUserId, voiceId);
-            } else if (ctx.message.sticker) {
-                const stickerId = ctx.message.sticker.file_id;
-                await bot.telegram.sendSticker(matchedUserId, stickerId);
-            }
-            
-            // Show delivered confirmation
-            await ctx.reply('✅ ပို့ပြီးပါပြီ');
-            
-        } catch (error) {
-            console.error('Chat message routing error:', error);
-            await ctx.reply('စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
-        }
-        return;
-    }
-
-    // Handle edit menu
-    if (user.step === 'edit_menu') {
-        if (text === '📝 Nickname') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
-        }
-        if (text === '🎂 Age') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_age' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
-        }
-        if (text === '🏠 Address') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
-        }
-        if (text === '📷 Photo') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပုံအသစ်ကို ပို့ပေးပါ:");
-        }
-        if (text === '📄 Bio') {
-            await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
-        }
-        if (text === '❌ Cancel') {
-            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
-        }
-    }
-
-    // Handle chat mode keyboard buttons
-    if (user.step === 'chat_mode') {
+        // Check if it's a keyboard button first
         if (text === '🔓 လျှို့ဝှက်ချက်ဖွင့်ပြမည်') {
             // Get chat session
             const sessionResult = await db.execute({
@@ -589,6 +519,75 @@ bot.on('message', async (ctx) => {
                 ]));
             }
             return;
+        }
+        
+        // If not a button, proxy the message
+        try {
+            // Get chat session
+            const sessionResult = await db.execute({
+                sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            if (sessionResult.rows.length === 0) {
+                // No active chat session, exit chat mode
+                await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+            }
+            
+            const matchedUserId = sessionResult.rows[0].matched_user_id;
+            const sender = await getUser(ctx.from.id);
+            
+            // Handle different message types
+            if (ctx.message.text) {
+                await bot.telegram.sendMessage(matchedUserId, ctx.message.text);
+            } else if (ctx.message.photo) {
+                const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+                const caption = ctx.message.caption || '';
+                await bot.telegram.sendPhoto(matchedUserId, photoId, { caption });
+            } else if (ctx.message.voice) {
+                const voiceId = ctx.message.voice.file_id;
+                await bot.telegram.sendVoice(matchedUserId, voiceId);
+            } else if (ctx.message.sticker) {
+                const stickerId = ctx.message.sticker.file_id;
+                await bot.telegram.sendSticker(matchedUserId, stickerId);
+            }
+            
+            // Show delivered confirmation
+            await ctx.reply('✅ ပို့ပြီးပါပြီ');
+            
+        } catch (error) {
+            console.error('Chat message routing error:', error);
+            await ctx.reply('စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+        }
+        return;
+    }
+
+    // Handle edit menu
+    if (user.step === 'edit_menu') {
+        if (text === '📝 Nickname') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_nickname' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("နာမည်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        }
+        if (text === '🎂 Age') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_age' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("အသက်အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        }
+        if (text === '🏠 Address') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        }
+        if (text === '📷 Photo') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("ပုံအသစ်ကို ပို့ပေးပါ:");
+        }
+        if (text === '📄 Bio') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
+        }
+        if (text === '❌ Cancel') {
+            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
         }
     }
 
@@ -900,12 +899,14 @@ async function showNextProfile(ctx) {
             console.log('No target found for user:', ctx.from.id);
             // Clear session cache when no profiles found
             sessionViewedCache.delete(ctx.from.id);
-            const emptyText = `⌛ *ခေတ္တစောင့်ဆိုင်းပေးပါဦး...*
+            const emptyText = `⏳ ခေတ္တစောင့်ဆိုင်းပေးပါဦး...
 
-အခုလောလောဆယ် သင့်အနီးအနားမှာ Profile အသစ်တွေ ကုန်နေပါပြီ။
-User အသစ်တွေ အမြဲတမ်းဝင်လာနေတာမို့ ခဏနေရင် ပြန်လာကြည့်ပေးပါဦးနော်။ ✨
+သတ်မှတ်ထားတဲ့ Radius အကွာအဝေးအတွင်းမှာ Swipe လုပ်စရာ Profile အသစ်တွေ ကုန်သွားပါပြီ။ ✨
 
-🚀 *သူငယ်ချင်းတွေကို Invite လုပ်ပြီး Match ပိုရှာချင်ရင်: /help*`;
+🚀 သူငယ်ချင်းတွေကို Invite လုပ်ပြီး အသိုက်အဝန်းကို ပိုမိုကြီးထွားစေချင်ရင်:
+သင့်သူငယ်ချင်းတွေဆီ ရိုးရှင်းစွာ တဆင့်မျှဝေပေးနိုင်ပါတယ်။
+
+👥 လူပိုများလာလေလေ၊ သင့်အတွက် ဖူးစာရှင်အသစ်တွေ ပိုမိုပေါ်ထွက်လာလေလေ ဖြစ်မှာပါခင်ဗျာ! 💕`;
             return await ctx.reply(emptyText, { parse_mode: 'Markdown' });
         }
         
