@@ -805,7 +805,7 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             try {
                 const me = await getUser(senderId);
                 if (me) {
-                    let likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*\n\n*${me.nickname}* က သင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉`;
+                    let likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*\n\nသင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉`;
                     
                     if (secretMessage) {
                         likeNotifyText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
