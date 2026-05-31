@@ -71,3 +71,32 @@ CREATE INDEX idx_reports_reporter ON reports(reporter_id);
 CREATE INDEX idx_reports_status ON reports(status);
 CREATE INDEX idx_users_banned ON users(is_banned);
 CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
+CREATE INDEX idx_location ON users(latitude, longitude) WHERE is_registered = 1;
+CREATE INDEX idx_max_distance ON users(max_distance_km) WHERE is_registered = 1;
+
+-- Anonymous Chat Feature Tables
+
+-- Track the state of a match
+CREATE TABLE matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_one INTEGER NOT NULL, -- Lower Telegram ID
+    user_two INTEGER NOT NULL, -- Higher Telegram ID
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_revealed BOOLEAN DEFAULT 0, -- 1 if usernames are mutually shared
+    UNIQUE(user_one, user_two)
+);
+
+-- Track who is actively chatting with whom right now
+CREATE TABLE chat_sessions (
+    user_id INTEGER PRIMARY KEY, -- The user currently in chat mode
+    matched_user_id INTEGER NOT NULL, -- The user they are talking to
+    match_id INTEGER NOT NULL,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
+
+-- Indexes for anonymous chat feature
+CREATE INDEX idx_matches_user_one ON matches(user_one);
+CREATE INDEX idx_matches_user_two ON matches(user_two);
+CREATE INDEX idx_matches_created ON matches(created_at);
+CREATE INDEX idx_chat_sessions_matched ON chat_sessions(matched_user_id);

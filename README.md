@@ -14,9 +14,11 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 - **Step-by-step Registration**: 8-step process collecting nickname, age, location, photo, bio, gender, preferences, and distance radius
 - **Location-based Matching**: Share your live or static location to find matches within your preferred distance radius
 - **Distance Filtering**: Set your preferred search radius (10km, 25km, 50km, 100km, or Any) to find nearby matches
+- **In-Bot Anonymous Chat**: Chat securely without revealing Telegram handles until both users consent
+- **Identity Reveal**: Choose when to share your Telegram username with mutual consent
 - **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
 - **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
-- **Match Notification**: When two users like each other, usernames are revealed with a match message
+- **Match Notification**: When two users like each other, anonymous chat option is provided
 - **Profile Editing**: Update nickname, age, address, photo, and bio anytime
 - **Smart UI**: Button-based interactions with pinned commands and inline keyboards
 - **Welcome Back Feature**: Returning users see their profile without re-registration
@@ -31,6 +33,8 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 - **Smart User Links**: Fallback to tg://user?id=xxx when username not set
 - **Smart Session Cache**: No duplicate profiles shown in same session
 - **Permanent Profile Tracking**: Database tracks viewed profiles across sessions
+- **Proxy Message Routing**: Serverless-friendly chat message forwarding
+- **Session Management**: Real-time chat session tracking without persistent connections
 - **Ban/Shadowban System**: Admin tools for user moderation
 - **Admin Dashboard**: Password-protected web dashboard with real-time data
 - **Security**: SQL injection protection, input validation, and webhook security
@@ -169,7 +173,7 @@ Match ဖြစ်သွားပါပြီ! ❤️
   - **💌 Like + Message** - Like with a personal secret message
   - **➡️ Next** - Skip to the next profile
   - **🚨 Report** - Report inappropriate profiles
-- When both users like each other, it's a Match! Usernames are revealed
+- When both users like each other, it's a Match! You'll get an anonymous chat option
 - **Location-based Filtering**: If you shared your location, you'll only see profiles within your chosen distance radius
 
 ### **4. Managing Your Profile**

@@ -442,6 +442,49 @@ bot.on('message', async (ctx) => {
     
     if (!user) return;
 
+    // Handle chat mode - proxy message routing
+    if (user.step === 'chat_mode') {
+        try {
+            // Get chat session
+            const sessionResult = await db.execute({
+                sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            if (sessionResult.rows.length === 0) {
+                // No active chat session, exit chat mode
+                await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+            }
+            
+            const matchedUserId = sessionResult.rows[0].matched_user_id;
+            const sender = await getUser(ctx.from.id);
+            
+            // Handle different message types
+            if (ctx.message.text) {
+                await bot.telegram.sendMessage(matchedUserId, ctx.message.text);
+            } else if (ctx.message.photo) {
+                const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+                const caption = ctx.message.caption || '';
+                await bot.telegram.sendPhoto(matchedUserId, photoId, { caption });
+            } else if (ctx.message.voice) {
+                const voiceId = ctx.message.voice.file_id;
+                await bot.telegram.sendVoice(matchedUserId, voiceId);
+            } else if (ctx.message.sticker) {
+                const stickerId = ctx.message.sticker.file_id;
+                await bot.telegram.sendSticker(matchedUserId, stickerId);
+            }
+            
+            // Show delivered confirmation
+            await ctx.reply('✅ ပို့ပြီးပါပြီ');
+            
+        } catch (error) {
+            console.error('Chat message routing error:', error);
+            await ctx.reply('စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+        }
+        return;
+    }
+
     // Handle edit menu
     if (user.step === 'edit_menu') {
         if (text === '📝 Nickname') {
@@ -467,6 +510,85 @@ bot.on('message', async (ctx) => {
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+        }
+    }
+
+    // Handle chat mode keyboard buttons
+    if (user.step === 'chat_mode') {
+        if (text === '🔓 လျှို့ဝှက်ချက်ဖွင့်ပြမည်') {
+            // Get chat session
+            const sessionResult = await db.execute({
+                sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            if (sessionResult.rows.length > 0) {
+                const matchedUserId = sessionResult.rows[0].matched_user_id;
+                const sender = await getUser(ctx.from.id);
+                
+                // Send reveal request to partner
+                await bot.telegram.sendMessage(matchedUserId, 
+                    `🔓 *${sender.nickname}* မှ သူ့ရဲ့ Telegram Username ကို ပြသရန် ခွင့်ပြုချက်တောင်းခံနေပါသည်။ သင်ကော ပြသရန် သဘောတူပါသလား?`,
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('👍 သဘောတူသည်', `reveal_accept_${ctx.from.id}`)],
+                            [Markup.button.callback('👎 ငြင်းပယ်မည်', `reveal_reject_${ctx.from.id}`)]
+                        ])
+                    }
+                );
+                
+                await ctx.reply('🔓 ခွင့်ပြုချက်တောင်းခံပြီးပါပြီ။ သူ့ဘက်က အဖြေစောင်းနေပါသည်။');
+            }
+            return;
+        }
+        
+        if (text === '❌ Chat မှထွက်မည်') {
+            // Delete chat session
+            await db.execute({
+                sql: "DELETE FROM chat_sessions WHERE user_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            // Reset user step
+            await db.execute({
+                sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+            return;
+        }
+        
+        if (text === '🚨 Report / Block') {
+            // Get chat session
+            const sessionResult = await db.execute({
+                sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?",
+                args: [ctx.from.id]
+            });
+            
+            if (sessionResult.rows.length > 0) {
+                const matchedUserId = sessionResult.rows[0].matched_user_id;
+                
+                // Exit chat first
+                await db.execute({
+                    sql: "DELETE FROM chat_sessions WHERE user_id = ?",
+                    args: [ctx.from.id]
+                });
+                
+                await db.execute({
+                    sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?",
+                    args: [ctx.from.id]
+                });
+                
+                // Show report options
+                await ctx.reply('🚨 Report အကြောင်းကို ရွေးပါ:', Markup.inlineKeyboard([
+                    [Markup.button.callback('Fake Profile', `report_fake_${matchedUserId}`)],
+                    [Markup.button.callback('Spam', `report_spam_${matchedUserId}`)],
+                    [Markup.button.callback('Inappropriate', `report_inappropriate_${matchedUserId}`)]
+                ]));
+            }
+            return;
         }
     }
 
@@ -897,12 +1019,27 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             const partnerMessage = partnerMsgResult.rows[0]?.message;
             
             if (me && partner) {
+                // Insert into matches table (ensure user_one < user_two for consistency)
+                const userOne = Math.min(senderId, targetId);
+                const userTwo = Math.max(senderId, targetId);
+                
+                try {
+                    await db.execute({
+                        sql: "INSERT OR IGNORE INTO matches (user_one, user_two) VALUES (?, ?)",
+                        args: [userOne, userTwo]
+                    });
+                    console.log('Match inserted into matches table');
+                } catch (e) {
+                    console.error('Error inserting match:', e);
+                }
+                
                 const partnerLink = partner.username !== 'none' ? `@${partner.username}` : `tg://user?id=${targetId}`;
                 const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${senderId}`;
                 
-                let matchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+                let matchText = `🎉 *Match ဖြစ်သွားပါပြီ!* ❤️
 
-သင်နဲ့ *${partner.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍`;
+👤 *${partner.nickname}* နဲ့ သင်နဲ့ စိတ်ချင်းတူသွားပါပြီ။
+မိမိရဲ့ Telegram ID အစစ်အမှန်ကို မသိစေဘဲ ဘော့ခ်ျထဲမှာပဲ လုံခြုံစွာ အရင်ဆုံး စကားပြောကြည့်လိုက်ပါ!`;
                 
                 if (partnerMessage) {
                     matchText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${partnerMessage}"`;
@@ -912,14 +1049,20 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                     matchText += `\n\n💌 *သင်ပို့တဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
                 }
                 
-                matchText += `\n\n🔗 *စကားပြောရန်:* ${partnerLink}\n\n💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
-                
                 stats.addMatch();
-                await ctx.reply(matchText, { parse_mode: 'Markdown' });
+                await ctx.reply(matchText, {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('💬 စကားပြောမည်', `chat_${targetId}`)],
+                        [Markup.button.callback('➡️ ဆက်ရှာမည်', 'next_profile')]
+                    ])
+                });
+                
                 try {
-                    let partnerMatchText = `🎉 *ဝမ်းသာပါတယ်။ Match ဖြစ်သွားပါပြီ။*
+                    let partnerMatchText = `🎉 *Match ဖြစ်သွားပါပြီ!* ❤️
 
-သင်နဲ့ *${me.nickname}* နဲ့ တစ်ယောက်ကိုတစ်ယောက် သဘောကျနေကြပါတယ်။ 😍`;
+👤 *${me.nickname}* နဲ့ သင်နဲ့ စိတ်ချင်းတူသွားပါပြီ။
+မိမိရဲ့ Telegram ID အစစ်အမှန်ကို မသိစေဘဲ ဘော့ခ်ျထဲမှာပဲ လုံခြုံစွာ အရင်ဆုံး စကားပြောကြည့်လိုက်ပါ!`;
                     
                     if (secretMessage) {
                         partnerMatchText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
@@ -929,10 +1072,16 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                         partnerMatchText += `\n\n💌 *သင်ပို့တဲ့စိတ်ကူးလေး:* "${partnerMessage}"`;
                     }
                     
-                    partnerMatchText += `\n\n🔗 *စကားပြောရန်:* ${myLink}\n\n💡 *အကြံပြုချက်:* "ဟိုင်း" လို့ အရင်စပြောလိုက်ပါ။`;
-                    
-                    await bot.telegram.sendMessage(targetId, partnerMatchText, { parse_mode: 'Markdown' });
-                } catch (e) {}
+                    await bot.telegram.sendMessage(targetId, partnerMatchText, {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('💬 စကားပြောမည်', `chat_${senderId}`)],
+                            [Markup.button.callback('➡️ ဆက်ရှာမည်', 'next_profile')]
+                        ])
+                    });
+                } catch (e) {
+                    console.error('Error sending partner match notification:', e);
+                }
             }
         } else {
             try {
@@ -963,6 +1112,174 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     // Always show next profile after processing the like
     console.log('Showing next profile...');
     return await showNextProfile(ctx);
+});
+
+bot.action(/^reveal_accept_(.+)$/, async (ctx) => {
+    const requesterId = ctx.match[1];
+    const userId = ctx.from.id;
+    
+    try {
+        await ctx.answerCbQuery('👍 သဘောတူသည်').catch((e) => console.log('Answer error:', e.message));
+        
+        const requester = await getUser(requesterId);
+        const me = await getUser(userId);
+        
+        if (requester && me) {
+            // Update match to revealed
+            const userOne = Math.min(userId, requesterId);
+            const userTwo = Math.max(userId, requesterId);
+            
+            await db.execute({
+                sql: "UPDATE matches SET is_revealed = 1 WHERE user_one = ? AND user_two = ?",
+                args: [userOne, userTwo]
+            });
+            
+            // Send usernames to both users
+            const requesterLink = requester.username !== 'none' ? `@${requester.username}` : `tg://user?id=${requesterId}`;
+            const myLink = me.username !== 'none' ? `@${me.username}` : `tg://user?id=${userId}`;
+            
+            await ctx.reply(`🔓 *လျှို့ဝှက်ချက်ဖွင့်ပြီးပါပြီ!*
+
+သင့်ရဲ့ Telegram: ${myLink}
+သူ့ရဲ့ Telegram: ${requesterLink}`, { parse_mode: 'Markdown' });
+            
+            await bot.telegram.sendMessage(requesterId, 
+                `🔓 *လျှို့ဝှက်ချက်ဖွင့်ပြီးပါပြီ!*
+
+သင့်ရဲ့ Telegram: ${requesterLink}
+သူ့ရဲ့ Telegram: ${myLink}`, { parse_mode: 'Markdown' });
+        }
+    } catch (error) {
+        console.error('Reveal accept error:', error);
+    }
+});
+
+bot.action(/^reveal_reject_(.+)$/, async (ctx) => {
+    const requesterId = ctx.match[1];
+    
+    try {
+        await ctx.answerCbQuery('👎 ငြင်းပယ်မည်').catch((e) => console.log('Answer error:', e.message));
+        
+        await ctx.reply('👎 လျှို့ဝှက်ချက်ဖွင့်ခြင်းကို ငြင်းပယ်လိုက်ပါပြီ။ ဆက်လက် အမည်ဝှက်ဖြင့် စကားပြောနိုင်ပါသည်။');
+        
+        await bot.telegram.sendMessage(requesterId, '👎 သူ့ဘက်က လျှို့ဝှက်ချက်ဖွင့်ခြင်းကို ငြင်းပယ်လိုက်ပါပြီ။ ဆက်လက် အမည်ဝှက်ဖြင့် စကားပြောနိုင်ပါသည်။');
+    } catch (error) {
+        console.error('Reveal reject error:', error);
+    }
+});
+
+bot.action(/^chat_(.+)$/, async (ctx) => {
+    const matchedUserId = ctx.match[1];
+    const userId = ctx.from.id;
+    
+    console.log('Chat button clicked - user:', userId, 'matched with:', matchedUserId);
+    
+    try {
+        await ctx.answerCbQuery('💬 စကားပြောမည်').catch((e) => console.log('Answer error:', e.message));
+        
+        // Get the match ID
+        const userOne = Math.min(userId, matchedUserId);
+        const userTwo = Math.max(userId, matchedUserId);
+        
+        const matchResult = await db.execute({
+            sql: "SELECT id FROM matches WHERE user_one = ? AND user_two = ?",
+            args: [userOne, userTwo]
+        });
+        
+        if (matchResult.rows.length === 0) {
+            return await ctx.reply("Match မတွေ့ပါ။ ပြန်စမ်းကြည့်ပါ။");
+        }
+        
+        const matchId = matchResult.rows[0].id;
+        
+        // Create chat session
+        await db.execute({
+            sql: "INSERT OR REPLACE INTO chat_sessions (user_id, matched_user_id, match_id) VALUES (?, ?, ?)",
+            args: [userId, matchedUserId, matchId]
+        });
+        
+        // Set user step to chat_mode
+        await db.execute({
+            sql: "UPDATE users SET step = 'chat_mode' WHERE telegram_id = ?",
+            args: [userId]
+        });
+        
+        // Get partner info
+        const partner = await getUser(matchedUserId);
+        if (!partner) {
+            return await ctx.reply("Partner မတွေ့ပါ။");
+        }
+        
+        const chatWelcomeText = `💬 *${partner.nickname}* နှင့် အမည်ဝှက် စကားပြောနေပါသည်။
+(စာသား၊ ပုံ၊ အသံဖိုင်များ ပေးပို့နိုင်ပါသည်။)
+--------------------------------------`;
+        
+        await ctx.reply(chatWelcomeText, {
+            parse_mode: 'Markdown',
+            ...Markup.keyboard([
+                ['🔓 လျှို့ဝှက်ချက်ဖွင့်ပြမည်', '🚨 Report / Block'],
+                ['❌ Chat မှထွက်မည်']
+            ]).resize()
+        });
+        
+    } catch (error) {
+        console.error('Chat session creation error:', error);
+        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
+    }
+});
+
+bot.action(/^report_fake_(.+)$/, async (ctx) => {
+    const reportedUserId = ctx.match[1];
+    const reporterId = ctx.from.id;
+    
+    try {
+        await ctx.answerCbQuery('🚨 Report တင်ပြီးပါပြီ').catch((e) => console.log('Answer error:', e.message));
+        
+        await db.execute({
+            sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description) VALUES (?, ?, 'fake_profile', 'Reported from anonymous chat')",
+            args: [reporterId, reportedUserId]
+        });
+        
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+    } catch (error) {
+        console.error('Report error:', error);
+    }
+});
+
+bot.action(/^report_spam_(.+)$/, async (ctx) => {
+    const reportedUserId = ctx.match[1];
+    const reporterId = ctx.from.id;
+    
+    try {
+        await ctx.answerCbQuery('🚨 Report တင်ပြီးပါပြီ').catch((e) => console.log('Answer error:', e.message));
+        
+        await db.execute({
+            sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description) VALUES (?, ?, 'spam', 'Reported from anonymous chat')",
+            args: [reporterId, reportedUserId]
+        });
+        
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+    } catch (error) {
+        console.error('Report error:', error);
+    }
+});
+
+bot.action(/^report_inappropriate_(.+)$/, async (ctx) => {
+    const reportedUserId = ctx.match[1];
+    const reporterId = ctx.from.id;
+    
+    try {
+        await ctx.answerCbQuery('🚨 Report တင်ပြီးပါပြီ').catch((e) => console.log('Answer error:', e.message));
+        
+        await db.execute({
+            sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description) VALUES (?, ?, 'inappropriate', 'Reported from anonymous chat')",
+            args: [reporterId, reportedUserId]
+        });
+        
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['/help']]).resize());
+    } catch (error) {
+        console.error('Report error:', error);
+    }
 });
 
 bot.action(/^view_back_(.+)$/, async (ctx) => {
