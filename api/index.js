@@ -612,16 +612,12 @@ bot.on('message', async (ctx) => {
     // Handle edit inputs
     if (['edit_nickname', 'edit_age', 'edit_address', 'edit_bio'].includes(user.step)) {
         let updateSql = "";
-        let arg = text && text.trim();
-        if (!arg || arg === '') return await ctx.reply("စာသားထည့်ပေးပါ။");
-        
+        let arg = text;
         if (user.step === 'edit_nickname') updateSql = "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?";
         if (user.step === 'edit_age') {
-            if (isNaN(arg)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-            const age = parseInt(arg);
-            if (age < 18 || age > 100) return await ctx.reply("အသက် ၁၈ နှင့် ၁၀၀ အကြား ရိုက်ပေးပါ:");
+            if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
             updateSql = "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?";
-            arg = age;
+            arg = parseInt(text);
         }
         if (user.step === 'edit_address') updateSql = "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?";
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
@@ -640,15 +636,12 @@ bot.on('message', async (ctx) => {
     
     // Registration flow
     if (user.step === 'ask_name') {
-        if (!text || text.trim() === '') return await ctx.reply("နာမည်ထည့်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     if (user.step === 'ask_age') {
-        if (!text || isNaN(text.trim())) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-        const age = parseInt(text.trim());
-        if (age < 18 || age > 100) return await ctx.reply("အသက် ၁၈ နှင့် ၁၀၀ အကြား ရိုက်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [age, ctx.from.id] });
+        if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
+        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
         return await ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
     }
     if (user.step === 'ask_address') {
@@ -656,11 +649,10 @@ bot.on('message', async (ctx) => {
         if (ctx.message.location) {
             const latitude = ctx.message.location.latitude;
             const longitude = ctx.message.location.longitude;
-            await db.execute({ sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text && text.trim() || 'Location shared', latitude, longitude, ctx.from.id] });
+            await db.execute({ sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text || 'Location shared', latitude, longitude, ctx.from.id] });
             return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
         }
-        if (!text || text.trim() === '') return await ctx.reply("နေရပ်ရိုက်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
     }
     if (ctx.message.photo && user.step === 'ask_photo') {
@@ -669,41 +661,53 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
     }
     if (user.step === 'ask_bio') {
-        if (!text || text.trim() === '') return await ctx.reply("Bio ထည့်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
     }
     if (user.step === 'ask_gender') {
-        const gender = text && text.trim().toLowerCase();
-        if (!gender || (gender !== 'male' && gender !== 'female')) return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
+        const gender = text.toLowerCase();
+        if (gender !== 'male' && gender !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", args: [gender, ctx.from.id] });
         return await ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
     }
     if (user.step === 'ask_looking_for') {
-        const lookingFor = text && text.trim().toLowerCase();
-        if (!lookingFor || (lookingFor !== 'male' && lookingFor !== 'female')) return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
+        const lookingFor = text.toLowerCase();
+        if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET looking_for = ?, step = 'ask_distance' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
         return await ctx.reply("သင်နှင့် မည်မျှအကွာအဝေးအတွင်း ရှာဖွေချင်ပါသလဲ?\n(ဥပမာ- 10, 25, 50):", Markup.keyboard([['10 km', '25 km', '50 km'], ['100 km', 'Any']]).resize());
     }
     if (user.step === 'ask_distance') {
         let distance = 50; // default
-        const inputText = text && text.trim();
-        if (inputText === '10 km') distance = 10;
-        else if (inputText === '25 km') distance = 25;
-        else if (inputText === '50 km') distance = 50;
-        else if (inputText === '100 km') distance = 100;
-        else if (inputText === 'Any') distance = 9999;
-        else if (!isNaN(inputText)) distance = parseInt(inputText);
+        // Clean up text by removing 'km' and extra spaces for matching
+        const cleanText = text.toLowerCase().replace('km', '').trim();
         
-        await db.execute({ sql: "UPDATE users SET max_distance_km = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [distance, ctx.from.id] });
-        const welcomeText = `✅ *အားလုံးအဆင်ပြေသွားပါပြီ။*
+        if (cleanText === '10') distance = 10;
+        else if (cleanText === '20') distance = 20;
+        else if (cleanText === '25') distance = 25;
+        else if (cleanText === '50') distance = 50;
+        else if (cleanText === '100') distance = 100;
+        else if (cleanText === 'any') distance = 9999;
+        else if (!isNaN(cleanText)) distance = parseInt(cleanText);
+        
+        try {
+            await db.execute({ 
+                sql: "UPDATE users SET max_distance_km = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+                args: [distance, ctx.from.id] 
+            });
+            
+            const welcomeText = `✅ *အားလုံးအဆင်ပြေသွားပါပြီ။*
 
 အခုဆိုရင် သင်ဟာ MM Cupid ရဲ့ အဖွဲ့ဝင်တစ်ဦး ဖြစ်သွားပါပြီ။ 💕
 အောက်က ခလုတ်ကိုနှိပ်ပြီး သင့်ရဲ့ ဖူးစာရှင်ကို စတင်ရှာဖွေနိုင်ပါပြီ။ 👇`;
-        return await ctx.reply(welcomeText, {
-            parse_mode: 'Markdown',
-            ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize()
-        });
+            
+            return await ctx.reply(welcomeText, {
+                parse_mode: 'Markdown',
+                ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize()
+            });
+        } catch (dbError) {
+            console.error('Registration final update error:', dbError);
+            return await ctx.reply("မှတ်ပုံတင်ခြင်း သိမ်းဆည်းရာတွင် အမှားအယွင်းရှိနေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်စမ်းသပ်ပေးပါ။");
+        }
     }
 });
 
