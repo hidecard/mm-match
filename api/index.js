@@ -347,16 +347,15 @@ bot.start(async (ctx) => {
             // Get real stats for monthly user count
             const realStats = await stats.getRealStats();
             const totalUsers = realStats.total || 0;
+            const totalMatches = realStats.matches || 0;
             
-            // Create bar chart for user count
-            const userCountBar = '█'.repeat(Math.min(Math.floor(totalUsers / 1000), 20));
-            
-            const welcomeBackText = `🎉 **Welcome Back!**
+            const welcomeBackText = `🎉 **ပြန်လည်ကြိုဆိုပါတယ်!**
 
-📊 ${totalUsers.toLocaleString()} monthly users
-${userCountBar} ${totalUsers.toLocaleString()}
+📊 **Matching Pulse (Live Stats):**
+• အဖွဲ့ဝင်စုစုပေါင်း: ${totalUsers.toLocaleString()} ဦး
+• ဖူးစာဆုံသွားသူများ: ${totalMatches.toLocaleString()} စုံ
 
-${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရောက်ရှိလာပါပြီ။ 💕
+${existingUser.nickname} မင်္ဂလာပါ! MM Cupid မှာ ပြန်လည်တွေ့ဆုံရတာ ဝမ်းသာပါတယ်။ 💕
 
 သင့်ရဲ့ Profile အချက်အလက်များက အောက်ပါအတိုင်းဖြစ်ပါတယ်။ 👇`;
             
@@ -417,31 +416,46 @@ ${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရေ�
         // Get real stats for monthly user count
         const realStats = await stats.getRealStats();
         const totalUsers = realStats.total || 0;
+        const totalMatches = realStats.matches || 0;
         
-        // Create bar chart for user count
-        const userCountBar = '█'.repeat(Math.min(Math.floor(totalUsers / 1000), 20));
-        
-        const welcomeMessage = `🎉 **MM Cupid - Match & Meet New Friends**
+        const welcomeMessage = `🎉 **MM Cupid - မြန်မာ့ပထမဆုံး AI & Location-based ဖူးစာရှင်ရှာဖွေရေး ဘော့**
 
-📊 ${totalUsers.toLocaleString()} monthly users
-${userCountBar} ${totalUsers.toLocaleString()}
-
-💕 **Find your perfect match today!**
-
-📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
-1️⃣ နာမည် (Nickname)
-2️⃣ အသက် (Age) 
-3️⃣ နေရပ် (Address)
-4️⃣ ပုံ (Photo)
-5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
-6️⃣ လိင် (Gender)
-7️⃣ ရှာနေသောလိင် (Looking For)
-
-❤️ Male များမှာ Female ကိုသာ မြင်ရပါမည်
-❤️ Female များမှာ Male ကိုသာ မြင်ရပါမည်
+📊 **Matching Pulse (Live Stats):**
+• အဖွဲ့ဝင်စုစုပေါင်း: ${totalUsers.toLocaleString()} ဦး
+• ဖူးစာဆုံသွားသူများ: ${totalMatches.toLocaleString()} စုံ
 
 ---
-စတင်ဖို့ သင့်နာမည်ကို ပြောပြပေးပါ (Nickname):`;
+
+✨ **MM Cupid ၏ ထူးခြားဆန်းသစ်သော Features များ:**
+
+📍 **အနီးနားရှိသူများကို ရှာဖွေခြင်း (Distance Filtering)**
+သင့်ရဲ့ လက်ရှိ Location ကို မျှဝေပြီး မိမိပတ်ဝန်းကျင် (10km, 25km, 50km သို့မဟုတ် စိတ်ကြိုက် Radius) အတွင်းရှိ ဖူးစာရှင်များကို စစ်ထုတ်ရှာဖွေနိုင်သည်။
+
+🕵️‍♂️ **လုံခြုံစိတ်ချရသော အမည်ဝှက် Chat စနစ် (In-Bot Anonymous Chat)**
+အပြန်အလှန် Like ဖြစ်သွားပါက Bot ထဲတွင် တိုက်ရိုက် အမည်ဝှက် Chat နိုင်မည်။ နှစ်ဦးလုံး သဘောတူညီမှသာ မိမိ၏ Telegram Username ကို ဖွင့်ပြမည့် (Identity Reveal) စနစ်ပါဝင်သဖြင့် လုံခြုံမှု ၁၀၀% ရှိသည်။
+
+⚡ **နေ့စဉ်ခံစားချက်ပြသခြင်း (Daily Sparks)**
+မိမိ၏ လက်ရှိ Mood သို့မဟုတ် လှုပ်ရှားမှုကို ၂၄ နာရီ ခေတ္တ status အဖြစ် အီမိုဂျီဖြင့် တင်ထားနိုင်သည်။
+
+💌 **စာသားဖြင့် Like လုပ်ခြင်း (Like with Message)**
+ပရိုဖိုင်ကို သဘောကျရုံတင်မကဘဲ တစ်ခါတည်း လျှို့ဝှက်စာသားပါ တွဲပို့ပြီး ပိုမို ရင်းနှီးစွာ စတင်ချိတ်ဆက်နိုင်သည်။
+
+---
+
+📋 **အကောင့်ဖွင့်ရန် လွယ်ကူသော အဆင့် ၈ ဆင့်:**
+1️⃣ နာမည် (Nickname)
+2️⃣ အသက် (Age)
+3️⃣ နေရပ်မြို့နယ် (Location)
+4️⃣ ပရိုဖိုင်ဓာတ်ပုံ (Photo)
+5️⃣ ကိုယ်ရေးအကျဉ်း (Bio)
+6️⃣ မိမိလိင် (Gender)
+7️⃣ ရှာဖွေလိုသောလိင် (Preferences)
+8️⃣ ရှာဖွေလိုသောအကွာအဝေး (Distance Radius)
+
+🛡️ *ယောက်ျားလေးများသည် မိန်းကလေးများကိုသာ မြင်ရပြီး၊ မိန်းကလေးများသည် ယောက်ျားလေးများကိုသာ အပြန်အလှန် မြင်တွေ့ရမည့် စနစ်ဖြစ်သည်။*
+
+---
+🚀 ဖူးစာရှင်ရှာဖွေရေး ဂိမ်းကို စတင်ရန် **အဆင့် (၁) - သင့်ရဲ့ နာမည် (သို့မဟုတ်) အသုံးပြုချင်တဲ့ Nickname** ကို အောက်တွင် ရိုက်ပို့ပေးပါဦး ခင်ဗျာ 👇`;
 
         await db.execute({ 
             sql: "INSERT OR IGNORE INTO users (telegram_id, username, step) VALUES (?, ?, 'ask_name')", 
