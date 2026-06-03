@@ -648,6 +648,51 @@ bot.on('message', async (ctx) => {
             }
             return;
         }
+        if (text === '🚫 Block & Unmatch') {
+            // Immediate unmatch and chat close without revealing names
+            try {
+                const sessionResult = await db.execute({ sql: "SELECT matched_user_id FROM chat_sessions WHERE user_id = ?", args: [ctx.from.id] });
+                if (sessionResult.rows.length === 0) {
+                    return await ctx.reply('Chat session မတွေ့ပါ။');
+                }
+
+                const matchedUserId = sessionResult.rows[0].matched_user_id;
+                const userId = ctx.from.id;
+
+                // Remove chat sessions for both users if exist
+                await db.execute({ sql: "DELETE FROM chat_sessions WHERE user_id = ? OR user_id = ? OR matched_user_id = ? OR matched_user_id = ?", args: [userId, matchedUserId, userId, matchedUserId] });
+
+                // Remove likes between users
+                await db.execute({ sql: "DELETE FROM likes WHERE (from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?)", args: [userId, matchedUserId, matchedUserId, userId] });
+
+                // Remove match record if exists
+                const userOne = Math.min(userId, matchedUserId);
+                const userTwo = Math.max(userId, matchedUserId);
+                await db.execute({ sql: "DELETE FROM matches WHERE user_one = ? AND user_two = ?", args: [userOne, userTwo] });
+
+                // Mark both users' steps as done (exit chat mode)
+                await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id IN (?, ?)", args: [userId, matchedUserId] });
+
+                // Optionally create a lightweight report entry for admin review
+                try {
+                    await db.execute({ sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description) VALUES (?, ?, 'blocked_unmatch', 'User blocked and unmatched via chat')", args: [userId, matchedUserId] });
+                } catch (repErr) {
+                    // ignore if reports table missing or other error
+                }
+
+                // Notify both sides without revealing identities
+                await ctx.reply('✅ Chat ပိတ်ပြီး Match ကို ဖျက်ပြီးပါပြီ။ သင်ထင်ရသလို အရိုင်းစိုင်းမှုများရှိခဲ့လျှင် admin ကို report လုပ်ပေးပါ။');
+                try {
+                    await bot.telegram.sendMessage(matchedUserId, '❌ တစ်ဦးက သင်နှင့် Match ကို ဖျက်ပြီး Chat ကို ပိတ်ထားသည်။ အကယ်၍ သင်အနေဖြင့် သတင်းပေးချင်ပါက admin ကို ဆက်သွယ်ပါ။');
+                } catch (notifyErr) {
+                    console.error('Notify partner error:', notifyErr.message);
+                }
+            } catch (error) {
+                console.error('Block & Unmatch error:', error);
+                await ctx.reply('စနစ်အမှားတစ်ခုရှိနေပါသည်။ နောက်မှ ထပ်စမ်းပါ။');
+            }
+            return;
+        }
         
         // If not a button, proxy the message
         try {
@@ -819,12 +864,28 @@ bot.on('message', async (ctx) => {
     // Handle interests during registration or when user runs /interests
     if (user.step === 'ask_interests' || user.step === 'edit_interests') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+
+        // allow skipping interests during initial registration
+        if (user.step === 'ask_interests' && text === '/skip') {
+            await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return;
+        }
+
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
 
         // Normalize tags: keep as comma-separated string
         const parts = text.split(/[,;]+|\s+/).map(p => p.trim()).filter(Boolean);
         const normalized = parts.join(',');
 
+        if (user.step === 'ask_interests') {
+            // Finalize registration when interests provided during signup
+            await db.execute({ sql: "UPDATE users SET interests = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
+            await ctx.reply('✅ Registration completed! Interests saved: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return;
+        }
+
+        // edit_interests flow
         await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
         await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         return;
@@ -859,7 +920,7 @@ bot.on('message', async (ctx) => {
         
         try {
             await db.execute({ 
-                sql: "UPDATE users SET max_distance_km = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", 
+                sql: "UPDATE users SET max_distance_km = ?, step = 'ask_interests' WHERE telegram_id = ?", 
                 args: [distance, ctx.from.id] 
             });
             
@@ -868,10 +929,9 @@ bot.on('message', async (ctx) => {
 အခုဆိုရင် သင်ဟာ MM Cupid ရဲ့ အဖွဲ့ဝင်တစ်ဦး ဖြစ်သွားပါပြီ။ 💕
 အောက်က ခလုတ်ကိုနှိပ်ပြီး သင့်ရဲ့ ဖူးစာရှင်ကို စတင်ရှာဖွေနိုင်ပါပြီ။ 👇`;
             
-            return await ctx.reply(welcomeText, {
-                parse_mode: 'Markdown',
-                ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize()
-            });
+            // Prompt for interests before completing registration
+            await ctx.reply('🎯 အကြိုက်ဆုံး အရာ (Interests) များကို ရိုက်ထည့်ပေးပါ။ ဥပမာ: travel, music, food\n\n(မလိုလျှင် /skip ထည့်ပေးပါ)');
+            return;
         } catch (dbError) {
             console.error('Registration final update error:', dbError);
             return await ctx.reply("မှတ်ပုံတင်ခြင်း သိမ်းဆည်းရာတွင် အမှားအယွင်းရှိနေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်စမ်းသပ်ပေးပါ။");
@@ -1585,7 +1645,7 @@ bot.action(/^chat_(.+)$/, async (ctx) => {
             parse_mode: 'Markdown',
             ...Markup.keyboard([
                 ['🔓 လျှို့ဝှက်ချက်ဖွင့်ပြမည်', '🚨 Report / Block'],
-                ['❌ Chat မှထွက်မည်']
+                ['🚫 Block & Unmatch', '❌ Chat မှထွက်မည်']
             ]).resize()
         });
         
