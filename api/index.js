@@ -1803,6 +1803,29 @@ bot.action('cancel_report', async (ctx) => {
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
     
+    // Handle interests when registered users edit or update interests
+    if (user.step === 'ask_interests' || user.step === 'edit_interests') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+
+        if (user.step === 'ask_interests' && text === '/skip') {
+            await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        }
+
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
+
+        const parts = text.split(/[,;]+|\s+/).map(p => p.trim()).filter(Boolean);
+        const normalized = parts.join(',');
+
+        if (user.step === 'ask_interests') {
+            await db.execute({ sql: "UPDATE users SET interests = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
+            return await ctx.reply('✅ Registration completed! Interests saved: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        }
+
+        await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
+        return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+    }
+    
     // Handle report description input
     if (user?.step?.startsWith('report_desc_')) {
         const stepParts = user.step.replace('report_desc_', '').split('_');
