@@ -627,7 +627,7 @@ bot.on('message', async (ctx) => {
         }
         if (text === '🏠 Address') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_address' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("နေရာအသစ်ကို ရိုက်ထည့်ပေးပါ:");
+            return await ctx.reply("📍 သင့်လက်ရှိ Location အသစ်ကို Share လုပ်ပေးပါ\n\nအနီးနားရှိ ဖူးစာရှင်များကို ရှာဖွေရန် Location လိုအပ်ပါသည်။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
         }
         if (text === '📷 Photo') {
             await db.execute({ sql: "UPDATE users SET step = 'edit_photo' WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -663,6 +663,20 @@ bot.on('message', async (ctx) => {
 
     // Handle edit inputs
     if (['edit_nickname', 'edit_age', 'edit_address', 'edit_bio'].includes(user.step)) {
+        // Handle edit_address separately to require location
+        if (user.step === 'edit_address') {
+            if (ctx.message.location) {
+                const latitude = ctx.message.location.latitude;
+                const longitude = ctx.message.location.longitude;
+                await db.execute({ 
+                    sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'done' WHERE telegram_id = ?", 
+                    args: [text || 'Location updated', latitude, longitude, ctx.from.id] 
+                });
+                return await ctx.reply("✅ Location ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+            }
+            return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
+        }
+        
         let updateSql = "";
         let arg = text;
         if (user.step === 'edit_nickname') updateSql = "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?";
@@ -671,7 +685,6 @@ bot.on('message', async (ctx) => {
             updateSql = "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?";
             arg = parseInt(text);
         }
-        if (user.step === 'edit_address') updateSql = "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?";
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
@@ -694,18 +707,17 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_age') {
         if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
-        return await ctx.reply("သင်ဘယ်မြို့မှာ နေပါသလဲ (ဥပမာ- ရန်ကုန်):");
+        return await ctx.reply("📍 သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ\n\nအနီးနားရှိ ဖူးစာရှင်များကို ရှာဖွေရန် Location လိုအပ်ပါသည်။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
     }
     if (user.step === 'ask_address') {
-        // Handle location message
+        // Handle location message - require real GPS location
         if (ctx.message.location) {
             const latitude = ctx.message.location.latitude;
             const longitude = ctx.message.location.longitude;
             await db.execute({ sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text || 'Location shared', latitude, longitude, ctx.from.id] });
-            return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+            return await ctx.reply("✅ Location သိမ်းပြီးပါပြီ!\n\nသင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
         }
-        await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text, ctx.from.id] });
-        return await ctx.reply("သင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
+        return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
     }
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
@@ -1079,7 +1091,14 @@ async function showNextProfile(ctx) {
             }
         }
         
-        const caption = `${sparkText}👤 ${target.nickname} (${target.age})\n📍 ${target.address}\n\n📝 ${target.bio}`;
+        // Calculate and display distance if both users have location
+        let distanceText = '';
+        if (user.latitude && user.longitude && target.latitude && target.longitude) {
+            const distance = calculateDistance(user.latitude, user.longitude, target.latitude, target.longitude);
+            distanceText = `\n📏 ${distance.toFixed(1)} km ကွာဝေးသည်`;
+        }
+        
+        const caption = `${sparkText}👤 ${target.nickname} (${target.age})\n📍 ${target.address}${distanceText}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`),
              Markup.button.callback('💌 Like + Message', `like_with_message_${target.telegram_id}`)],
