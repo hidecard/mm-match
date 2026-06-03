@@ -11,22 +11,26 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 ## 🎯 Features
 
 ### **User Features**
-- **Step-by-step Registration**: 8-step process collecting nickname, age, location, photo, bio, gender, preferences, and distance radius
-- **Location-based Matching**: Share your live or static location to find matches within your preferred distance radius
+- **Step-by-step Registration**: 8-step process collecting nickname, age, location (GPS required), photo, bio, gender, preferences, and distance radius
+- **Real GPS Location Sharing**: Users must share their real GPS coordinates via Telegram location button for accurate distance matching
+- **Distance Display**: Shows distance between users in km on profile cards (e.g., "📏 5.2 km ကွာဝေးသည်")
 - **Distance Filtering**: Set your preferred search radius (10km, 25km, 50km, 100km, or Any) to find nearby matches
 - **In-Bot Anonymous Chat**: Chat securely without revealing Telegram handles until both users consent
 - **Identity Reveal**: Choose when to share your Telegram username with mutual consent
 - **Daily Sparks**: Set a temporary 24-hour status with emoji to show your current mood or activity
+- **Spark Display**: Sparks appear on both your own profile and other users' profiles when viewing
+- **Auto-Expiration**: Expired sparks are automatically cleaned up from the database
 - **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
 - **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
 - **Match Notification**: When two users like each other, anonymous chat option is provided
-- **Profile Editing**: Update nickname, age, address, photo, and bio anytime
+- **Profile Editing**: Update nickname, age, address (GPS required), photo, and bio anytime
 - **Smart UI**: Button-based interactions with pinned commands and inline keyboards
-- **Welcome Back Feature**: Returning users see their profile without re-registration
-- **Profile View**: Users can view their own profile anytime
+- **Welcome Back Feature**: Returning users see their profile with live stats and features overview
+- **Profile View**: Users can view their own profile with active spark status
 - **Like with Message**: Send a secret message when liking someone for more personal connections
 - **Report System**: Report inappropriate profiles for admin review
-- **Matching Pulse**: Live stats showing total users and matches
+- **Matching Pulse**: Live stats showing total users and total matches
+- **Myanmar Language**: Full Myanmar language localization for welcome messages and user interface
 
 ### **Technical Features**
 - **Scalable Architecture**: Optimized for 100,000+ users with serverless deployment
