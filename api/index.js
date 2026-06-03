@@ -6,8 +6,6 @@ import 'dotenv/config';
 if (!process.env.BOT_TOKEN) console.error('BOT_TOKEN is missing');
 if (!process.env.TURSO_URL) console.error('TURSO_URL is missing');
 if (!process.env.TURSO_TOKEN) console.error('TURSO_TOKEN is missing');
-if (!process.env.CLOUDFLARE_ACCOUNT_ID) console.error('CLOUDFLARE_ACCOUNT_ID is missing');
-if (!process.env.CLOUDFLARE_API_TOKEN) console.error('CLOUDFLARE_API_TOKEN is missing');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 let db;
@@ -99,46 +97,6 @@ const addToSessionViewed = (userId, profileId) => {
 // Helper to get session viewed IDs as array
 const getSessionViewed = (userId) => {
     return sessionViewedCache.has(userId) ? Array.from(sessionViewedCache.get(userId)) : [];
-};
-
-// Cloudflare Workers AI helper function for Love Coach
-const getLoveCoachAdvice = async (question) => {
-    try {
-        const response = await fetch(
-            `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a friendly and helpful love and dating coach. Provide practical, encouraging, and respectful advice about dating, relationships, and romantic situations. Keep responses concise (under 200 words), warm, and supportive. Use emojis to make the advice feel friendly. Respond in Myanmar language if the question is in Myanmar, otherwise respond in English.'
-                        },
-                        {
-                            role: 'user',
-                            content: question
-                        }
-                    ],
-                    max_tokens: 300
-                })
-            }
-        );
-
-        if (!response.ok) {
-            console.error('Cloudflare AI API error:', response.status, response.statusText);
-            return null;
-        }
-
-        const data = await response.json();
-        return data.result?.response || null;
-    } catch (error) {
-        console.error('Error calling Cloudflare AI:', error);
-        return null;
-    }
 };
 
 try {
@@ -414,7 +372,7 @@ ${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရေ�
             // Show main menu
             return await ctx.reply(
                 `🔥 သင့်ဖူးစာရှင်ကို စတင်ရှာဖွေလိုက်ပါ!`,
-                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize()
+                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize()
             );
         }
         
@@ -528,7 +486,7 @@ bot.on('message', async (ctx) => {
                 args: [ctx.from.id]
             });
             
-            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
             return;
         }
         
@@ -574,7 +532,7 @@ bot.on('message', async (ctx) => {
             if (sessionResult.rows.length === 0) {
                 // No active chat session, exit chat mode
                 await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
             }
             
             const matchedUserId = sessionResult.rows[0].matched_user_id;
@@ -629,7 +587,7 @@ bot.on('message', async (ctx) => {
         }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
         }
     }
 
@@ -638,35 +596,16 @@ bot.on('message', async (ctx) => {
         if (!text || text.trim() === '') {
             return await ctx.reply("စာသားထည့်ပေးပါ။ ပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
         }
-
+        
         // Calculate expiration time (24 hours from now)
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
+        
         await db.execute({
             sql: "UPDATE users SET daily_spark = ?, spark_expires_at = ?, step = 'done' WHERE telegram_id = ?",
             args: [text.trim(), expiresAt, ctx.from.id]
         });
-
-        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
-        return;
-    }
-
-    // Handle love coach input
-    if (user.step === 'love_coach') {
-        if (!text || text.trim() === '') {
-            return await ctx.reply("မေးချင်တာကို ရေးပေးပါ။ ပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
-        }
-
-        await ctx.reply("⏳ AI Love Coach က အဖြေရှာနေပါတယ်...");
-
-        const advice = await getLoveCoachAdvice(text.trim());
-
-        if (advice) {
-            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            await ctx.reply(`💕 *AI Love Coach*\n\n${advice}\n\nနောက်ထပ်မေးချင်ရင် /love_coach နှိပ်ပါ။`, { parse_mode: 'Markdown', ...Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize() });
-        } else {
-            await ctx.reply("ချစ်ရေးချစ်ရာ အကြံဉာဏ် ရယူရာမှာ အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
-        }
+        
+        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
         return;
     }
 
@@ -684,13 +623,13 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
-        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
     }
 
     if (user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
     }
 
     if (user.is_registered) return await handleChat(ctx, user);
@@ -908,26 +847,7 @@ bot.command('update', async (ctx) => {
 
 bot.command('cancel', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-    await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
-});
-
-bot.command('love_coach', async (ctx) => {
-    try {
-        const user = await getUser(ctx.from.id);
-        if (!user || !user.is_registered) {
-            return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ သုံးနိုင်ပါမယ်။ /start နှိပ်ပါ။");
-        }
-        
-        await db.execute({
-            sql: "UPDATE users SET step = 'love_coach' WHERE telegram_id = ?",
-            args: [ctx.from.id]
-        });
-        
-        await ctx.reply("💕 *AI Love Coach*\n\nချစ်ရေးချစ်ရာ အကြံဉာဏ် လိုချင်တာကို မေးနိုင်ပါပြီ။\n\nဥပမာ:\n- \"Crush နေတဲ့သူကို စကားဘယ်လိုစပြောရမလဲ\"\n- \"First Date သွားရင် ဘာတွေ သတိထားရမလဲ\"\n- \"ချစ်သူနဲ့ ငြင်းခုံရင် ဘယ်လို ဖြေရှင်းမလဲ\"\n\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
-    } catch (error) {
-        console.error('Love coach command error:', error);
-        await ctx.reply("စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
-    }
+    await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
 });
 
 // Admin commands for ban management
@@ -1626,7 +1546,7 @@ async function handleChat(ctx, user) {
         await ctx.reply(`✅ Report တင်ပြီးပါပြီ။
 
 သင့် Report ကို Admin team က စစ်ဆေးပါမည်။
-ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '💕 Love Coach'], ['/help']]).resize());
+ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
         return;
     }
     
@@ -1700,19 +1620,6 @@ async function handleChat(ctx, user) {
         await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
         return await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
     }
-    if (text === '/love_coach' || text === '💕 Love Coach') {
-        const user = await getUser(ctx.from.id);
-        if (!user || !user.is_registered) {
-            return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ သုံးနိုင်ပါမယ်။ /start နှိပ်ပါ။");
-        }
-
-        await db.execute({
-            sql: "UPDATE users SET step = 'love_coach' WHERE telegram_id = ?",
-            args: [ctx.from.id]
-        });
-
-        return await ctx.reply("💕 *AI Love Coach*\n\nချစ်ရေးချစ်ရာ အကြံဉာဏ် လိုချင်တာကို မေးနိုင်ပါပြီ။\n\nဥပမာ:\n- \"Crush နေတဲ့သူကို စကားဘယ်လိုစပြောရမလဲ\"\n- \"First Date သွားရင် ဘာတွေ သတိထားရမလဲ\"\n- \"ချစ်သူနဲ့ ငြင်းခုံရင် ဘယ်လို ဖြေရှင်းမလဲ\"\n\nပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။", { parse_mode: 'Markdown' });
-    }
     if (text === '/profile' || text === '👤 Profile') return await showMyProfile(ctx);
     if (text === '/help') {
         const helpText = `📋 **MM Cupid Bot Commands**
@@ -1723,7 +1630,6 @@ async function handleChat(ctx, user) {
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
 🔹 /spark - Set daily spark status
-🔹 /love_coach - AI Love Coach (💕 Love Coach)
 🔹 /deleteaccount - Delete your account (❌ Delete Account)
 🔹 /help - Show this help message
 
