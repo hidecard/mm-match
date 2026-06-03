@@ -171,6 +171,23 @@ const saveSharedLocation = async (ctx, nextStep) => {
     });
 };
 
+const RESERVED_USER_INPUTS = new Set([
+    '/start', '/find', '/nearby', '/help', '/pulse', '/profile', '/edit', '/cancel',
+    '🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse', '⚙️ Edit Profile', '👤 Profile', '✨ Daily Spark', '❌ Delete Account',
+    '📝 Nickname', '🎂 Age', '🏠 Address', '📷 Photo', '📄 Bio', '📍 Share My Location'
+]);
+
+const isReservedUserInput = (text) => {
+    if (!text || typeof text !== 'string') return false;
+    const clean = text.trim();
+    if (clean.startsWith('/')) return true;
+    return RESERVED_USER_INPUTS.has(clean) || RESERVED_USER_INPUTS.has(clean.toLowerCase());
+};
+
+const reservedInputReply = async (ctx) => {
+    return await ctx.reply("ဒီအဆင့်မှာ command button မနှိပ်ပါနဲ့။ သင့်ဖြည့်ရမည့် အချက်အလက်ကို စာရိုက်ထည့်ပေးပါ။");
+};
+
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
         // Get current user's location and max distance preference
@@ -687,6 +704,7 @@ bot.on('message', async (ctx) => {
 
     // Handle spark input
     if (user.step === 'ask_spark') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (!text || text.trim() === '') {
             return await ctx.reply("စာသားထည့်ပေးပါ။ ပယ်ဖျက်ချင်ရင် /cancel နှိပ်ပါ။");
         }
@@ -712,6 +730,7 @@ bot.on('message', async (ctx) => {
                 return await ctx.reply("✅ Location ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
             }
             if (text && text.trim() !== '') {
+                if (isReservedUserInput(text)) return await reservedInputReply(ctx);
                 await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
                 return await ctx.reply("✅ Address ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
             }
@@ -720,6 +739,7 @@ bot.on('message', async (ctx) => {
         
         let updateSql = "";
         let arg = text;
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (user.step === 'edit_nickname') updateSql = "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?";
         if (user.step === 'edit_age') {
             if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
@@ -742,10 +762,12 @@ bot.on('message', async (ctx) => {
     
     // Registration flow
     if (user.step === 'ask_name') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     if (user.step === 'ask_age') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
         await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
         return await ctx.reply("📍 သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ\n\nအနီးနားရှိ ဖူးစာရှင်များကို ရှာဖွေရန် Location လိုအပ်ပါသည်။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
@@ -756,6 +778,7 @@ bot.on('message', async (ctx) => {
             await saveSharedLocation(ctx, 'ask_photo');
             return await ctx.reply("✅ Location သိမ်းပြီးပါပြီ!\n\nသင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
         }
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (text && text.trim() !== '') {
             await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
             return await ctx.reply("✅ Address သိမ်းပြီးပါပြီ!\n\nသင့်ရဲ့ ပုံလှလှတစ်ပုံ ပို့ပေးပါ (Photo):");
@@ -768,22 +791,26 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("သင့်အကြောင်း အနည်းငယ် ရေးပေးပါ (Bio):");
     }
     if (user.step === 'ask_bio') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
     }
     if (user.step === 'ask_gender') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         const gender = text.toLowerCase();
         if (gender !== 'male' && gender !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET gender = ?, step = 'ask_looking_for' WHERE telegram_id = ?", args: [gender, ctx.from.id] });
         return await ctx.reply("ဘယ်လိင်ရဲ့ လူကို ရှာနေသလဲ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
     }
     if (user.step === 'ask_looking_for') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         const lookingFor = text.toLowerCase();
         if (lookingFor !== 'male' && lookingFor !== 'female') return await ctx.reply("Male သို့မဟုတ် Female ပဲ ရွေးပေးပါ:", Markup.keyboard([['Male', 'Female']]).resize());
         await db.execute({ sql: "UPDATE users SET looking_for = ?, step = 'ask_distance' WHERE telegram_id = ?", args: [lookingFor, ctx.from.id] });
         return await ctx.reply("သင်နှင့် မည်မျှအကွာအဝေးအတွင်း ရှာဖွေချင်ပါသလဲ?\n(ဥပမာ- 10, 25, 50):", Markup.keyboard([['10 km', '25 km', '50 km'], ['100 km', 'Any']]).resize());
     }
     if (user.step === 'ask_distance') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         let distance = 50; // default
         // Clean up text by removing 'km' and extra spaces for matching
         const cleanText = text.toLowerCase().replace('km', '').trim();
