@@ -1819,7 +1819,7 @@ async function handleChat(ctx, user) {
 
         if (user.step === 'ask_interests') {
             await db.execute({ sql: "UPDATE users SET interests = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
-            return await ctx.reply('✅ Registration completed! Interests saved: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ:' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         }
 
         await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
