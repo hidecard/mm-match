@@ -104,6 +104,10 @@ const getSessionViewed = (userId) => {
 // Cloudflare Workers AI helper function for Love Coach
 const getLoveCoachAdvice = async (question) => {
     try {
+        console.log('Calling Cloudflare AI with question:', question);
+        console.log('Account ID:', process.env.CLOUDFLARE_ACCOUNT_ID);
+        console.log('API Token:', process.env.CLOUDFLARE_API_TOKEN ? 'Present' : 'Missing');
+
         const response = await fetch(
             `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
             {
@@ -128,12 +132,18 @@ const getLoveCoachAdvice = async (question) => {
             }
         );
 
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+
         if (!response.ok) {
+            const errorText = await response.text();
             console.error('Cloudflare AI API error:', response.status, response.statusText);
+            console.error('Error response:', errorText);
             return null;
         }
 
         const data = await response.json();
+        console.log('Response data:', JSON.stringify(data, null, 2));
         return data.result?.response || null;
     } catch (error) {
         console.error('Error calling Cloudflare AI:', error);
