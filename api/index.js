@@ -1103,6 +1103,15 @@ async function showNextProfile(ctx) {
     try {
         console.log('showNextProfile called for user:', ctx.from?.id);
         
+        if (ctx.callbackQuery && ctx.callbackQuery.message) {
+            try {
+                await ctx.editMessageReplyMarkup();
+                console.log('Cleared previous profile buttons for user:', ctx.from?.id);
+            } catch (editErr) {
+                console.log('Failed to clear previous profile buttons:', editErr.message);
+            }
+        }
+        
         const user = await getUser(ctx.from.id);
         if (!user || !user.looking_for) {
             console.log('User not registered or no looking_for:', user);
