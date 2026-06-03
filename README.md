@@ -6,7 +6,7 @@
 
 ## 🤖 ဘော့အချက်အလက် (Bot Information)
 
-* **ဘော့အမည်:** MM Match
+* **ဘော့အမည်:** MM Cupid
 * **ဘော့ယူဆာနိမ်း:** [@mmcupid_bot](https://t.me/mmcupid_bot)
 * **တိုက်ရိုက်လင့်ခ်:** [https://t.me/mmcupid_bot](https://t.me/mmcupid_bot)
 
@@ -99,7 +99,7 @@
 
 ### **စတင်ခြင်း မျက်နှာပြင် (Welcome Screen)**
 
-🎉 MM Match မှ ကြိုဆိုပါတယ်!
+🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
 
 💕 Tinder-style Dating Bot
 အရင်းအမြစ်လွယ်ကူတဲ့ ရည်းစားရှာဖွေရေး ဘော့
