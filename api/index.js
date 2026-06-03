@@ -105,6 +105,34 @@ try {
     console.error('Database connection error:', error);
 }
 
+const migrateLocationSchema = async () => {
+    if (!db) return;
+
+    const migrations = [
+        { sql: 'ALTER TABLE users ADD COLUMN latitude REAL', name: 'latitude' },
+        { sql: 'ALTER TABLE users ADD COLUMN longitude REAL', name: 'longitude' }
+    ];
+
+    for (const migration of migrations) {
+        try {
+            await db.execute({ sql: migration.sql });
+            console.log(`Migrated users table: added ${migration.name} column`);
+        } catch (error) {
+            if (!/duplicate column|already exists/i.test(error.message)) {
+                console.error(`Location schema migration error (${migration.name}):`, error);
+            }
+        }
+    }
+
+    try {
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_location ON users(latitude, longitude) WHERE is_registered = 1' });
+    } catch (error) {
+        console.error('Location index migration error:', error);
+    }
+};
+
+migrateLocationSchema().catch((error) => console.error('Location schema migration failed:', error));
+
 // --- Helper Functions ---
 const getUser = async (id) => {
     try {
@@ -129,6 +157,20 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     return R * c;
 };
 
+const isRealLocation = (location) => {
+    return location && typeof location.latitude === 'number' && typeof location.longitude === 'number';
+};
+
+const saveSharedLocation = async (ctx, nextStep) => {
+    const latitude = ctx.message.location.latitude;
+    const longitude = ctx.message.location.longitude;
+    const addressText = ctx.message.text?.trim() || 'Location shared';
+    await db.execute({
+        sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = ? WHERE telegram_id = ?",
+        args: [addressText, latitude, longitude, nextStep, ctx.from.id]
+    });
+};
+
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
         // Get current user's location and max distance preference
@@ -148,7 +190,7 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
         try {
             let sql, args;
             
-            if (userLat && userLon && maxDistance < 9999) {
+            if (userLat != null && userLon != null && maxDistance < 9999) {
                 // Use bounding box approximation for location filtering (1 degree ≈ 111 km)
                 const latDelta = maxDistance / 111;
                 const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
@@ -199,9 +241,9 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
             
             if (unviewedResult.rows.length > 0) {
                 // Precise distance filtering for location-based results
-                if (userLat && userLon && maxDistance < 9999) {
+                if (userLat != null && userLon != null && maxDistance < 9999) {
                     const profile = unviewedResult.rows[0];
-                    if (profile.latitude && profile.longitude) {
+                    if (profile.latitude != null && profile.longitude != null) {
                         const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
                         if (distance <= maxDistance) {
                             return profile;
@@ -219,7 +261,7 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 
                 let fallbackSql, fallbackArgs;
                 
-                if (userLat && userLon && maxDistance < 9999) {
+                if (userLat != null && userLon != null && maxDistance < 9999) {
                     const latDelta = maxDistance / 111;
                     const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
                     
@@ -263,9 +305,9 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 const fallbackResult = await db.execute({ sql: fallbackSql, args: fallbackArgs });
                 
                 if (fallbackResult.rows.length > 0) {
-                    if (userLat && userLon && maxDistance < 9999) {
+                    if (userLat != null && userLon != null && maxDistance < 9999) {
                         const profile = fallbackResult.rows[0];
-                        if (profile.latitude && profile.longitude) {
+                        if (profile.latitude != null && profile.longitude != null) {
                             const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
                             if (distance <= maxDistance) {
                                 return profile;
@@ -298,9 +340,9 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
         });
         
         if (allResult.rows.length > 0) {
-            if (userLat && userLon && maxDistance < 9999) {
+            if (userLat != null && userLon != null && maxDistance < 9999) {
                 const profile = allResult.rows[0];
-                if (profile.latitude && profile.longitude) {
+                if (profile.latitude != null && profile.longitude != null) {
                     const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
                     if (distance <= maxDistance) {
                         return profile;
@@ -665,16 +707,15 @@ bot.on('message', async (ctx) => {
     if (['edit_nickname', 'edit_age', 'edit_address', 'edit_bio'].includes(user.step)) {
         // Handle edit_address separately to require location
         if (user.step === 'edit_address') {
-            if (ctx.message.location) {
-                const latitude = ctx.message.location.latitude;
-                const longitude = ctx.message.location.longitude;
-                await db.execute({ 
-                    sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'done' WHERE telegram_id = ?", 
-                    args: [text || 'Location updated', latitude, longitude, ctx.from.id] 
-                });
+            if (isRealLocation(ctx.message.location)) {
+                await saveSharedLocation(ctx, 'done');
                 return await ctx.reply("✅ Location ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
             }
-            return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
+            if (text && text.trim() !== '') {
+                await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+                return await ctx.reply("✅ Address ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+            }
+            return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📍 Telegram ကြောင့် အတည်ပြုထားတဲ့ Location ကို Share လုပ်ပေးပါ၊ သို့မဟုတ် သင့်နေရာအမည်ကို ရိုက်ထည့်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
         }
         
         let updateSql = "";
@@ -710,14 +751,16 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("📍 သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ\n\nအနီးနားရှိ ဖူးစာရှင်များကို ရှာဖွေရန် Location လိုအပ်ပါသည်။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
     }
     if (user.step === 'ask_address') {
-        // Handle location message - require real GPS location
-        if (ctx.message.location) {
-            const latitude = ctx.message.location.latitude;
-            const longitude = ctx.message.location.longitude;
-            await db.execute({ sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text || 'Location shared', latitude, longitude, ctx.from.id] });
+        // Handle location message - accept real GPS share or text fallback
+        if (isRealLocation(ctx.message.location)) {
+            await saveSharedLocation(ctx, 'ask_photo');
             return await ctx.reply("✅ Location သိမ်းပြီးပါပြီ!\n\nသင့်ရဲ့ ပုံလှလှလေးတစ်ပုံ ပို့ပေးပါ (Photo):");
         }
-        return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
+        if (text && text.trim() !== '') {
+            await db.execute({ sql: "UPDATE users SET address = ?, step = 'ask_photo' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+            return await ctx.reply("✅ Address သိမ်းပြီးပါပြီ!\n\nသင့်ရဲ့ ပုံလှလှတစ်ပုံ ပို့ပေးပါ (Photo):");
+        }
+        return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📍 Telegram ကြောင့် အတည်ပြုထားတဲ့ Location ကို Share လုပ်ပေးပါ၊ သို့မဟုတ် သင့်နေရာအမည်ကို ရိုက်ထည့်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
     }
     if (ctx.message.photo && user.step === 'ask_photo') {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
@@ -886,6 +929,20 @@ bot.command('pulse', async (ctx) => {
 bot.command('find', async (ctx) => {
     await showNextProfile(ctx);
 });
+
+bot.command('nearby', async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user || !user.is_registered) {
+        return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ ရှာဖို့လို့ပါ။");
+    }
+
+    if (user.latitude == null || user.longitude == null) {
+        return await ctx.reply("📍 သင့်လက်ရှိ Location မရှာရရှိသေးပါ။\n\nယခုလက်ရှိနေရာကို စနစ်တကျ Share လုပ်ပါ။", Markup.keyboard([Markup.button.locationRequest('📍 Share My Current Location')]).resize());
+    }
+
+    return await showNextProfile(ctx);
+});
+
 bot.command('edit', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
     await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
@@ -896,6 +953,7 @@ bot.command('help', async (ctx) => {
 
 🔹 /start - Register your profile
 🔹 /find - Find matches (🔍 ဖူးစာရှင်ရှာမည်)
+🔹 /nearby - Find nearby matches using your shared location
 🔹 /pulse - Live stats (💓 Pulse)
 🔹 /profile - View your profile (👤 Profile)
 🔹 /edit - Edit your profile (⚙️ Edit Profile)
@@ -1093,7 +1151,7 @@ async function showNextProfile(ctx) {
         
         // Calculate and display distance if both users have location
         let distanceText = '';
-        if (user.latitude && user.longitude && target.latitude && target.longitude) {
+        if (user.latitude != null && user.longitude != null && target.latitude != null && target.longitude != null) {
             const distance = calculateDistance(user.latitude, user.longitude, target.latitude, target.longitude);
             distanceText = `\n📏 ${distance.toFixed(1)} km ကွာဝေးသည်`;
         }
