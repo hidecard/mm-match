@@ -184,6 +184,16 @@ const RESERVED_USER_INPUTS = new Set([
     '📝 Nickname', '🎂 Age', '🏠 Address', '📷 Photo', '📄 Bio', '📍 Share My Location'
 ]);
 
+// Helper to format interests string into hashtag list
+const formatInterests = (interestsText) => {
+    if (!interestsText) return '';
+    // split by comma or whitespace, keep words prefixed with #
+    const parts = interestsText.split(/[,;]+|\s#|\s+/).map(p => p.trim()).filter(Boolean);
+    if (parts.length === 0) return '';
+    const tags = parts.map(p => p.startsWith('#') ? p : `#${p}`);
+    return tags.join(' ');
+};
+
 const isReservedUserInput = (text) => {
     if (!text || typeof text !== 'string') return false;
     const clean = text.trim();
@@ -703,6 +713,10 @@ bot.on('message', async (ctx) => {
             await db.execute({ sql: "UPDATE users SET step = 'edit_bio' WHERE telegram_id = ?", args: [ctx.from.id] });
             return await ctx.reply("Bio အသစ်ကို ရိုက်ထည့်ပေးပါ:");
         }
+        if (text === '🏷️ Interests') {
+            await db.execute({ sql: "UPDATE users SET step = 'edit_interests' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply("သင့်စိတ်ဝင်စားသော အရာများ (tags) ကို ကော်မားဖြင့် ခွဲပြီး ရိုက်ထည့်ပေးပါ။ ဥပမာ: travel, music, food");
+        }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
@@ -801,6 +815,19 @@ bot.on('message', async (ctx) => {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [text, ctx.from.id] });
         return await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
+    }
+    // Handle interests during registration or when user runs /interests
+    if (user.step === 'ask_interests' || user.step === 'edit_interests') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
+
+        // Normalize tags: keep as comma-separated string
+        const parts = text.split(/[,;]+|\s+/).map(p => p.trim()).filter(Boolean);
+        const normalized = parts.join(',');
+
+        await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
+        await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+        return;
     }
     if (user.step === 'ask_gender') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
@@ -941,6 +968,19 @@ bot.command('test', async (ctx) => {
     );
 });
 
+// Interests command - let user set interests/tags
+bot.command('interests', async (ctx) => {
+    try {
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+        await db.execute({ sql: "UPDATE users SET step = 'ask_interests' WHERE telegram_id = ?", args: [ctx.from.id] });
+        await ctx.reply('သင့်စိတ်ဝင်စားသော အရာများ (tags) ကို ကော်မား သို့မဟုတ် စာလုံးဖြင့် ခွဲ၍ ရိုက်ထည့်ပေးပါ။ ဥပမာ: travel, music, food');
+    } catch (error) {
+        console.error('Interests command error:', error);
+        await ctx.reply('စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းပါ။');
+    }
+});
+
 bot.action('test_like', async (ctx) => {
     await ctx.answerCbQuery('Like button works!');
     await ctx.reply('✅ Like button is working!');
@@ -979,7 +1019,7 @@ bot.command('nearby', async (ctx) => {
 
 bot.command('edit', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'edit_menu' WHERE telegram_id = ?", args: [ctx.from.id] });
-    await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '❌ Cancel']]).resize());
+    await ctx.reply("ဘာကိုပြင်ဆင်ချင်ပါသလဲ။", Markup.keyboard([['📝 Nickname', '🎂 Age'], ['🏠 Address', '📷 Photo'], ['📄 Bio', '🏷️ Interests'], ['❌ Cancel']]).resize());
 });
 bot.command('profile', async (ctx) => await showMyProfile(ctx));
 bot.command('help', async (ctx) => {
@@ -1120,7 +1160,9 @@ async function showMyProfile(ctx) {
             ? 'Location shared'
             : (user.address || 'Not set');
 
-        const caption = `${sparkText}👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${displayAddress}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
+        const interestsLine = user.interests ? `\n🔖 ${formatInterests(user.interests)}\n` : '';
+
+        const caption = `${sparkText}👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${displayAddress}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}${interestsLine}\n\n📝 ${user.bio}`;
         
         try {
             return await ctx.replyWithPhoto(user.photo_id, { caption: caption });
@@ -1203,7 +1245,8 @@ async function showNextProfile(ctx) {
             distanceText = `\n📏 ${distance.toFixed(1)} km ကွာဝေးသည်`;
         }
         
-        const caption = `${sparkText}👤 ${target.nickname} (${target.age})\n📍 ${target.address}${distanceText}\n\n📝 ${target.bio}`;
+        const targetInterests = target.interests ? `\n🔖 ${formatInterests(target.interests)}` : '';
+        const caption = `${sparkText}👤 ${target.nickname} (${target.age})\n📍 ${target.address}${distanceText}${targetInterests}\n\n📝 ${target.bio}`;
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('❤️ Like', `like_${target.telegram_id}`),
              Markup.button.callback('💌 Like + Message', `like_with_message_${target.telegram_id}`)],
