@@ -766,6 +766,18 @@ bot.command('spark', async (ctx) => {
             return await ctx.reply("Profile ပြည့်စုံအောင် မှတ်ပုံတင်ပြီးမှ သုံးနိုင်ပါမယ်။ /start နှိပ်ပါ။");
         }
         
+        // Clean up expired spark if exists
+        if (user.daily_spark && user.spark_expires_at) {
+            const now = new Date();
+            const expiresAt = new Date(user.spark_expires_at);
+            if (now >= expiresAt) {
+                await db.execute({
+                    sql: "UPDATE users SET daily_spark = NULL, spark_expires_at = NULL WHERE telegram_id = ?",
+                    args: [ctx.from.id]
+                });
+            }
+        }
+        
         // Set user step to ask for spark
         await db.execute({
             sql: "UPDATE users SET step = 'ask_spark' WHERE telegram_id = ?",
@@ -831,6 +843,11 @@ bot.command('help', async (ctx) => {
 bot.command('update', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'ask_gender' WHERE telegram_id = ?", args: [ctx.from.id] });
     await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
+});
+
+bot.command('cancel', async (ctx) => {
+    await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+    await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
 });
 
 // Admin commands for ban management
@@ -927,7 +944,23 @@ async function showMyProfile(ctx) {
         const user = await getUser(ctx.from.id);
         if (!user) return await ctx.reply("Profile မတွေ့ပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။");
         
-        const caption = `👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${user.address}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
+        // Check if spark is still valid (not expired)
+        let sparkText = '';
+        if (user.daily_spark && user.spark_expires_at) {
+            const now = new Date();
+            const expiresAt = new Date(user.spark_expires_at);
+            if (now < expiresAt) {
+                sparkText = `✨ ${user.daily_spark}\n\n`;
+            } else {
+                // Spark has expired, delete it from database
+                await db.execute({
+                    sql: "UPDATE users SET daily_spark = NULL, spark_expires_at = NULL WHERE telegram_id = ?",
+                    args: [ctx.from.id]
+                });
+            }
+        }
+        
+        const caption = `${sparkText}👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${user.address}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
         
         try {
             return await ctx.replyWithPhoto(user.photo_id, { caption: caption });
@@ -985,6 +1018,12 @@ async function showNextProfile(ctx) {
             const expiresAt = new Date(target.spark_expires_at);
             if (now < expiresAt) {
                 sparkText = `✨ ${target.daily_spark}\n\n`;
+            } else {
+                // Spark has expired, delete it from database
+                await db.execute({
+                    sql: "UPDATE users SET daily_spark = NULL, spark_expires_at = NULL WHERE telegram_id = ?",
+                    args: [target.telegram_id]
+                });
             }
         }
         
