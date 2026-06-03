@@ -1,72 +1,104 @@
-# MM Match - Tinder-style Dating Bot
+# MM Match - Tinder-style Dating Bot (အသုံးပြုသူလမ်းညွှန်နှင့် နည်းပညာဆိုင်ရာ စာရွက်စာတမ်း အပြည့်အစုံ)
 
-A complete Telegram dating bot with swipe functionality, built with Vercel and Turso for scalable performance supporting up to 100,000 users.
+ဆာဗာမဲ့ဗိသုကာ (Serverless Architecture)၊ Node.js၊ Telegraf နှင့် Turso DB တို့ကို အသုံးပြု၍ စနစ်တကျ တည်ဆောက်ထားသော တယ်လီဂရမ် ဖူးစာရှင်ရှာဖွေရေး ဘော့ (Telegram Dating Bot) ဖြစ်ပါသည်။ အသုံးပြုသူ ၁၀၀,၀၀၀ အထိ ဝန်ဆောင်မှုပေးနိုင်ရန် ရည်ရွယ်ပြီး ကုန်ကျစရိတ် သုညနီးပါးဖြင့် အမြန်ဆုံး အလုပ်လုပ်နိုင်အောင် ဖန်တီးထားပါသည်။
 
-## 🤖 Bot Information
+---
 
-**Bot Name:** MM Match  
-**Bot Username:** [@mmcupid_bot](https://t.me/mmcupid_bot)  
-**Direct Link:** https://t.me/mmcupid_bot  
+## 🤖 ဘော့အချက်အလက် (Bot Information)
 
-## 🎯 Features
+* **ဘော့အမည်:** MM Match
+* **ဘော့ယူဆာနိမ်း:** [@mmcupid_bot](https://t.me/mmcupid_bot)
+* **တိုက်ရိုက်လင့်ခ်:** [https://t.me/mmcupid_bot](https://t.me/mmcupid_bot)
 
-### **User Features**
-- **Step-by-step Registration**: 8-step process collecting nickname, age, location (GPS required), photo, bio, gender, preferences, and distance radius
-- **Real GPS Location Sharing**: Users must share their real GPS coordinates via Telegram location button for accurate distance matching
-- **Distance Display**: Shows distance between users in km on profile cards (e.g., "📏 5.2 km ကွာဝေးသည်")
-- **Distance Filtering**: Set your preferred search radius (10km, 25km, 50km, 100km, or Any) to find nearby matches
-- **In-Bot Anonymous Chat**: Chat securely without revealing Telegram handles until both users consent
-- **Identity Reveal**: Choose when to share your Telegram username with mutual consent
-- **Daily Sparks**: Set a temporary 24-hour status with emoji to show your current mood or activity
-- **Spark Display**: Sparks appear on both your own profile and other users' profiles when viewing
-- **Auto-Expiration**: Expired sparks are automatically cleaned up from the database
-- **Discovery System**: Swipe through profiles with "Next", "Like", and "Like + Message" buttons
-- **Gender-based Matching**: Male users see Female profiles, Female users see Male profiles
-- **Match Notification**: When two users like each other, anonymous chat option is provided
-- **Profile Editing**: Update nickname, age, address (GPS required), photo, and bio anytime
-- **Smart UI**: Button-based interactions with pinned commands and inline keyboards
-- **Welcome Back Feature**: Returning users see their profile with live stats and features overview
-- **Profile View**: Users can view their own profile with active spark status
-- **Like with Message**: Send a secret message when liking someone for more personal connections
-- **Report System**: Report inappropriate profiles for admin review
-- **Matching Pulse**: Live stats showing total users and total matches
-- **Myanmar Language**: Full Myanmar language localization for welcome messages and user interface
+---
 
-### **Technical Features**
-- **Scalable Architecture**: Optimized for 100,000+ users with serverless deployment
-- **Zero Storage Cost**: Uses Telegram photo_id instead of storing images
-- **Smart User Links**: Fallback to tg://user?id=xxx when username not set
-- **Smart Session Cache**: No duplicate profiles shown in same session
-- **Permanent Profile Tracking**: Database tracks viewed profiles across sessions
-- **Proxy Message Routing**: Serverless-friendly chat message forwarding
-- **Session Management**: Real-time chat session tracking without persistent connections
-- **Ban/Shadowban System**: Admin tools for user moderation
-- **Admin Dashboard**: Password-protected web dashboard with real-time data
-- **Security**: SQL injection protection, input validation, and webhook security
+## 🛠️ အသုံးပြုထားသော နည်းပညာများနှင့် ရွေးချယ်ရသည့် အကြောင်းရင်း (Tech Stack & Why?)
 
-## 🛠️ Tech Stack
+ဤစနစ်သည် ၂၄ နာရီပတ်လုံး ပိုက်ဆံပေးရမည့် VPS ဆာဗာများကို မသုံးဘဲ အသုံးပြုသူ ရှိမှသာ ကွန်ပျူတာစနစ် စတင်အလုပ်လုပ်မည့် ဆာဗာမဲ့နည်းပညာ (Serverless) ကို အသုံးပြုထားသောကြောင့် ကုန်ကျစရိတ်ကို အထိရောက်ဆုံး လျှော့ချပေးပါသည်။
 
-### **Backend**
-- **Node.js** - Runtime environment
-- **Telegraf** - Telegram Bot Framework
-- **JavaScript (ES Modules)** - Modern JavaScript with import/export
-
-### **Database**
-- **Turso (SQLite-compatible)** - Edge database with global distribution
-- **LibSQL Client** - Official Turso database driver
-
-### **Deployment**
-- **Vercel** - Serverless deployment platform
-- **Vercel Functions** - Serverless API endpoints
-
-### **APIs & Services**
-- **Telegram Bot API** - Core messaging and bot functionality
-- **Webhook Integration** - Real-time message handling
-
-## 🎨 User Interface & Experience
-
-### **Welcome Screen**
 ```
+                  [ တယ်လီဂရမ် ကွန်ရက်စနစ် ]
+                              │
+               (HTTPS Webhook Event အချက်အလက်ပေးပို့ခြင်း)
+                              ▼
+                   [ VERCEL ဆာဗာမဲ့ဂိတ် ]
+                              │
+               (စက္ကန့်ပိုင်းအတွင်း အလိုအလျောက် ပွင့်လာသော စနစ်)
+                              ▼
+            ┌───────────────────────────────────┐
+            │       VERCEL BACKEND ENGINE       │
+            │     (Telegraf.js လုပ်ဆောင်ချက်)     │
+            └───────────────────────────────────┘
+               ▲                             ▲
+               │ (HTTP မှတစ်ဆင့် ဒေတာချိတ်ဆက်မှု) │ (ဓာတ်ပုံ ID များသာ သုံးစွဲခြင်း)
+               ▼                             ▼
+       [ TURSO DATABASE ]           [ TELEGRAM CDN CLUSTER ]
+  (အမြန်ဆုံး အချက်အလက်သိမ်းဆည်းမှု)     (သုညကျပ်ဖြင့် ဓာတ်ပုံများ သိမ်းဆည်းရာနေရာ)
+
+```
+
+### ၁။ Backend Framework: Node.js (ES Modules) & Telegraf.js
+
+* **မြန်ဆန်သော အမြန်နှုန်း:** Node.js ၏ ခေတ်မီ `import/export` စနစ်ကို သုံးထားသောကြောင့် အသုံးပြုသူ ခလုတ်နှိပ်လိုက်သည့်အခါ မီလီစက္ကန့်ပိုင်းအတွင်း တုံ့ပြန်မှု ပေးနိုင်ပါသည်။
+* **Telegraf.js စနစ်:** တယ်လီဂရမ် Bot API ကို အလွယ်ကူဆုံးနှင့် အကောင်းဆုံး ထိန်းချုပ်ပေးနိုင်ပြီး အဆင့်ဆင့် မှတ်ပုံတင်ခြင်း (Wizard Scene) နှင့် Inline ခလုတ်များကို ချောမွေ့စွာ ကိုင်တွယ်ပေးနိုင်ပါသည်။
+
+### ၂။ Edge Database: Turso (LibSQL Engine)
+
+* **ဆာဗာပြိုကျမှု ပြဿနာကို ဖြေရှင်းခြင်း:** ပုံမှန် database များ (PostgreSQL, MySQL) သည် ဆာဗာမဲ့စနစ်တွင် လူထောင်ချီ တစ်ပြိုင်နက် သုံးပါက ချိတ်ဆက်မှု ကန့်သတ်ချက် (Connection Limit) ပြည့်ပြီး ပျက်ကျတတ်ပါသည်။
+* **Turso ၏ အားသာချက်:** Turso သည် SQLite ကို အခြေခံထားပြီး HTTP စနစ်ဖြင့် ချိတ်ဆက်သောကြောင့် ချက်ဆက်မှု ကန့်သတ်ချက် လုံးဝမရှိဘဲ လူပေါင်းများစွာ တစ်ပြိုင်နက် Swipe (ဘယ်/ညာ ရွှေ့ပြီး Like) လုပ်လျှင်လည်း ဒေတာဘေ့စ် ပြိုကျခြင်း မရှိပါ။
+* **အလွန်မြန်ဆန်ခြင်း:** ဒေတာများကို သင့်ဆာဗာနှင့် အနီးဆုံးနေရာတွင် သိမ်းဆည်းပေးသဖြင့် Profile များကို ချက်ချင်း မြင်တွေ့ရမည် ဖြစ်သည်။
+
+### ၃။ ဓာတ်ပုံသိမ်းဆည်းမှုစနစ်- ကုန်ကျစရိတ် သုည (Zero-Cost Storage)
+
+* **အကုန်အကျ သက်သာစေမည့် နည်းလမ်း:** ပုံမှန် dating app များသည် အသုံးပြုသူများ တင်သမျှ ဓာတ်ပုံများကို Cloud (AWS S3) တွင် သိမ်းဆည်းရသဖြင့် လစဉ် ဒေါ်လာ ရာနှင့်ချီ ကုန်ကျပါသည်။
+* **တယ်လီဂရမ် File ID ကို အသုံးပြုခြင်း:** **MM Match သည် ဓာတ်ပုံသိမ်းဆည်းခ လုံးဝ မကုန်ပါ။** အသုံးပြုသူမှ ဓာတ်ပုံတင်လိုက်သောအခါ တယ်လီဂရမ်မှ ပေးသော သီးသန့်ကုဒ် (`photo_id`) ကိုသာ ဒေတာဘေ့စ်တွင် သိမ်းဆည်းပါသည်။ အခြားသူကို ပရိုဖိုင်ပြသသည့်အခါ ထို `photo_id` ကို သုံးပြီး တယ်လီဂရမ်ဆာဗာပေါ်မှ တိုက်ရိုက်ဆွဲပြသဖြင့် Storage ကုန်ကျစရိတ် **လုံးဝ (ဝ) ကျပ်** ဖြစ်ပါသည်။
+
+---
+
+## 🎯 လုပ်ဆောင်ချက်များ (Features)
+
+### **အသုံးပြုသူများအတွက် လုပ်ဆောင်ချက်များ (User Features)**
+
+* **အဆင့်ဆင့် မှတ်ပုံတင်ခြင်းစနစ်:** နာမည်၊ အသက်၊ တည်နေရာ (GPS)၊ ဓာတ်ပုံ၊ ကိုယ်ရေးအကျဉ်း၊ လိင်အမျိုးအစား၊ စိတ်ဝင်စားသည့်လိင်နှင့် ရှာဖွေလိုသော အကွာအဝေး တို့ကို အဆင့် ၈ ဆင့်ဖြင့် စနစ်တကျ ကောက်ယူပါသည်။
+* **စစ်မှန်သော GPS တည်နေရာမျှဝေခြင်း:** ပတ်ဝန်းကျင် တည်နေရာတူသူများကို တိကျစွာ ရှာဖွေပေးနိုင်ရန် တယ်လီဂရမ်၏ တည်နေရာမျှဝေခြင်း ခလုတ်ကို အသုံးပြုရပါမည်။
+* **အကွာအဝေး ပြသခြင်းစနစ်:** အသုံးပြုသူများအကြား ကွာဝေးသော အကွာအဝေးကို ကီလိုမီတာဖြင့် ပရိုဖိုင်ကတ်ပေါ်တွင် တိုက်ရိုက်ပြသပေးပါသည် (ဥပမာ - "📏 5.2 km ကွာဝေးသည်")။
+* **အကွာအဝေးအလိုက် စစ်ထုတ်ခြင်း:** မိမိရှာဖွေလိုသော အကွာအဝေးအတိုင်းအတာကို (10km, 25km, 50km, 100km သို့မဟုတ် Any) ဟူ၍ စိတ်ကြိုက်သတ်မှတ် ရှာဖွေနိုင်ပါသည်။
+* **ဘော့အတွင်း အမည်မဖော်ဘဲ စကားပြောခြင်း:** နှစ်ဦးလုံး သဘောတူညီမှုမရမချင်း မိမိတို့၏ တယ်လီဂရမ်ယူဆာနိမ်းကို လျှို့ဝှက်ထားပြီး ဘော့အတွင်း၌သာ စိတ်ချရစွာ စကားပြောနိုင်ပါသည်။
+* **ယူဆာနိမ်း အပြန်အလှန်ပြသခြင်း:** အပြန်အလှန် စကားပြောပြီးနောက် အဆင်ပြေပါက မိမိတို့၏ တယ်လီဂရမ်ယူဆာနိမ်းကို ချိတ်ဆက်ပြသရန် ရွေးချယ်နိုင်ပါသည်။
+* **နေ့စဉ် Spark စတေးတပ်စ်:** မိမိ၏ လက်ရှိခံစားချက် သို့မဟုတ် လုပ်ဆောင်ချက်ကို ဖော်ပြရန် အီမိုဂျီနှင့် စာသားတွဲလျက် ၂၄ နာရီခံ စတေးတပ်စ် တင်ထားနိုင်ပါသည်။
+* **စတေးတပ်စ် ပြသမှု:** အဆိုပါ Spark စတေးတပ်စ်ကို မိမိပရိုဖိုင်တွင်သာမက အခြားသူများ လာရောက်ကြည့်ရှုချိန်တွင်ပါ ထင်ရှားစွာ မြင်တွေ့ရမည် ဖြစ်သည်။
+* **အလိုအလျောက် သက်တမ်းကုန်ဆုံးခြင်း:** ၂၄ နာရီပြည့်သွားသော စတေးတပ်စ်များကို ဒေတာဘေ့စ်ထဲမှ စနစ်တကျ အလိုအလျောက် ဖျက်သိမ်းပေးပါသည်။
+* **ဖူးစာရှင် ရှာဖွေရေးစနစ် (Discovery):** ပရိုဖိုင်များကို "Next"၊ "Like" နှင့် "Like + Message" ခလုတ်များ အသုံးပြု၍ လွယ်ကူစွာ Swipe လုပ်နိုင်ပါသည်။
+* **လိင်အမျိုးအစားအလိုက် စနစ်တကျခွဲခြားခြင်း:** အမျိုးသားအသုံးပြုသူများသည် အမျိုးသမီးပရိုဖိုင်များကိုသာ မြင်တွေ့ရမည်ဖြစ်ပြီး အမျိုးသမီးအသုံးပြုသူများသည် အမျိုးသားပရိုဖိုင်များကိုသာ မြင်တွေ့ရမည် ဖြစ်သည်။
+* **Match ဖြစ်ခြင်း အကြောင်းကြားစာ:** အသုံးပြုသူ နှစ်ဦးလုံး အပြန်အလှန် Like လုပ်မိပါက စနစ်မှ ချက်ချင်း အကြောင်းကြားပေးပြီး အမည်မဖော်ဘဲ စကားပြောနိုင်မည့် လမ်းကြောင်းကို ဖွင့်လှစ်ပေးပါသည်။
+* **ပရိုဖိုင် ပြန်လည်ပြင်ဆင်ခြင်း:** နာမည်၊ အသက်၊ တည်နေရာ၊ ဓာတ်ပုံနှင့် ကိုယ်ရေးအကျဉ်းများကို အချိန်မရွေး လွယ်ကူစွာ ပြန်လည်ပြင်ဆင်နိုင်ပါသည်။
+* **စမတ်ကျသော UI စနစ်:** စာရိုက်ရန်မလိုဘဲ ခလုတ် (Inline Keyboard) များ၊ အမြဲတမ်းညှပ်ထားသော Commands များဖြင့် ဒီဇိုင်းထုတ်ထားပါသည်။
+* **ပြန်လည်ကြိုဆိုခြင်းစနစ် (Welcome Back):** ဘော့သို့ ပြန်လည်ဝင်ရောက်လာသော အသုံးပြုသူများကို ၎င်းတို့၏ လက်ရှိပရိုဖိုင် အချက်အလက်များနှင့် စာရင်းဇယားများဖြင့် နွေးထွေးစွာ ကြိုဆိုပါသည်။
+* **မိမိပရိုဖိုင် ပြန်လည်ကြည့်ရှုခြင်း:** မိမိ၏ ပရိုဖိုင်အချက်အလက်များနှင့် လက်ရှိတင်ထားသော Spark စတေးတပ်စ်ကို ပြန်လည်စစ်ဆေးနိုင်ပါသည်။
+* **စာတိုနှင့်အတူ Like လုပ်ခြင်း:** ပရိုဖိုင်တစ်ခုကို သဘောကျရုံသာမက လျှို့ဝှက်စာတိုလေးပါ တစ်ပါတည်း ပေးပို့ပြီး ပိုမိုနီးစပ်အောင် လုပ်ဆောင်နိုင်ပါသည်။
+* **တိုင်ကြားမှုစနစ် (Report):** စည်းကမ်းမလိုက်နာသော ပရိုဖိုင်အတုများကို Admin များ စစ်ဆေးနိုင်ရန် တိုင်ကြားနိုင်ပါသည်။
+* **Live စာရင်းဇယား (Pulse):** ဘော့ပေါ်တွင် စုစုပေါင်းမှတ်ပုံတင်ထားသူနှင့် ယနေ့ Match ဖြစ်သွားသည့် စုံတွဲအရေအတွက်ကို Live ကြည့်ရှုနိုင်ပါသည်။
+* **မြန်မာဘာသာစကားစနစ်:** ကြိုဆိုစာများမှစ၍ ဘော့တစ်ခုလုံး၏ အသုံးပြုမှုမျက်နှာပြင်ကို မြန်မာဘာသာစကားဖြင့် အပြည့်အဝ ဖန်တီးထားပါသည်။
+
+### **နည်းပညာဆိုင်ရာ လုပ်ဆောင်ချက်များ (Technical Features)**
+
+* **အဆင့်မြင့် ဆာဗာမဲ့ဗိသုကာ:** အသုံးပြုသူ ၁၀၀,၀၀၀ ကျော်အထိ ဝန်ဆောင်မှုကို ချောမွေ့စွာ ပေးနိုင်ရန် အထူးပြုပြင်မွမ်းမံထားပါသည်။
+* **သုညကျပ် ကုန်ကျစရိတ်:** တယ်လီဂရမ်၏ `photo_id` စနစ်ကို အသုံးပြုသဖြင့် ဓာတ်ပုံသိမ်းဆည်းခ လုံးဝ မကုန်ပါ။
+* **စမတ်ယူဆာလင့်ခ်:** တယ်လီဂရမ် ယူဆာနိမ်း (@username) မရှိသူများအတွက် `tg://user?id=xxx` လင့်ခ်စနစ်ဖြင့် လွဲချော်မှုမရှိအောင် ချိတ်ဆက်ပေးပါသည်။
+* **စမတ် Session Cache:** Swiping လုပ်နေစဉ်အတွင်း တူညီသော ပရိုဖိုင်ဟောင်းများ ထပ်မံပေါ်ပေါက်မလာစေရန် ခေတ္တ Cache စနစ်ဖြင့် ထိန်းချုပ်ထားပါသည်။
+* **အမြဲတမ်းပရိုဖိုင် မှတ်သားမှု:** အသုံးပြုသူတစ်ဦး ကြည့်ရှုပြီးသမျှ ပရိုဖိုင်များကို ဒေတာဘေ့စ်တွင် အမြဲတမ်း မှတ်သားထားသဖြင့် Session အသစ်များတွင်လည်း ပရိုဖိုင်ဟောင်းများ ထပ်ပေါ်လာမည် မဟုတ်ပါသည်။
+* **Proxy Message Routing:** ဆာဗာမဲ့စနစ်နှင့် အကိုက်ညီဆုံးဖြစ်အောင် အမည်မဖော်ဘဲ စကားပြောဆိုမှု မက်ဆေ့ခ်ျများကို စနစ်တကျ လမ်းကြောင်းလွှဲ ပေးပို့ပေးပါသည်။
+* **Session စီမံခန့်ခွဲမှု:** အမြဲတမ်း ချိတ်ဆက်ထားရမည့် Persistent Connection များ မလိုဘဲ Real-time Chat မက်ဆေ့ခ်ျများကို ကောင်းမွန်စွာ ထိန်းချုပ်နိုင်ပါသည်။
+* **Ban/Shadowban စနစ်:** ဘော့အတွင်း စည်းကမ်းဖောက်ဖျက်သူများကို ပိတ်ပင်ရန်နှင့် တိတ်တဆိတ်ဖျောက်ထားရန် စနစ်များ ပါဝင်ပါသည်။
+* **Admin Dashboard:** အချက်အလက်များကို ဝဘ်ဆိုဒ်ပုံစံဖြင့် တစ်နေရာတည်းတွင် စောင့်ကြည့်နိုင်သော လျှို့ဝှက်နံပါတ်ခံ Web Dashboard ပါဝင်ပါသည်။
+* **လုံခြုံရေးမြင့်မားခြင်း:** SQL Injection ကာကွယ်ခြင်း၊ Input စစ်ဆေးခြင်းနှင့် Webhook လုံခြုံရေးစနစ်များ ထည့်သွင်းထားပါသည်။
+
+---
+
+## 🎨 အသုံးပြုမှု မျက်နှာပြင် ဒီဇိုင်းပြသချက် (UI & UX Showcase)
+
+### **စတင်ခြင်း မျက်နှာပြင် (Welcome Screen)**
+
 🎉 MM Match မှ ကြိုဆိုပါတယ်!
 
 💕 Tinder-style Dating Bot
@@ -74,7 +106,7 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 
 📋 မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:
 1️⃣ နာမည် (Nickname)
-2️⃣ အသက် (Age) 
+2️⃣ အသက် (Age)
 3️⃣ နေရပ် (Address)
 4️⃣ ပုံ (Photo)
 5️⃣ ကိုယ်ရေးတင်ပြ (Bio)
@@ -83,218 +115,201 @@ A complete Telegram dating bot with swipe functionality, built with Vercel and T
 
 🎯 အသုံးပြုရန် ကွန်ယက်များ:
 /find - Profile ရှာပါ
-/edit - Profile ပြင်းဆင့်ပါ
-/update - လိင်အပြင်းအစားပြောင်းပါ
+/edit - Profile ပြင်ဆင်ပါ
+/update - လိင်အပြောင်းအလဲပြုလုပ်ပါ
 /help - ကူညီမှုကိုကြည့်ပါ
 
 ❤️ Male များ Female ကိုသာ မြင်ရပါမည်
 ❤️ Female များ Male ကိုသာ မြင်ရပါမည်
-```
 
-### **Gender Selection UI**
-```
+### **လိင်အမျိုးအစား ရွေးချယ်ခြင်း (Gender Selection UI)**
+
 သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):
 
-[Male] [Female]
-```
+`[ 👦 Male ]`      `[ 👧 Female ]`
 
-### **Profile Display**
-```
+### **ပရိုဖိုင်ပြသပုံစံ (Profile Display)**
+
 👤 Nickname (25)
-📍 Yangon
+
+📍 Yangon (📏 5.2 km ကွာဝေးသည်)
 
 📝 I love traveling and meeting new people!
 
-[❤️ Like] [➡️ Next]
-```
+`[❤️ Like]` `[➡️ Next]`
 
-### **Match Notification**
-```
+### **ဖူးစာဆုံခြင်း အသိပေးချက် (Match Notification)**
+
 Match ဖြစ်သွားပါပြီ! ❤️
-သူ့ဆီ စကားပြောလိုက်ပါ: @username
-```
 
-### **Pinned Commands Menu**
-```
-/find  /edit  /help
-```
+နှစ်ဦးလုံး အပြန်အလှန် Like လုပ်ထားကြပါတယ်။
 
-### **Profile Edit Menu**
-```
-ဘာကိုပြင်းဆင့်လဲချင်တာပါ။
+သူ့ဆီ တိုက်ရိုက်စကားပြောရန် လင့်ခ်ကို နှိပ်ပါ: @username
 
-[📝 Nickname] [🎂 Age]
-[🏠 Address] [📷 Photo]
-[📄 Bio] [❌ Cancel]
-```
+### **အမြဲတမ်း ညှပ်ထားမည့် Menu (Pinned Commands Menu)**
 
-### **Main Menu Keyboard**
-```
-[🔍 ဖူးစာရှင်ရှာမည်] [💓 Pulse]
-[⚙️ Edit Profile] [👤 Profile]
-[/help]
-```
+`/find`  `/edit`  `/help`
 
-### **Welcome Back Screen**
-```
+### **ပရိုဖိုင် ပြင်ဆင်ခြင်း Menu (Profile Edit Menu)**
+
+ဘာကို ပြင်ဆင်ချင်တာလဲခင်ဗျာ။
+
+`[📝 Nickname]` `[🎂 Age]`
+
+`[🏠 Address]` `[📷 Photo]`
+
+`[📄 Bio]` `[❌ Cancel]`
+
+### **ပင်မ Menu ခလုတ်များ (Main Menu Keyboard)**
+
+`[🔍 ဖူးစာရှင်ရှာမည်]` `[💓 Pulse]`
+
+`[⚙️ Edit Profile]` `[👤 Profile]`
+
+`[/help]`
+
+### **ပြန်လည်ကြိုဆိုခြင်း မျက်နှာပြင် (Welcome Back Screen)**
+
 🎉 Welcome Back!
 
 [Nickname] ဟာ MM Cupid ကို ပြန်လည်ရောက်ရှိလာပါပြီ။ 💕
 
-သင့်ရဲ့ Profile အချက်အလက်များက အောက်ပါအတိုင်းဖြစ်ပါတယ်။ �
-```
+သင့်ရဲ့ Profile အချက်အလက်များက အောက်ပါအတိုင်းဖြစ်ပါတယ်။ ✨
 
-### **Matching Pulse**
-```
+### **Live စာရင်းဇယား ပြသမှု (Matching Pulse)**
+
 💓 Matching Pulse
 
 👥 စုစုပေါင်း Register လုပ်ထားသူ: 540 ယောက်
+
 ❤️ ဒီနေ့ Match အရေအတွက်: 12 စုံ
 
 🔥 MM Cupid မှာ သင့်ဖူးစာရှင်ကို ရှာဖွေလိုက်ပါ!
+
+---
+
+## 📍 တည်နေရာအခြေခံ ဖူးစာရှင်ရှာဖွေရေး စနစ် (Geospatial Engine)
+
+### **လုပ်ဆောင်ပုံ နည်းလမ်း**
+
+ကမ္ဘာကြီး၏ လုံးဝန်းမှုကို အခြေခံ၍ တည်နေရာနှစ်ခု (Latitude နှင့် Longitude) အကြား အကွာအဝေးကို အောက်ပါ သင်္ချာဖော်မြူလာ (Haversine Formula) ဖြင့် တိကျစွာ တွက်ချက်ပါသည်-
+
+$$\Delta \phi = \text{lat}_2 - \text{lat}_1$$
+
+$$\Delta \lambda = \text{lon}_2 - \text{lon}_1$$
+
+$$a = \sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\text{lat}_1) \cdot \cos(\text{lat}_2) \cdot \sin^2\left(\frac{\Delta \lambda}{2}\right)$$
+
+$$c = 2 \cdot \arctan2\left(\sqrt{a}, \sqrt{1-a}\right)$$
+
+$$d = R \cdot c$$
+
+*(ဒီနေရာမှာ $R$ ဆိုတာ ကမ္ဘာ့အချင်းဝက် $6371\text{ km}$ ဖြစ်ပါတယ်)*
+
+### **နည်းပညာပိုင်းဆိုင်ရာ အကောင်အထည်ဖော်မှု**
+
+* **လေးထောင့်ကွက်စနစ်ဖြင့် အကြမ်းဖျင်းစစ်ထုတ်ခြင်း (Bounding Box):** လူသိန်းချီထဲမှ အကွာအဝေးကို တစ်ယောက်ချင်းစီ လိုက်တွက်ပါက ဆာဗာ အချိန်ပြည့် (Timeout) ဖြစ်သွားနိုင်သဖြင့် အကွာအဝေး ဝေးလွန်းသူများကို SQL အဆင့်ကတည်းက လေးထောင့်ကွက်အညွှန်းကိန်းများဖြင့် အမြန်ဆုံး ဖြတ်ထုတ်ပစ်လိုက်ပါသည်။
+* **Precise Distance Calculation:** စစ်ထုတ်ပြီးထွက်လာသော အနီးစပ်ဆုံး ပရိုဖိုင်များကိုမှ JavaScript အတွင်း (Haversine Formula) သုံးပြီး ဒုတိယအကြိမ် တိကျစွာ ကီလိုမီတာ တွက်ချက်ကာ ပရိုဖိုင်ကတ်ပေါ်တွင် ပြသပေးပါသည်။
+* **အဆင်မပြေပါက အလိုအလျောက်ချဲ့ထွင်ခြင်း (Fallback):** သတ်မှတ်ထားသော အကွာအဝေးအတွင်း ပရိုဖိုင်အသစ် မရှိပါက စနစ်မှ ရှာဖွေမှုဧရိယာကို အလိုအလျောက် ပိုမိုချဲ့ထွင်ပေးပါသည်။
+
+### **ရွေးချယ်နိုင်သော အကွာအဝေးများ**
+
+* **10 km** - မိမိရပ်ကွက် သို့မဟုတ် မြို့နယ်အတွင်း
+* **25 km** - တစ်မြို့နယ်လုံး အတိုင်းအတာ
+* **50 km** - ရန်ကုန်/မန္တလေးကဲ့သို့ တစ်မြို့စာ အတိုင်းအတာ (စံသတ်မှတ်ချက်)
+* **100 km** - အနီးနားရှိ အခြားမြို့များအထိ
+* **Any** - အကွာအဝေး ကန့်သတ်ချက်မရှိ (တစ်နိုင်ငံလုံး)
+
+### **ကိုယ်ရေးကိုယ်တာ လုံခြုံမှု (Privacy)**
+
+* တည်နေရာမျှဝေခြင်းသည် အသုံးပြုသူ၏ သဘောဆန္ဒအတိုင်းသာ ဖြစ်သည်။
+* GPS မမျှဝေလိုပါက မိမိနေထိုင်ရာ မြို့အမည်ကို စာသားဖြင့်သာ ရိုက်ထည့်နိုင်ပါသည်။
+* တည်နေရာဒေတာများကို ဒေတာဘေ့စ်အတွင်း စနစ်တကျ လုံခြုံစွာ သိမ်းဆည်းထားပါသည်။
+
+---
+
+## 🤖 အဆင့်ဆင့် အသုံးပြုသူလမ်းညွှန် (Complete User Guide)
+
+### **၁။ အကောင့်စတင်ပြုလုပ်ခြင်း (Getting Started)**
+
+1. Telegram တွင် **@mmcupid_bot** ဟု ရှာဖွေပါ။
+2. **Start** သို့မဟုတ် `/start` ဟု ရိုက်ထည့်ပါ။
+3. ဘော့မှ မေးမြန်းသော အဆင့် ၈ ဆင့်ကို တစ်ဆင့်ချင်းစီ ဖြည့်စွက်ပါ။
+
+### **၂။ မှတ်ပုံတင်ခြင်း လုပ်ငန်းစဉ်များ (Registration Process)**
+
+```
+[ /start ဟု နှိပ်ပါ ] ──> အကောင့်အကြမ်းဆောက်မည် (အဆင့်='get_name')
+                              │
+[ နာမည်ပေးပို့ပါ ]    ──> နာမည်သိမ်းဆည်းမည် (အဆင့်='get_age')
+                              │
+[ အသက်ပေးပို့ပါ ]    ──> နံပါတ်စစ်ဆေးမည် (အဆင့်='get_location')
+                              │
+[ တည်နေရာပေးပို့ပါ ]  ──> GPS ကိုဖတ်မည် (အဆင့်='get_photo')
+                              │
+[ ဓာတ်ပုံတင်ပါ ]       ──> တယ်လီဂရမ် Photo ID ကိုသိမ်းမည် (အဆင့်='get_bio')
+                              │
+[ Bio ရေးသားပါ ]     ──> စာသားတို သိမ်းဆည်းမည် (အဆင့်='get_gender')
+                              │
+[ မိမိလိင် ရွေးပါ ]    ──> ခလုတ်နှိပ်၍ ရွေးချယ်မည် (အဆင့်='get_looking')
+                              │
+[ ရှာမည့်လိင် ရွေးပါ ]  ──> ခလုတ်နှိပ်၍ ရွေးချယ်မည် (အဆင့်='get_radius')
+                              │
+[ ရှာမည့်အကွာအဝေး ]   ──> အကွာအဝေး သတ်မှတ်ပြီးစီး (is_registered=1)
+                              │
+                     [ မှတ်ပုံတင်ခြင်း အောင်မြင်သည် ]
+
 ```
 
-## 📊 Complete User Guide
+1. **Nickname (နာမည်):** ဘော့ပေါ်တွင် ပြသမည့် သင့်နာမည်ကို ရိုက်ထည့်ပါ။ (အရှည် စာလုံး ၂ လုံးမှ ၃၀ အတွင်း)
+2. **Age (အသက်):** သင့်အသက်ကို ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ (ဥပမာ- `24`)။
+3. **Address (တည်နေရာ):** တယ်လီဂရမ်၏ "Share Location" ခလုတ်ကို သုံးပြီး သင့် GPS တည်နေရာကို ပေးပို့ပါ။ သို့မဟုတ် မြို့အမည်ကို စာရိုက်ပါ။
+4. **Photo (ဓာတ်ပုံ):** သင့် Profile တွင် ပြသမည့် ဓာတ်ပုံတစ်ပုံ ပေးပို့ပါ။
+5. **Bio (ကိုယ်ရေးအကျဉ်း):** သင့်အကြောင်း စာလုံး ၂၀၀ အတွင်း အကျဉ်းချုပ် ရေးသားပါ။
+6. **Gender (မိမိလိင်):** ခလုတ်ကို နှိပ်၍ `Male` သို့မဟုတ် `Female` ရွေးချယ်ပါ။
+7. **Looking For (ရှာဖွေလိုသည့်လိင်):** သင်ကြည့်ရှုလိုသည့် လိင်အမျိုးအစားကို ရွေးချယ်ပါ။
+8. **Distance Radius (ရှာမည့်အကွာအဝေး):** မိမိပတ်ဝန်းကျင် မည်မျှအကွာအဝေးအတွင်း ရှာမည်ကို ရွေးချယ်ပါ (`10km`, `25km`, `50km`, `100km` သို့မဟုတ် `Any`)။
 
-### **1. Getting Started**
-1. Open Telegram and search for **@mmcupid_bot**
-2. Click **"Start"** or type `/start`
-3. Follow the 8-step registration process
+### **၃။ ဖူးစာရှင် ရှာဖွေခြင်း (Finding Matches)**
 
-### **2. Registration Process**
-1. **Nickname** - Type your display name
-2. **Age** - Enter your age (numbers only)
-3. **Address** - Enter your city/location OR send your live location via Telegram
-4. **Photo** - Upload a profile photo
-5. **Bio** - Write a short description about yourself
-6. **Gender** - Select Male or Female (button-based)
-7. **Looking For** - Select which gender you want to see
-8. **Distance Radius** - Set your preferred search distance (10km, 25km, 50km, 100km, or Any)
-
-### **3. Finding Matches**
-- Type `/find` or click the **🔍 ဖူးစာရှင်ရှာမည်** button
-- Browse through profiles with:
-  - **❤️ Like** - Express interest in the profile
-  - **💌 Like + Message** - Like with a personal secret message
-  - **➡️ Next** - Skip to the next profile
-  - **🚨 Report** - Report inappropriate profiles
-- When both users like each other, it's a Match! You'll get an anonymous chat option
-- **Location-based Filtering**: If you shared your location, you'll only see profiles within your chosen distance radius
-
-### **4. Managing Your Profile**
-- **View Profile**: Type `/profile` or click **👤 Profile** button
-- **Edit Profile**: Type `/edit` or click **⚙️ Edit Profile** button
-  - Edit nickname, age, address, photo, or bio
-- **Update Preferences**: Type `/update` to change gender preferences
-
-### **5. Live Statistics**
-- Type `/pulse` or click **💓 Pulse** button
-- View total registered users and total matches
-
-### **6. Daily Sparks**
-- Type `/spark` to set a temporary 24-hour status
-- Add emoji to express your current mood or activity
-- Your spark appears prominently at the top of your profile card
-- Automatically expires after 24 hours without needing cleanup
-
-### **7. Main Menu Commands**
-- **🔍 ဖူးစာရှင်ရှာမည်** - Start finding matches
-- **💓 Pulse** - View live statistics
-- **⚙️ Edit Profile** - Update your profile information
-- **👤 Profile** - View your current profile
-- **✨ Daily Spark** - Set a temporary 24-hour status with emoji
-- **❌ Delete Account** - Permanently delete your account and all data
-- **/help** - Show help message
-
-### 🚀 Installation & Setup
-
-#### Prerequisites
-- Node.js 18+ installed
-- Telegram Bot Token ([@BotFather](https://t.me/botfather))
-- Turso Database ([turso.tech](https://turso.tech))
-- Vercel Account ([vercel.com](https://vercel.com))
-
-#### Environment Variables
-Create `.env` file with:
-```bash
-BOT_TOKEN=your_telegram_bot_token
-TURSO_URL=libsql://your-db-name.turso.io
-TURSO_TOKEN=your_turso_token
-DASHBOARD_PASSWORD=your_secure_password
-```
-
-#### Database Setup
-```bash
-# Apply schema to Turso
-turso db shell your-db-name < schema.sql
-```
-
-#### Local Development
-```bash
-# Clone repository
-git clone <repository-url>
-cd mm-match
-
-# Install dependencies
-npm install
-
-# Set environment variables
-cp .env.example .env
-# Edit .env with your credentials
-
-# Start development server
-npm run dev
-```
-
-#### Production Deployment
-```bash
-# Deploy to Vercel
-vercel --prod
-
-# Set environment variables on Vercel
-vercel env add BOT_TOKEN
-vercel env add TURSO_URL
-vercel env add TURSO_TOKEN
-vercel env add DASHBOARD_PASSWORD
-
-# Set webhook (replace with your Vercel URL)
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -d "url=https://mm-match.vercel.app/api" \
-  -d "allowed_updates=[\"message\",\"callback_query\"]"
-```
-
-### **Security Features**
-- **Input Validation**: All user inputs validated
-- **SQL Injection Protection**: Parameterized queries
-- **Webhook Security**: Telegram webhook verification
-- **Data Privacy**: Minimal data collection
-- **Dashboard Protection**: Password-protected admin panel
+* `/find` ဟု ရိုက်ပါ သို့မဟုတ် `🔍 ဖူးစာရှင်ရှာမည်` ခလုတ်ကို နှိပ်ပါ။
+* သင့်ရှေ့တွင် ပေါ်လာသော Profile ကတ်ပြားများကို အောက်ပါအတိုင်း တုံ့ပြန်နိုင်သည်-
+* **❤️ Like:** သဘောကျကြောင်း ပြသမည်။
+* **💌 Like + Message:** Like လုပ်သည့်အပြင် တစ်ပါတည်း လျှို့ဝှက်စာတို ပေးပို့မည်။
+* **➡️ Next:** ကျော်သွားပြီး နောက်ထပ် Profile တစ်ခုကို ကြည့်မည်။
+* **🚨 Report:** စည်းကမ်းမလိုက်နာသော စာမျက်နှာများကို Admin သိစေရန် တိုင်ကြားမည်။
 
 
-## 📍 Location-based Matching
+* နှစ်ဦးလုံး အပြန်အလှန် Like လုပ်မိပါက Match ဖြစ်သွားမည်ဖြစ်ပြီး အမည်မဖော်ဘဲ စကားပြောနိုင်မည့် Chat လမ်းကြောင်း ပွင့်လာမည် ဖြစ်သည်။
+* **တည်နေရာအလိုက် စစ်ထုတ်မှု:** သင် တည်နေရာ မျှဝေထားပါက သင်ရွေးချယ်ထားသော အကွာအဝေးအတွင်းရှိ ပရိုဖိုင်များကိုသာ စနစ်က ရွေးထုတ်ပြသပေးမည် ဖြစ်သည်။
 
-### **How It Works**
-The bot uses the Haversine formula to calculate the distance between users' coordinates and filters matches based on your preferred distance radius.
+### **၄။ ပရိုဖိုင် စီမံခန့်ခွဲခြင်း (Managing Your Profile)**
 
-### **Technical Implementation**
-- **Bounding Box Approximation**: Uses SQL to filter profiles within a geographic bounding box for performance
-- **Precise Distance Calculation**: Applies Haversine formula in JavaScript for accurate distance filtering
-- **Fallback Logic**: If no profiles found within distance, falls back to broader search
+* **ပရိုဖိုင်ကြည့်ရန်:** `/profile` ဟု ရိုက်ပါ သို့မဟုတ် `👤 Profile` ခလုတ်ကို နှိပ်ပါ။
+* **ပရိုဖိုင်ပြင်ရန်:** `/edit` ဟု ရိုက်ပါ သို့မဟုတ် `⚙️ Edit Profile` ခလုတ်ကို နှိပ်ပြီး နာမည်၊ အသက်၊ တည်နေရာ၊ ဓာတ်ပုံ သို့မဟုတ် Bio များကို ပြန်ပြင်နိုင်ပါသည်။
+* **ရှာဖွေမှုပြောင်းရန်:** စိတ်ဝင်စားသည့် လိင်အမျိုးအစားကို ပြောင်းလဲလိုပါက `/update` ဟု ရိုက်နှိပ်ပါ။
 
-### **Distance Options**
-- **10 km** - Very local matches
-- **25 km** - City-wide matches
-- **50 km** - Regional matches (default)
-- **100 km** - Extended regional matches
-- **Any** - No distance restriction
+### **၅။ Live စာရင်းဇယား ကြည့်ရှုခြင်း**
 
-### **Privacy**
-- Location sharing is optional during registration
-- Users can choose to enter city name instead of sharing coordinates
-- Location data is stored securely in the database
-## �️ Database Schema
+* `/pulse` ဟု ရိုက်ပါ သို့မဟုတ် `💓 Pulse` ခလုတ်ကို နှိပ်ပြီး ဘော့ပေါ်ရှိ စုစုပေါင်းမှတ်ပုံတင်ထားသူနှင့် ယနေ့ Match အရေအတွက်ကို Live ကြည့်ရှုနိုင်ပါသည်။
 
-The bot uses Turso (SQLite-compatible) database with the following schema:
+### **၆။ နေ့စဉ် Spark တင်ခြင်း**
+
+* `/spark` ဟု ရိုက်နှိပ်ပြီး မိမိရဲ့ လက်ရှိ Mood သို့မဟုတ် အလုပ်အကိုင်ကို အီမိုဂျီလေးများနှင့်အတူ တင်ထားနိုင်ပါသည်။ ၎င်းသည် ၂၄ နာရီပြည့်ပါက စနစ်ထဲမှ အလိုအလျောက် ပျောက်ပျက်သွားမည် ဖြစ်သည်။
+
+### **၇။ ပင်မ Menu အမိန့်စာတိုများ (Main Menu Commands)**
+
+* **🔍 ဖူးစာရှင်ရှာမည်** - ပရိုဖိုင်များ စတင်ရှာဖွေရန်
+* **💓 Pulse** - Live စာရင်းဇယားများ ကြည့်ရန်
+* **⚙️ Edit Profile** - မိမိအချက်အလက်များ ပြန်ပြင်ရန်
+* **👤 Profile** - မိမိလက်ရှိပရိုဖိုင်ကို ပြန်ကြည့်ရန်
+* **✨ Daily Spark** - ၂၄ နာရီခံ စတေးတပ်စ် တင်ရန်
+* **❌ Delete Account** - မိမိအကောင့်နှင့် ဒေတာအားလုံးကို အပြီးတိုင်ဖျက်သိမ်းရန်
+* **/help** - အသုံးပြုပုံ လမ်းညွှန်ချက် ပြသရန်
+
+---
+
+## 🗄️ ဒေတာဘေ့စ် တည်ဆောက်ပုံစနစ် (Turso / SQLite Schema)
 
 ```sql
 -- Users table - stores user profiles and registration state
@@ -367,98 +382,178 @@ CREATE INDEX idx_users_banned ON users(is_banned);
 CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
 CREATE INDEX idx_location ON users(latitude, longitude) WHERE is_registered = 1;
 CREATE INDEX idx_max_distance ON users(max_distance_km) WHERE is_registered = 1;
+
 ```
 
-## �� Admin Dashboard
+---
 
-Access the web dashboard at your Vercel URL: `https://your-app.vercel.app/`
+## 🚀 စနစ်စတင် တည်ဆောက်ခြင်းနှင့် Deploy လုပ်နည်း လမ်းညွှန်
 
-### **Features**
-- **Real-time Stats**: Total users, today's matches, active users
-- **User List**: View all registered users with details
-- **Match List**: See all mutual matches
-- **Auto-refresh**: Data updates every 30 seconds
-- **Password Protected**: Secure login with configurable password
+### **လိုအပ်ချက်များ (Prerequisites)**
 
-### **Dashboard Password**
-Default password: `admin123` (or set via environment variable)
+* Node.js 18+ အထက် ရှိရပါမည်။
+* တယ်လီဂရမ် Bot Token ([@BotFather](https://t.me/botfather) မှတစ်ဆင့် ရယူပါ)။
+* Turso Database အကောင့် ([turso.tech](https://turso.tech))။
+* Vercel အကောင့် ([vercel.com](https://vercel.com))။
+
+### **၁။ ပတ်ဝန်းကျင်ကိန်းရှင်များ ဖြည့်စွက်ခြင်း (Environment Variables)**
+
+ပရောဂျက်၏ Root ဖိုဒါထဲတွင် `.env` ဖိုင်တစ်ခု ဆောက်ပြီး အောက်ပါအတိုင်း ဖြည့်စွက်ပေးပါ-
+
+```bash
+BOT_TOKEN=your_telegram_bot_token
+TURSO_URL=libsql://your-db-name.turso.io
+TURSO_TOKEN=your_turso_token
+DASHBOARD_PASSWORD=your_secure_password
+
+```
+
+### **၂။ ဒေတာဘေ့စ် ပြင်ဆင်ခြင်း (Database Setup)**
+
+Turso CLI သို့မဟုတ် Web Shell ကို အသုံးပြု၍ အထက်ပါ schema.sql ကို ဒေတာဘေ့စ်ထဲသို့ ထည့်သွင်းပါ-
+
+```bash
+# Apply schema to Turso
+turso db shell your-db-name < schema.sql
+
+```
+
+### **၃။ ဒေသတွင်း စမ်းသပ်ခြင်း (Local Development)**
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd mm-match
+
+# Install dependencies
+npm install
+
+# Set environment variables
+cp .env.example .env
+# Edit .env with your credentials
+
+# Start development server
+npm run dev
+
+```
+
+### **၄။ ဆာဗာပေါ်သို့ လွှင့်တင်ခြင်း (Production Deployment)**
+
+Vercel ပေါ်သို့ လွှင့်တင်ပြီး Webhook အား ချိတ်ဆက်ရန် အောက်ပါ command များကို အသုံးပြုပါ-
+
+```bash
+# Deploy to Vercel
+vercel --prod
+
+# Set environment variables on Vercel
+vercel env add BOT_TOKEN
+vercel env add TURSO_URL
+vercel env add TURSO_TOKEN
+vercel env add DASHBOARD_PASSWORD
+
+# Set webhook (replace with your Vercel URL)
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://mm-match.vercel.app/api" \
+  -d "allowed_updates=[\"message\",\"callback_query\"]"
+
+```
+
+---
+
+## 💻 Admin စိစစ်ရေး Dashboard
+
+သင့် Vercel ဝဘ်ဆိုဒ်လင့်ခ် `https://your-app.vercel.app/` မှတစ်ဆင့် Dashboard ကို ဝင်ရောက်နိုင်ပါသည်။
+
+### **လုပ်ဆောင်ချက်များ**
+
+* **Real-time Stats:** စုစုပေါင်းအသုံးပြုသူ၊ ယနေ့ Match ရရှိမှုနှင့် လက်ရှိ Active ဖြစ်နေသူများကို ကြည့်ရှုနိုင်သည်။
+* **User List:** မှတ်ပုံတင်ထားသည့် အသုံးပြုသူစာရင်းကို အသေးစိတ် ကြည့်ရှုနိုင်သည်။
+* **Match List:** အောင်မြင်စွာ Match ဖြစ်သွားသည့် စုံတွဲများစာရင်းကို စစ်ဆေးနိုင်သည်။
+* **Auto-refresh:** စာရင်းဇယားများကို စက္ကန့် ၃၀ တိုင်း အလိုအလျောက် Update လုပ်ပေးပါသည်။
+
+### **Dashboard Password ပြင်ဆင်ခြင်း**
+
+မူလစံသတ်မှတ်ချက် လျှို့ဝှက်နံပါတ်မှာ `admin123` ဖြစ်ပြီး အောက်ပါအတိုင်း စိတ်ကြိုက်ပြောင်းလဲနိုင်ပါသည်-
 
 ```bash
 # Set custom password
 vercel env add DASHBOARD_PASSWORD
 # Enter your secure password
 vercel --prod
+
 ```
 
 ### **API Endpoints**
-- `GET /api/stats` - Dashboard statistics
-- `GET /api/users` - User list
-- `GET /api/matches` - Match list
 
-All endpoints require password in header: `X-Password: yourpassword`
+* `GET /api/stats` - Dashboard ဆိုင်ရာ စာရင်းဇယားများ
+* `GET /api/users` - အသုံးပြုသူစာရင်း
+* `GET /api/matches` - Match ဖြစ်သွားသည့် စုံတွဲများစာရင်း
 
-## 🎯 Bot Commands Reference
-
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `/start` | Begin registration or welcome back | All users |
-| `/find` | Discover profiles | Registered users |
-| `/pulse` | View live stats | All users |
-| `/profile` | View your own profile | Registered users |
-| `/edit` | Update profile info | Registered users |
-| `/update` | Change gender preferences | Registered users |
-| `/help` | Show user guide | All users |
-
-## 🌟 Key Benefits
-
-### **For Users**
-- **Easy to Use**: Simple button-based interface
-- **Safe & Secure**: Privacy-focused matching
-- **Real-time**: Instant notifications
-- **Free to Use**: No charges for basic features
-
-### **For Developers**
-- **Scalable**: Handles 100,000+ users
-- **Low Cost**: Minimal infrastructure costs
-- **Modern Tech**: Latest JavaScript and serverless architecture
-- **Well Documented**: Complete setup and usage guides
-
-## ✅ Completed Features
-
-- ✅ Welcome Back feature for returning users
-- ✅ Matching Pulse with live stats
-- ✅ Session-based cache (no duplicate profiles)
-- ✅ Admin Dashboard with password protection
-- ✅ Profile view command
-- ✅ Improved UI/UX with better messages
-
-## 📈 Future Enhancements
-
-- **Location-based Matching**: Geographic proximity filtering
-- **Advanced Filters**: Age range, interests, etc.
-- **Photo Verification**: Enhanced profile authenticity
-- **Chat Features**: In-bot messaging capabilities
-- **Premium Features**: Advanced matching algorithms
-- **Push Notifications**: Real-time match alerts
-- **Analytics**: User behavior insights
-
-## 🤝 Contributing
-
-This project is open for contributions. Key areas for improvement:
-- UI/UX enhancements
-- Performance optimizations
-- New feature development
-- Bug fixes and improvements
-
-## 📄 License
-
-MIT License - feel free to use and modify for your projects.
+*မှတ်ချက်။ ။ API အားလုံးကို ခေါ်ယူရန်အတွက် Header တွင် `X-Password: yourpassword` ကို ထည့်သွင်းပေးပို့ရပါမည်။*
 
 ---
 
-## 🎉 Start Using MM Match Today!
+## 🎯 Bot Commands ကိုးကားချက် ရည်ညွှန်းဇယား
 
-**Bot:** [@mmcupid_bot](https://t.me/mmcupid_bot)  
-**Direct Link:** https://t.me/mmcupid_bot
+| Command | ဖော်ပြချက် | အသုံးပြုနိုင်သူ |
+| --- | --- | --- |
+| `/start` | မှတ်ပုံတင်ခြင်း စတင်ရန် သို့မဟုတ် ပြန်လည်ကြိုဆိုရန် | အသုံးပြုသူအားလုံး |
+| `/find` | ဖူးစာရှင် ပရိုဖိုင်များ စတင်ရှာဖွေရန် | မှတ်ပုံတင်ပြီးသူများ |
+| `/pulse` | Live စာရင်းဇယားများနှင့် အခြေအနေများကို ကြည့်ရန် | အသုံးပြုသူအားလုံး |
+| `/profile` | မိမိ၏ ကိုယ်ပိုင်ပရိုဖိုင်ကို ပြန်လည်ကြည့်ရှုရန် | မှတ်ပုံတင်ပြီးသူများ |
+| `/edit` | ပရိုဖိုင် အချက်အလက်များ ပြန်လည်ပြင်ဆင်ရန် | မှတ်ပုံတင်ပြီးသူများ |
+| `/update` | မိမိစိတ်ဝင်စားသည့် လိင်အမျိုးအစား ပြောင်းလဲရန် | မှတ်ပုံတင်ပြီးသူများ |
+| `/help` | အသုံးပြုပုံ လမ်းညွှန်ချက်ကို ကြည့်ရှုရန် | အသုံးပြုသူအားလုံး |
 
-Join thousands of users finding meaningful connections through MM Match! 💕
+---
+
+## 🌟 အဓိက အကျိုးကျေးဇူးများ (Key Benefits)
+
+### **အသုံးပြုသူများအတွက်**
+
+* **လွယ်ကူရိုးရှင်းခြင်း:** စာရိုက်စရာမလိုဘဲ ခလုတ်လေးများနှိပ်ရုံဖြင့် အလွယ်တကူ သုံးနိုင်ခြင်း။
+* **လုံခြုံစိတ်ချရခြင်း:** ကိုယ်ရေးကိုယ်တာနှင့် တည်နေရာလုံခြုံမှုကို အဓိကဦးစားပေးထားခြင်း။
+* **Real-time အကြောင်းကြားစနစ်:** Match ဖြစ်သွားပါက ချက်ချင်း Notification ပေးပို့ခြင်း။
+* **အခမဲ့အသုံးပြုနိုင်ခြင်း:** အခြေခံလုပ်ဆောင်ချက် အားလုံးကို လုံးဝအခမဲ့ သုံးနိုင်ခြင်း။
+
+### **Developer များအတွက်**
+
+* **အလွန်ကျယ်ပြန့်ခြင်း:** လူဦးရေ ၁၀၀,၀၀၀ ကျော်အထိ ဝန်ဆောင်မှုကို ချောမွေ့စွာ ပေးနိုင်ခြင်း။
+* **အသေးစား ကုန်ကျစရိတ်:** ဆာဗာမဲ့စနစ် ဖြစ်သောကြောင့် လစဉ် ပုံသေကုန်ကျစရိတ် သုညနီးပါးဖြစ်ခြင်း။
+* **ခေတ်မီနည်းပညာ:** နောက်ဆုံးပေါ် JavaScript နှင့် ကမ္ဘာ့အမြန်ဆုံး Edge Database ကို သုံးထားခြင်း။
+
+---
+
+## 📈 ရှေ့ဆက်လုပ်ဆောင်မည့် အဆင့်မြှင့်တင်မှုများ (Future Enhancements)
+
+* **အဆင့်မြင့်စစ်ထုတ်စနစ်:** အသက်အပိုင်းအခြား၊ ဝါသနာနှင့် စိတ်ဝင်စားမှုတူရာအလိုက် ထပ်မံစစ်ထုတ်နိုင်ခြင်း။
+* **ဓာတ်ပုံအစစ်အမှန် စစ်ဆေးခြင်း:** ပရိုဖိုင်များ ပိုမိုစိတ်ချရစေရန် Photo Verification စနစ် ထည့်သွင်းခြင်း။
+* **အပြန်အလှန် စကားပြောစနစ် တိုးမြှင့်ခြင်း:** ဘော့အတွင်း မက်ဆေ့ခ်ျ ပေးပို့မှုများကို ပိုမိုမြန်ဆန် ကောင်းမွန်အောင် ပြုလုပ်ခြင်း။
+* **ပရီမီယံ လုပ်ဆောင်ချက်များ:** ပိုမိုထူးခြားဆန်းသစ်သော ရှာဖွေမှု အယ်လ်ဂိုရီသမ်များ ထည့်သွင်းခြင်း။
+
+---
+
+## 🤝 ပူးပေါင်းပါဝင်ရန် (Contributing)
+
+ဤပရောဂျက်ကို ပိုမိုကောင်းမွန်အောင် ဝိုင်းဝန်းကူညီ ပြင်ဆင်နိုင်ပါသည်။ အဓိကအားဖြင့် အောက်ပါကဏ္ဍများတွင် ပါဝင်နိုင်ပါသည်-
+
+* UI/UX ပိုမိုလှပအောင် ပြင်ဆင်ခြင်း
+* စနစ်အမြန်နှုန်း ပိုမိုကောင်းမွန်အောင် အကောင်းဆုံးဖြစ်အောင် လုပ်ဆောင်ခြင်း (Performance Optimization)
+* လုပ်ဆောင်ချက်အသစ်များ စဉ်းစားထည့်သွင်းခြင်း
+* Bug များနှင့် အမှားများကို ရှာဖွေပြင်ဆင်ခြင်း
+
+---
+
+## 📄 လိုင်စင် (License)
+
+MIT License - မိမိတို့၏ ပရောဂျက်များတွင် စိတ်ကြိုက် ရယူအသုံးပြုနိုင်ပြီး လွတ်လပ်စွာ ပြုပြင်မွမ်းမံနိုင်ပါသည်။
+
+---
+
+## 🎉 MM Match ကို ယနေ့ပဲ စတင်အသုံးပြုလိုက်ပါ!
+
+**ဘော့လင့်ခ်:** [@mmcupid_bot](https://t.me/mmcupid_bot)
+
+**တိုက်ရိုက်လင့်ခ်:** [https://t.me/mmcupid_bot](https://t.me/mmcupid_bot)
+
+MM Match မှတစ်ဆင့် ထောင်ပေါင်းများစွာသော အသုံးပြုသူများနှင့်အတူ သင့်ရဲ့ စစ်မှန်တဲ့ ဖူးစာရှင်ကို အမြန်ဆုံး ရှာဖွေလိုက်ပါ! 💕

@@ -110,7 +110,8 @@ const migrateLocationSchema = async () => {
 
     const migrations = [
         { sql: 'ALTER TABLE users ADD COLUMN latitude REAL', name: 'latitude' },
-        { sql: 'ALTER TABLE users ADD COLUMN longitude REAL', name: 'longitude' }
+        { sql: 'ALTER TABLE users ADD COLUMN longitude REAL', name: 'longitude' },
+        { sql: 'ALTER TABLE users ADD COLUMN interests TEXT', name: 'interests' }
     ];
 
     for (const migration of migrations) {
@@ -126,6 +127,12 @@ const migrateLocationSchema = async () => {
 
     try {
         await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_location ON users(latitude, longitude) WHERE is_registered = 1' });
+    } catch (error) {
+        console.error('Location index migration error:', error);
+    }
+
+    try {
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_interests ON users(interests)' });
     } catch (error) {
         console.error('Location index migration error:', error);
     }
