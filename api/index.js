@@ -1082,7 +1082,11 @@ async function showMyProfile(ctx) {
             }
         }
         
-        const caption = `${sparkText}👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${user.address}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
+        const displayAddress = (user.latitude != null && user.longitude != null && (!user.address || /^(Location shared|Location updated)$/i.test(user.address.trim())))
+            ? 'Location shared'
+            : (user.address || 'Not set');
+
+        const caption = `${sparkText}👤 **My Profile**\n\n📝 ${user.nickname} (${user.age})\n📍 ${displayAddress}\n🧬 ${user.gender?.toUpperCase()}\n💕 Looking for: ${user.looking_for?.toUpperCase()}\n\n📝 ${user.bio}`;
         
         try {
             return await ctx.replyWithPhoto(user.photo_id, { caption: caption });
