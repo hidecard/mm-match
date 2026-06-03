@@ -344,7 +344,17 @@ bot.start(async (ctx) => {
         
         if (existingUser && existingUser.is_registered) {
             // Returning user - Welcome Back!
+            // Get real stats for monthly user count
+            const realStats = await stats.getRealStats();
+            const totalUsers = realStats.total || 0;
+            
+            // Create bar chart for user count
+            const userCountBar = '█'.repeat(Math.min(Math.floor(totalUsers / 1000), 20));
+            
             const welcomeBackText = `🎉 **Welcome Back!**
+
+📊 ${totalUsers.toLocaleString()} monthly users
+${userCountBar} ${totalUsers.toLocaleString()}
 
 ${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရောက်ရှိလာပါပြီ။ 💕
 
@@ -404,9 +414,19 @@ ${existingUser.nickname} ဟာ MM Cupid ကို ပြန်လည်ရေ�
         }
         
         // Completely new user
-        const welcomeMessage = `🎉 MM Cupid မှ ကြိုဆိုပါတယ်!
+        // Get real stats for monthly user count
+        const realStats = await stats.getRealStats();
+        const totalUsers = realStats.total || 0;
+        
+        // Create bar chart for user count
+        const userCountBar = '█'.repeat(Math.min(Math.floor(totalUsers / 1000), 20));
+        
+        const welcomeMessage = `🎉 **MM Cupid - Match & Meet New Friends**
 
-💕 **Tinder-style Dating Bot**
+📊 ${totalUsers.toLocaleString()} monthly users
+${userCountBar} ${totalUsers.toLocaleString()}
+
+💕 **Find your perfect match today!**
 
 📋 **မှတ်ပုံတင်လုပ်ရန် အဆင့်များ:**
 1️⃣ နာမည် (Nickname)
