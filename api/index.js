@@ -1864,6 +1864,20 @@ async function handleChat(ctx, user) {
     if (text === '/find' || text === '🔍 Find Match' || text === '🔍 ဖူးစာရှင်ရှာမည်') {
         return await showNextProfile(ctx);
     }
+
+    // Main menu Interests button
+    if (text === '🏷️ Interests') {
+        try {
+            const userMenu = await getUser(ctx.from.id);
+            if (!userMenu || !userMenu.is_registered) return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+            await db.execute({ sql: "UPDATE users SET step = 'ask_interests' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply('သင့်စိတ်ဝင်စားသော အရာများ (tags) ကို ကော်မား သို့မဟုတ် စာလုံးဖြင့် ခွဲ၍ ရိုက်ထည့်ပေးပါ။ ဥပမာ: travel, music, food');
+        } catch (error) {
+            console.error('Interests button error:', error);
+            return await ctx.reply('စနစ်အမှားဖြစ်ပါတယ်။ နောက်မှ ပြန်စမ်းပါ။');
+        }
+    }
+
     if (text === '✨ Daily Spark') {
         // Trigger spark command
         const user = await getUser(ctx.from.id);
