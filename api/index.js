@@ -139,15 +139,31 @@ const getLoveCoachAdvice = async (question) => {
             const errorText = await response.text();
             console.error('Cloudflare AI API error:', response.status, response.statusText);
             console.error('Error response:', errorText);
-            return null;
+            // Return fallback advice instead of null
+            return getFallbackAdvice(question);
         }
 
         const data = await response.json();
         console.log('Response data:', JSON.stringify(data, null, 2));
-        return data.result?.response || null;
+        return data.result?.response || getFallbackAdvice(question);
     } catch (error) {
         console.error('Error calling Cloudflare AI:', error);
-        return null;
+        return getFallbackAdvice(question);
+    }
+};
+
+// Fallback advice when AI is unavailable
+const getFallbackAdvice = (question) => {
+    const lowerQuestion = question.toLowerCase();
+    
+    if (lowerQuestion.includes('crush') || lowerQuestion.includes('စပြော')) {
+        return "💕 Crush နေတဲ့သူကို စကားစပြောချင်ရင် ရဲရင့်စွာ စတင်ပါ။ သူတို့စိတ်ကြိုက်တွေကို သိချင်ပါတယ်ဆိုတဲ့ မေးခွန်းလေးတွေ မေးပါ။ သူတို့နဲ့ အတူပါဝင်နိုင်တဲ့ အရာတွေကို ရှာပါ။ အရေးကြီးဆုံးက သူတို့ကို ဂရုပြုပြီး နားလည်ပေးပါ။ ✨";
+    } else if (lowerQuestion.includes('date') || lowerQuestion.includes('သွား')) {
+        return "🌟 First Date သွားရင် သတိထားရမဲ့အရာတွေ - အဝတ်အစားလှလှပြောင်းပါ၊ အချိန်မှန်ပါ၊ သူတို့စိတ်ကြိုက်ကို ဂရုပြုပါ၊ ရှင်းရှင်းပြောဆိုပါ၊ နှုတ်ကပတ်ကောင်းပါ။ အရေးကြီးဆုံးက သူတို့ကို ဂရုပြုပြီး နားလည်ပေးပါ။ 💕";
+    } else if (lowerQuestion.includes('ငြင်းခုံ') || lowerQuestion.includes('fight') || lowerQuestion.includes('argue')) {
+        return "🤝 ချစ်သူနဲ့ ငြင်းခုံရင် ရဲရင့်စွာ စကားပြောပါ။ သူတို့ဘာပြောနေလဲ နားထောင်ပါ။ သင့်ခံစားချက်ကို ရှင်းပြပါ။ အပြန်အလှန် နားလည်ပေးပါ။ လေးစားပြီး ဖြေရှင်းပါ။ ချစ်ခြင်းမေးခွန်းထက် နားလည်မှုက ပိုအရေးကြီးပါတယ်။ 💞";
+    } else {
+        return "💕 ချစ်ရေးချစ်ရာ အကြံဉာဏ် - ရဲရင့်စွာ စကားပြောပါ၊ သူတို့ကို ဂရုပြုပါ၊ နားလည်ပေးပါ၊ လေးစားပါ၊ သစ္စာရှိပါ။ ချစ်ခြင်းမေးခွန်းထက် နားလည်မှုက ပိုအရေးကြီးပါတယ်။ ✨";
     }
 };
 
