@@ -1362,7 +1362,8 @@ bot.on('message', async (ctx) => {
 
     // --- Group Dating Flow (for registered users) ---
     if (user.step === 'ask_group_name') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        // Only block commands starting with /, allow all other text
+        if (text && text.trim().startsWith('/')) return await reservedInputReply(ctx);
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:', Markup.removeKeyboard());
         
         console.log('Setting group name:', text.trim(), 'for user:', ctx.from.id);
@@ -1372,7 +1373,8 @@ bot.on('message', async (ctx) => {
     }
     
     if (user.step === 'ask_group_bio') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        // Only block commands starting with /, allow all other text including /skip
+        if (text && text.trim().startsWith('/') && text.trim() !== '/skip') return await reservedInputReply(ctx);
         
         console.log('Processing group bio for user:', ctx.from.id);
         // Get the group name from temp_data
@@ -1412,7 +1414,8 @@ bot.on('message', async (ctx) => {
     }
     
     if (user.step === 'ask_group_id') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        // Only block commands starting with /, allow all other text
+        if (text && text.trim().startsWith('/')) return await reservedInputReply(ctx);
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ Group ID ရိုက်ထည့်ပါ:', Markup.removeKeyboard());
         
         const groupId = parseInt(text.trim());
