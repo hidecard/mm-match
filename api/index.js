@@ -361,7 +361,11 @@ const trackUserSession = async (userId) => {
 // Get user's current group
 const getUserGroup = async (userId) => {
     try {
-        if (!db) return null;
+        console.log('getUserGroup called for userId:', userId);
+        if (!db) {
+            console.error('Database not initialized in getUserGroup');
+            return null;
+        }
         const result = await db.execute({
             sql: `SELECT g.*, gm.is_leader 
                   FROM groups g 
@@ -369,6 +373,7 @@ const getUserGroup = async (userId) => {
                   WHERE gm.user_id = ? AND g.is_active = 1`,
             args: [userId]
         });
+        console.log('getUserGroup result rows:', result.rows.length);
         if (result.rows.length > 0) {
             return { ...result.rows[0], is_leader: result.rows[0].is_leader };
         }
@@ -400,10 +405,15 @@ const getGroupMembers = async (groupId) => {
 // Create a new group
 const createGroup = async (userId, name, bio) => {
     try {
-        if (!db) return null;
+        console.log('createGroup called with userId:', userId, 'name:', name, 'bio:', bio);
+        if (!db) {
+            console.error('Database not initialized');
+            return { error: 'Database not available' };
+        }
         
         // Check if user is already in a group
         const existingGroup = await getUserGroup(userId);
+        console.log('Existing group check:', existingGroup);
         if (existingGroup) {
             return { error: 'You are already in a group' };
         }
@@ -414,17 +424,19 @@ const createGroup = async (userId, name, bio) => {
             args: [name, bio, userId]
         });
         const groupId = groupResult.meta.last_row_id;
+        console.log('Group created with ID:', groupId);
         
         // Add creator as leader
         await db.execute({
             sql: "INSERT INTO group_members (group_id, user_id, is_leader) VALUES (?, ?, 1)",
             args: [groupId, userId]
         });
+        console.log('User added as leader to group:', groupId);
         
         return { success: true, groupId };
     } catch (error) {
         console.error('Error creating group:', error);
-        return { error: 'Failed to create group' };
+        return { error: 'Failed to create group: ' + error.message };
     }
 };
 
@@ -1353,6 +1365,7 @@ bot.on('message', async (ctx) => {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:');
         
+        console.log('Setting group name:', text.trim(), 'for user:', ctx.from.id);
         // Store group name temporarily
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_bio', temp_data = ? WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
         return await ctx.reply('📝 အဖွဲ့အကြောင်း (Bio) ရိုက်ထည့်ပါ (သို့မဟုတ် /skip နှိပ်ပါ):');
@@ -1361,9 +1374,12 @@ bot.on('message', async (ctx) => {
     if (user.step === 'ask_group_bio') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         
+        console.log('Processing group bio for user:', ctx.from.id);
         // Get the group name from temp_data
         const userResult = await db.execute({ sql: "SELECT temp_data FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
         const groupName = userResult.rows[0]?.temp_data;
+        
+        console.log('Retrieved group name:', groupName);
         
         if (!groupName) {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -1372,8 +1388,11 @@ bot.on('message', async (ctx) => {
         
         const bio = (text === '/skip' || !text || text.trim() === '') ? null : text.trim();
         
+        console.log('Creating group with name:', groupName, 'bio:', bio, 'by user:', ctx.from.id);
         // Create the group
         const result = await createGroup(ctx.from.id, groupName, bio);
+        
+        console.log('Group creation result:', result);
         
         if (result.error) {
             await db.execute({ sql: "UPDATE users SET step = 'done', temp_data = NULL WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -1396,7 +1415,10 @@ bot.on('message', async (ctx) => {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ Group ID ရိုက်ထည့်ပါ:');
         
-        const result = await joinGroup(ctx.from.id, text.trim());
+        const groupId = parseInt(text.trim());
+        if (isNaN(groupId)) return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:');
+        
+        const result = await joinGroup(ctx.from.id, groupId);
         
         if (result.error) {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -1406,8 +1428,6 @@ bot.on('message', async (ctx) => {
         await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
         
         const successText = `✅ အဖွဲ့တွင် ဝင်ရောက်ပြီးပါပြီ!\n\n` +
-            `📛 အဖွဲ့နာမည်: ${result.group.name}\n` +
-            `📝 Bio: ${result.group.bio || 'None'}\n\n` +
             `အဖွဲ့ချိတ်ဆက်မှုရှာရန် /groupfind နှိပ်ပါ။`;
         
         await ctx.reply(successText, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
