@@ -1413,10 +1413,10 @@ bot.on('message', async (ctx) => {
     
     if (user.step === 'ask_group_id') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ Group ID ရိုက်ထည့်ပါ:');
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ Group ID ရိုက်ထည့်ပါ:', Markup.removeKeyboard());
         
         const groupId = parseInt(text.trim());
-        if (isNaN(groupId)) return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:');
+        if (isNaN(groupId)) return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:', Markup.removeKeyboard());
         
         const result = await joinGroup(ctx.from.id, groupId);
         
@@ -1733,7 +1733,7 @@ bot.command('creategroup', async (ctx) => {
         }
 
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_name' WHERE telegram_id = ?", args: [ctx.from.id] });
-        await ctx.reply('👯‍♀️ **အဖွဲ့ဖွဲ့ရန်**\n\nသင့်အဖွဲ့အတွက် နာမည်တစ်ခု ရိုက်ထည့်ပါ (ဥပမာ - "Best Friends Forever"):', { parse_mode: 'Markdown' });
+        await ctx.reply('👯‍♀️ **အဖွဲ့ဖွဲ့ရန်**\n\nသင့်အဖွဲ့အတွက် နာမည်တစ်ခု ရိုက်ထည့်ပါ (ဥပမာ - "Best Friends Forever"):', { parse_mode: 'Markdown', ...Markup.removeKeyboard() });
     } catch (error) {
         console.error('Create group error:', error);
         await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
@@ -1755,7 +1755,7 @@ bot.command('joingroup', async (ctx) => {
         }
 
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_id' WHERE telegram_id = ?", args: [ctx.from.id] });
-        await ctx.reply('👯‍♀️ **အဖွဲ့ဝင်ရန်**\n\nဝင်ချင်သော Group ID ကို ရိုက်ထည့်ပါ:', { parse_mode: 'Markdown' });
+        await ctx.reply('👯‍♀️ **အဖွဲ့ဝင်ရန်**\n\nဝင်ချင်သော Group ID ကို ရိုက်ထည့်ပါ:', { parse_mode: 'Markdown', ...Markup.removeKeyboard() });
     } catch (error) {
         console.error('Join group error:', error);
         await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
@@ -2715,13 +2715,13 @@ async function handleChat(ctx, user) {
     
     if (text === '🆕 Create Group') {
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_name' WHERE telegram_id = ?", args: [ctx.from.id] });
-        await ctx.reply('အဖွဲ့နာမည် ရိုက်ထည့်ပေးပါ:');
+        await ctx.reply('အဖွဲ့နာမည် ရိုက်ထည့်ပေးပါ:', Markup.removeKeyboard());
         return;
     }
     
     if (text === '🔗 Join Group') {
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_id' WHERE telegram_id = ?", args: [ctx.from.id] });
-        await ctx.reply('Group ID ရိုက်ထည့်ပေးပါ:');
+        await ctx.reply('Group ID ရိုက်ထည့်ပေးပါ:', Markup.removeKeyboard());
         return;
     }
     
