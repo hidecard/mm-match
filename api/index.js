@@ -111,7 +111,8 @@ const migrateLocationSchema = async () => {
     const migrations = [
         { sql: 'ALTER TABLE users ADD COLUMN latitude REAL', name: 'latitude' },
         { sql: 'ALTER TABLE users ADD COLUMN longitude REAL', name: 'longitude' },
-        { sql: 'ALTER TABLE users ADD COLUMN interests TEXT', name: 'interests' }
+        { sql: 'ALTER TABLE users ADD COLUMN interests TEXT', name: 'interests' },
+        { sql: 'ALTER TABLE users ADD COLUMN temp_data TEXT', name: 'temp_data' }
     ];
 
     for (const migration of migrations) {
@@ -580,6 +581,113 @@ const showNextGroupProfile = async (ctx) => {
         console.error('Error showing group profile:', error);
         await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
     }
+};
+
+const promptCreateGroup = async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user || !user.is_registered) {
+        return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+    }
+
+    const existingGroup = await getUserGroup(ctx.from.id);
+    if (existingGroup) {
+        return await ctx.reply('သင် အဖွဲ့တစ်ခုတွင် ပါဝင်နေပြီးဖြစ်ပါသည်။ အသစ်ဖွဲ့ရန် /leavegroup နှိပ်ပါ။');
+    }
+
+    await db.execute({ sql: "UPDATE users SET step = 'ask_group_name' WHERE telegram_id = ?", args: [ctx.from.id] });
+    return await ctx.reply('👯‍♀️ **အဖွဲ့ဖွဲ့ရန်**\n\nသင့်အဖွဲ့အတွက် နာမည်တစ်ခု ရိုက်ထည့်ပါ (ဥပမာ - "Best Friends Forever"):', { parse_mode: 'Markdown' });
+};
+
+const promptJoinGroup = async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user || !user.is_registered) {
+        return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+    }
+
+    const existingGroup = await getUserGroup(ctx.from.id);
+    if (existingGroup) {
+        return await ctx.reply('သင် အဖွဲ့တစ်ခုတွင် ပါဝင်နေပြီးဖြစ်ပါသည်။');
+    }
+
+    await db.execute({ sql: "UPDATE users SET step = 'ask_group_id' WHERE telegram_id = ?", args: [ctx.from.id] });
+    return await ctx.reply('👯‍♀️ **အဖွဲ့ဝင်ရန်**\n\nဝင်ချင်သော Group ID ကို ရိုက်ထည့်ပါ:', { parse_mode: 'Markdown' });
+};
+
+const replyMyGroup = async (ctx) => {
+    const userGroup = await getUserGroup(ctx.from.id);
+    if (!userGroup) {
+        return await ctx.reply('သင် အဖွဲ့တွင် မပါဝင်ပါ။ /creategroup ဖြင့် အသစ်ဖွဲ့နိုင်ပါသည်။');
+    }
+
+    const members = await getGroupMembers(userGroup.id);
+    const memberList = members.map(m => `${m.is_leader ? '👑' : '👤'} ${m.nickname} (${m.age})`).join('\n');
+    const groupText = `👯‍♀️ **သင့်အဖွဲ့**\n\n` +
+        `📛 အဖွဲ့နာမည်: ${userGroup.name}\n` +
+        `📝 Bio: ${userGroup.bio || 'None'}\n` +
+        `👥 အဖွဲ့ဝင် (${members.length}/${userGroup.max_members || 2}):\n\n${memberList}\n\n` +
+        `${userGroup.is_leader ? '👑 သင်သည် အဖွဲ့ခေါင်းဆောင်ဖြစ်ပါသည်' : '👤 သင်သည် အဖွဲ့ဝင်ဖြစ်ပါသည်'}`;
+
+    return await ctx.reply(groupText, { parse_mode: 'Markdown' });
+};
+
+const startGroupChat = async (ctx) => {
+    const user = await getUser(ctx.from.id);
+    if (!user || !user.is_registered) {
+        return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+    }
+
+    const userGroup = await getUserGroup(ctx.from.id);
+    if (!userGroup) {
+        return await ctx.reply('သင် အဖွဲ့တွင် မပါဝင်ပါ။');
+    }
+
+    const matchResult = await db.execute({
+        sql: `SELECT gm.*, 
+               CASE WHEN gm.group_one_id = ? THEN gm.group_two_id ELSE gm.group_one_id END as other_group_id
+               FROM group_matches gm
+               WHERE (gm.group_one_id = ? OR gm.group_two_id = ?)
+               ORDER BY gm.created_at DESC LIMIT 1`,
+        args: [userGroup.id, userGroup.id, userGroup.id]
+    });
+
+    if (matchResult.rows.length === 0) {
+        return await ctx.reply('သင့်အဖွဲ့အတွက် ချိတ်ဆက်ထားသော အဖွဲ့မရှိပါ။ /groupfind ဖြင့် အဖွဲ့ရှာပါ။');
+    }
+
+    const match = matchResult.rows[0];
+    const otherGroupId = match.other_group_id;
+    const existingSession = await db.execute({
+        sql: "SELECT * FROM group_chat_sessions WHERE group_match_id = ?",
+        args: [match.id]
+    });
+
+    if (existingSession.rows.length > 0) {
+        await db.execute({ sql: "UPDATE users SET step = 'group_chat_mode' WHERE telegram_id = ?", args: [ctx.from.id] });
+        return await ctx.reply('Group Chat ပြန်စတင်ပါပြီ။ စာပို့ပေးပါ:', Markup.keyboard([['❌ Chat မှထွက်မည်']]).resize());
+    }
+
+    await db.execute({
+        sql: "INSERT INTO group_chat_sessions (group_match_id, group_one_id, group_two_id) VALUES (?, ?, ?)",
+        args: [match.id, match.group_one_id, match.group_two_id]
+    });
+
+    const userMembers = await getGroupMembers(userGroup.id);
+    const otherMembers = await getGroupMembers(otherGroupId);
+    for (const member of [...userMembers, ...otherMembers]) {
+        await db.execute({ sql: "UPDATE users SET step = 'group_chat_mode' WHERE telegram_id = ?", args: [member.telegram_id] });
+    }
+
+    const otherGroup = await db.execute({ sql: "SELECT name FROM groups WHERE id = ?", args: [otherGroupId] });
+    return await ctx.reply(`🎉 Group Chat စတင်ပါပြီ!\n\nသင့်အဖွဲ့နဲ့ "${otherGroup.rows[0]?.name || 'Matched Group'}" အဖွဲ့ကြား Chat လုပ်နိုင်ပါပြီ။`, Markup.keyboard([['❌ Chat မှထွက်မည်']]).resize());
+};
+
+const leaveCurrentGroup = async (ctx) => {
+    const result = await leaveGroup(ctx.from.id);
+    if (result.error) {
+        return await ctx.reply(result.error);
+    }
+
+    return await ctx.reply('✅ အဖွဲ့မှ ထွက်လိုက်ပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['👯‍♀️ Group Dating', '❌ Delete Account'], ['/help']]).resize());
 };
 
 // Calculate distance between two coordinates using Haversine formula (in km)
@@ -1348,7 +1456,8 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     }
 
-    if (user.is_registered) return await handleChat(ctx, user);
+    const groupFlowSteps = new Set(['ask_group_name', 'ask_group_bio', 'ask_group_id']);
+    if (user.is_registered && !groupFlowSteps.has(user.step)) return await handleChat(ctx, user);
     
     // Registration flow
     if (user.step === 'ask_name') {
@@ -1387,14 +1496,13 @@ bot.on('message', async (ctx) => {
     }
     // Handle interests during registration or when user runs /interests
     if (user.step === 'ask_interests' || user.step === 'edit_interests') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-
         // allow skipping interests during initial registration
         if (user.step === 'ask_interests' && text === '/skip') {
             await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             return;
         }
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
 
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
 
@@ -1473,7 +1581,8 @@ bot.on('message', async (ctx) => {
     }
     
     if (user.step === 'ask_group_bio') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        const isSkip = text === '/skip';
+        if (!isSkip && isReservedUserInput(text)) return await reservedInputReply(ctx);
         
         // Get the group name from temp_data
         const userResult = await db.execute({ sql: "SELECT temp_data FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
@@ -1484,7 +1593,7 @@ bot.on('message', async (ctx) => {
             return await ctx.reply('အမှားဖြစ်ပါသည်။ ပြန်စတင်ပါ။');
         }
         
-        const bio = (text === '/skip' || !text || text.trim() === '') ? null : text.trim();
+        const bio = (isSkip || !text || text.trim() === '') ? null : text.trim();
         
         // Create the group
         const result = await createGroup(ctx.from.id, groupName, bio);
@@ -1508,6 +1617,7 @@ bot.on('message', async (ctx) => {
     
     if (user.step === 'ask_group_id') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        if (!text || text.trim() === '') return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:');
         
         const groupId = parseInt(text.trim());
         if (isNaN(groupId)) return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:');
@@ -2577,6 +2687,105 @@ bot.action('cancel_report', async (ctx) => {
 
 // --- Group Dating Action Handlers ---
 
+bot.action('group_menu_create', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+        }
+
+        const existingGroup = await getUserGroup(ctx.from.id);
+        if (existingGroup) {
+            return await ctx.reply('သင် အဖွဲ့တစ်ခုတွင် ပါဝင်နေပြီးဖြစ်ပါသည်။ အသစ်ဖွဲ့ရန် /leavegroup နှိပ်ပါ။');
+        }
+
+        await db.execute({ sql: "UPDATE users SET step = 'ask_group_name' WHERE telegram_id = ?", args: [ctx.from.id] });
+        await ctx.reply('👯‍♀️ **အဖွဲ့ဖွဲ့ရန်**\n\nသင့်အဖွဲ့အတွက် နာမည်တစ်ခု ရိုက်ထည့်ပါ (ဥပမာ - "Best Friends Forever"):', { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error('Group menu create error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
+bot.action('group_menu_join', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+        }
+
+        const existingGroup = await getUserGroup(ctx.from.id);
+        if (existingGroup) {
+            return await ctx.reply('သင် အဖွဲ့တစ်ခုတွင် ပါဝင်နေပြီးဖြစ်ပါသည်။');
+        }
+
+        await db.execute({ sql: "UPDATE users SET step = 'ask_group_id' WHERE telegram_id = ?", args: [ctx.from.id] });
+        await ctx.reply('👯‍♀️ **အဖွဲ့ဝင်ရန်**\n\nဝင်ချင်သော Group ID ကို ရိုက်ထည့်ပါ:', { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error('Group menu join error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
+bot.action('group_menu_mygroup', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        const userGroup = await getUserGroup(ctx.from.id);
+        if (!userGroup) {
+            return await ctx.reply('သင် အဖွဲ့တွင် မပါဝင်ပါ။ /creategroup ဖြင့် အသစ်ဖွဲ့နိုင်ပါသည်။');
+        }
+
+        const members = await getGroupMembers(userGroup.id);
+        const memberList = members.map(m => `${m.is_leader ? '👑' : '👤'} ${m.nickname} (${m.age})`).join('\n');
+        const groupText = `👯‍♀️ **သင့်အဖွဲ့**\n\n` +
+            `📛 အဖွဲ့နာမည်: ${userGroup.name}\n` +
+            `📝 Bio: ${userGroup.bio || 'None'}\n` +
+            `👥 အဖွဲ့ဝင် (${members.length}/${userGroup.max_members || 2}):\n\n${memberList}\n\n` +
+            `${userGroup.is_leader ? '👑 သင်သည် အဖွဲ့ခေါင်းဆောင်ဖြစ်ပါသည်' : '👤 သင်သည် အဖွဲ့ဝင်ဖြစ်ပါသည်'}`;
+
+        await ctx.reply(groupText, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error('Group menu mygroup error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
+bot.action('group_menu_find', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        await showNextGroupProfile(ctx);
+    } catch (error) {
+        console.error('Group menu find error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
+bot.action('group_menu_chat', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        return await startGroupChat(ctx);
+    } catch (error) {
+        console.error('Group menu chat error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
+bot.action('group_menu_leave', async (ctx) => {
+    try {
+        await ctx.answerCbQuery().catch(() => {});
+        const result = await leaveGroup(ctx.from.id);
+        if (result.error) {
+            return await ctx.reply(result.error);
+        }
+        await ctx.reply('✅ အဖွဲ့မှ ထွက်လိုက်ပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['👯‍♀️ Group Dating', '❌ Delete Account'], ['/help']]).resize());
+    } catch (error) {
+        console.error('Group menu leave error:', error);
+        await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+    }
+});
+
 // Group like handler
 bot.action(/^group_like_(.+)$/, async (ctx) => {
     const targetGroupId = parseInt(ctx.match[1]);
@@ -2654,12 +2863,11 @@ async function handleChat(ctx, user) {
     
     // Handle interests when registered users edit or update interests
     if (user.step === 'ask_interests' || user.step === 'edit_interests') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-
         if (user.step === 'ask_interests' && text === '/skip') {
             await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
             return await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         }
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
 
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
 
@@ -2735,6 +2943,24 @@ async function handleChat(ctx, user) {
     }
     if (text === '/find' || text === '🔍 Find Match' || text === '🔍 ဖူးစာရှင်ရှာမည်') {
         return await showNextProfile(ctx);
+    }
+
+    if (text === '/creategroup') return await promptCreateGroup(ctx);
+    if (text === '/joingroup') return await promptJoinGroup(ctx);
+    if (text === '/mygroup') return await replyMyGroup(ctx);
+    if (text === '/groupfind') return await showNextGroupProfile(ctx);
+    if (text === '/groupchat') return await startGroupChat(ctx);
+    if (text === '/leavegroup') return await leaveCurrentGroup(ctx);
+
+    if (text === '👯‍♀️ Group Dating') {
+        return await ctx.reply('👯‍♀️ **Group Dating**\n\nရွေးချယ်ပါ:', {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('Create Group', 'group_menu_create'), Markup.button.callback('Join Group', 'group_menu_join')],
+                [Markup.button.callback('My Group', 'group_menu_mygroup'), Markup.button.callback('Find Groups', 'group_menu_find')],
+                [Markup.button.callback('Group Chat', 'group_menu_chat'), Markup.button.callback('Leave Group', 'group_menu_leave')]
+            ])
+        });
     }
 
     // Main menu Interests button
@@ -3000,11 +3226,20 @@ async function handleDashboardAPI(req, res) {
             
             const successRate = totalLikes > 0 ? ((totalMatches * 2) / totalLikes * 100).toFixed(1) : 0;
             
+            const safeCount = async (sql) => {
+                try {
+                    return (await db.execute({ sql, args: [] })).rows[0]?.count || 0;
+                } catch (error) {
+                    if (/no such table/i.test(error.message)) return 0;
+                    throw error;
+                }
+            };
+
             // Group statistics
-            const totalGroups = (await db.execute({ sql: "SELECT COUNT(*) as count FROM groups WHERE is_active = 1", args: [] })).rows[0]?.count || 0;
-            const totalGroupMembers = (await db.execute({ sql: "SELECT COUNT(*) as count FROM group_members", args: [] })).rows[0]?.count || 0;
-            const totalGroupMatches = (await db.execute({ sql: "SELECT COUNT(*) as count FROM group_matches", args: [] })).rows[0]?.count || 0;
-            const totalGroupLikes = (await db.execute({ sql: "SELECT COUNT(*) as count FROM group_likes", args: [] })).rows[0]?.count || 0;
+            const totalGroups = await safeCount("SELECT COUNT(*) as count FROM groups WHERE is_active = 1");
+            const totalGroupMembers = await safeCount("SELECT COUNT(*) as count FROM group_members");
+            const totalGroupMatches = await safeCount("SELECT COUNT(*) as count FROM group_matches");
+            const totalGroupLikes = await safeCount("SELECT COUNT(*) as count FROM group_likes");
             
             console.log('Analytics fetched');
             

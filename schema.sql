@@ -15,6 +15,7 @@ CREATE TABLE users (
     interests TEXT, -- Interest tags like #travel #music #food
     mood_status TEXT, -- Current mood status with emoji
     step TEXT DEFAULT 'start', -- Registration step tracking
+    temp_data TEXT, -- Temporary state data for multi-step flows
     is_registered BOOLEAN DEFAULT 0,
     latitude REAL, -- User's location latitude
     longitude REAL, -- User's location longitude
