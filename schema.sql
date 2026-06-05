@@ -125,3 +125,73 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_date ON user_sessions(session_date)
 CREATE INDEX IF NOT EXISTS idx_likes_created_at ON likes(created_at);
 CREATE INDEX IF NOT EXISTS idx_likes_from_created ON likes(from_user, created_at);
 CREATE INDEX IF NOT EXISTS idx_profile_views_date ON profile_views(viewed_at);
+
+-- Group Dating / Double Dating Tables
+
+-- Groups table - stores dating groups
+CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    bio TEXT,
+    created_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT 1,
+    max_members INTEGER DEFAULT 2,
+    FOREIGN KEY(created_by) REFERENCES users(telegram_id)
+);
+
+-- Group members table - tracks users in each group
+CREATE TABLE IF NOT EXISTS group_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_leader BOOLEAN DEFAULT 0,
+    FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(telegram_id),
+    UNIQUE(group_id, user_id)
+);
+
+-- Group likes table - tracks when groups like other groups
+CREATE TABLE IF NOT EXISTS group_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_group_id INTEGER NOT NULL,
+    to_group_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(from_group_id) REFERENCES groups(id) ON DELETE CASCADE,
+    FOREIGN KEY(to_group_id) REFERENCES groups(id) ON DELETE CASCADE,
+    UNIQUE(from_group_id, to_group_id)
+);
+
+-- Group matches table - tracks mutual group matches
+CREATE TABLE IF NOT EXISTS group_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_one_id INTEGER NOT NULL,
+    group_two_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(group_one_id) REFERENCES groups(id) ON DELETE CASCADE,
+    FOREIGN KEY(group_two_id) REFERENCES groups(id) ON DELETE CASCADE,
+    UNIQUE(group_one_id, group_two_id)
+);
+
+-- Group chat sessions - tracks active group chats
+CREATE TABLE IF NOT EXISTS group_chat_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_match_id INTEGER NOT NULL,
+    group_one_id INTEGER NOT NULL,
+    group_two_id INTEGER NOT NULL,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(group_match_id) REFERENCES group_matches(id) ON DELETE CASCADE,
+    FOREIGN KEY(group_one_id) REFERENCES groups(id),
+    FOREIGN KEY(group_two_id) REFERENCES groups(id)
+);
+
+-- Indexes for group queries
+CREATE INDEX IF NOT EXISTS idx_groups_created_by ON groups(created_by);
+CREATE INDEX IF NOT EXISTS idx_groups_active ON groups(is_active);
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_likes_from ON group_likes(from_group_id);
+CREATE INDEX IF NOT EXISTS idx_group_likes_to ON group_likes(to_group_id);
+CREATE INDEX IF NOT EXISTS idx_group_matches_one ON group_matches(group_one_id);
+CREATE INDEX IF NOT EXISTS idx_group_matches_two ON group_matches(group_two_id);
