@@ -1363,12 +1363,12 @@ bot.on('message', async (ctx) => {
     // --- Group Dating Flow (for registered users) ---
     if (user.step === 'ask_group_name') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:');
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:', Markup.removeKeyboard());
         
         console.log('Setting group name:', text.trim(), 'for user:', ctx.from.id);
         // Store group name temporarily
         await db.execute({ sql: "UPDATE users SET step = 'ask_group_bio', temp_data = ? WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
-        return await ctx.reply('📝 အဖွဲ့အကြောင်း (Bio) ရိုက်ထည့်ပါ (သို့မဟုတ် /skip နှိပ်ပါ):');
+        return await ctx.reply('📝 အဖွဲ့အကြောင်း (Bio) ရိုက်ထည့်ပါ (သို့မဟုတ် /skip နှိပ်ပါ):', Markup.removeKeyboard());
     }
     
     if (user.step === 'ask_group_bio') {
