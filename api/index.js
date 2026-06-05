@@ -2546,9 +2546,11 @@ export default async (req, res) => {
         req.url?.startsWith('/api/ban') || req.url?.startsWith('/api/delete-user') || 
         req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/reports') ||
         req.url?.startsWith('/api/review-report') || req.url?.startsWith('/api/check-auth') ||
+        req.url?.startsWith('/api/retention') || req.url?.startsWith('/api/dau') || req.url?.startsWith('/api/swipes') ||
         req.url === '/stats' || req.url === '/users' || req.url === '/matches' || req.url === '/analytics' || 
         req.url === '/search' || req.url === '/ban' || req.url === '/delete-user' || req.url === '/banned-users' ||
-        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth') {
+        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth' ||
+        req.url === '/retention' || req.url === '/dau' || req.url === '/swipes') {
         return handleDashboardAPI(req, res);
     }
     
