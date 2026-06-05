@@ -102,3 +102,26 @@ CREATE INDEX idx_matches_user_one ON matches(user_one);
 CREATE INDEX idx_matches_user_two ON matches(user_two);
 CREATE INDEX idx_matches_created ON matches(created_at);
 CREATE INDEX idx_chat_sessions_matched ON chat_sessions(matched_user_id);
+
+-- Analytics Tables for Retention, DAU, and Swipe Activity
+
+-- User activity sessions - tracks when users are active for retention analysis
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    session_date DATE NOT NULL,
+    first_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    activities_count INTEGER DEFAULT 1,
+    FOREIGN KEY(user_id) REFERENCES users(telegram_id)
+);
+
+-- Swipe activity tracking - enhanced likes table with timestamp
+ALTER TABLE likes ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+
+-- Indexes for analytics queries
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_date ON user_sessions(user_id, session_date);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_date ON user_sessions(session_date);
+CREATE INDEX IF NOT EXISTS idx_likes_created_at ON likes(created_at);
+CREATE INDEX IF NOT EXISTS idx_likes_from_created ON likes(from_user, created_at);
+CREATE INDEX IF NOT EXISTS idx_profile_views_date ON profile_views(viewed_at);
