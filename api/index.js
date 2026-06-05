@@ -1348,6 +1348,72 @@ bot.on('message', async (ctx) => {
         return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     }
 
+    // --- Group Dating Flow (for registered users) ---
+    if (user.step === 'ask_group_name') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:');
+        
+        // Store group name temporarily
+        await db.execute({ sql: "UPDATE users SET step = 'ask_group_bio', temp_data = ? WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
+        return await ctx.reply('📝 အဖွဲ့အကြောင်း (Bio) ရိုက်ထည့်ပါ (သို့မဟုတ် /skip နှိပ်ပါ):');
+    }
+    
+    if (user.step === 'ask_group_bio') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        
+        // Get the group name from temp_data
+        const userResult = await db.execute({ sql: "SELECT temp_data FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
+        const groupName = userResult.rows[0]?.temp_data;
+        
+        if (!groupName) {
+            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply('အမှားဖြစ်ပါသည်။ ပြန်စတင်ပါ။');
+        }
+        
+        const bio = (text === '/skip' || !text || text.trim() === '') ? null : text.trim();
+        
+        // Create the group
+        const result = await createGroup(ctx.from.id, groupName, bio);
+        
+        if (result.error) {
+            await db.execute({ sql: "UPDATE users SET step = 'done', temp_data = NULL WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply(result.error);
+        }
+        
+        await db.execute({ sql: "UPDATE users SET step = 'done', temp_data = NULL WHERE telegram_id = ?", args: [ctx.from.id] });
+        
+        const successText = `✅ အဖွဲ့ဖွဲ့ပြီးပါပြီ!\n\n` +
+            `📛 အဖွဲ့နာမည်: ${groupName}\n` +
+            `📝 Bio: ${bio || 'None'}\n` +
+            `👑 သင်သည် အဖွဲ့ခေါင်းဆောင်ဖြစ်ပါသည်\n\n` +
+            `အဖွဲ့ဝင်များကို ဖိတ်ရန် Group ID ကို မျှဝေပေးပါ: ${result.groupId}`;
+        
+        await ctx.reply(successText, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return;
+    }
+    
+    if (user.step === 'ask_group_id') {
+        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
+        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ Group ID ရိုက်ထည့်ပါ:');
+        
+        const result = await joinGroup(ctx.from.id, text.trim());
+        
+        if (result.error) {
+            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply(result.error);
+        }
+        
+        await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+        
+        const successText = `✅ အဖွဲ့တွင် ဝင်ရောက်ပြီးပါပြီ!\n\n` +
+            `📛 အဖွဲ့နာမည်: ${result.group.name}\n` +
+            `📝 Bio: ${result.group.bio || 'None'}\n\n` +
+            `အဖွဲ့ချိတ်ဆက်မှုရှာရန် /groupfind နှိပ်ပါ။`;
+        
+        await ctx.reply(successText, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return;
+    }
+
     if (user.is_registered) return await handleChat(ctx, user);
     
     // Registration flow
@@ -1460,68 +1526,6 @@ bot.on('message', async (ctx) => {
             console.error('Registration final update error:', dbError);
             return await ctx.reply("မှတ်ပုံတင်ခြင်း သိမ်းဆည်းရာတွင် အမှားအယွင်းရှိနေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်စမ်းသပ်ပေးပါ။");
         }
-    }
-    
-    // --- Group Dating Flow ---
-    if (user.step === 'ask_group_name') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ အဖွဲ့နာမည် ရိုက်ထည့်ပါ:');
-        
-        // Store group name temporarily
-        await db.execute({ sql: "UPDATE users SET step = 'ask_group_bio', temp_data = ? WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
-        return await ctx.reply('📝 အဖွဲ့အကြောင်း (Bio) ရိုက်ထည့်ပါ (သို့မဟုတ် /skip နှိပ်ပါ):');
-    }
-    
-    if (user.step === 'ask_group_bio') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        
-        // Get the group name from temp_data
-        const userResult = await db.execute({ sql: "SELECT temp_data FROM users WHERE telegram_id = ?", args: [ctx.from.id] });
-        const groupName = userResult.rows[0]?.temp_data;
-        
-        if (!groupName) {
-            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply('အမှားဖြစ်ပါသည်။ ပြန်စတင်ပါ။');
-        }
-        
-        const bio = (text === '/skip' || !text || text.trim() === '') ? null : text.trim();
-        
-        // Create the group
-        const result = await createGroup(ctx.from.id, groupName, bio);
-        
-        if (result.error) {
-            await db.execute({ sql: "UPDATE users SET step = 'done', temp_data = NULL WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply(result.error);
-        }
-        
-        await db.execute({ sql: "UPDATE users SET step = 'done', temp_data = NULL WHERE telegram_id = ?", args: [ctx.from.id] });
-        
-        const successText = `✅ အဖွဲ့ဖွဲ့ပြီးပါပြီ!\n\n` +
-            `📛 အဖွဲ့နာမည်: ${groupName}\n` +
-            `📝 Bio: ${bio || 'None'}\n` +
-            `👑 သင်သည် အဖွဲ့ခေါင်းဆောင်ဖြစ်ပါသည်\n\n` +
-            `အဖွဲ့ဝင်များကို ဖိတ်ရန် Group ID ကို မျှဝေပေးပါ: ${result.groupId}`;
-        
-        await ctx.reply(successText, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '❌ Delete Account'], ['/help']]).resize());
-        return;
-    }
-    
-    if (user.step === 'ask_group_id') {
-        if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        
-        const groupId = parseInt(text.trim());
-        if (isNaN(groupId)) return await ctx.reply('Group ID ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပါ:');
-        
-        const result = await joinGroup(ctx.from.id, groupId);
-        
-        await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-        
-        if (result.error) {
-            return await ctx.reply(result.error);
-        }
-        
-        await ctx.reply(`✅ အဖွဲ့ ID ${groupId} သို့ ဝင်ပြီးပါပြီ!`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '❌ Delete Account'], ['/help']]).resize());
-        return;
     }
 });
 
