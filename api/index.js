@@ -610,7 +610,7 @@ const saveSharedLocation = async (ctx, nextStep) => {
 
 const RESERVED_USER_INPUTS = new Set([
     '/start', '/find', '/nearby', '/help', '/pulse', '/profile', '/edit', '/cancel',
-    '🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse', '⚙️ Edit Profile', '👤 Profile', '✨ Daily Spark', '❌ Delete Account',
+    '🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse', '⚙️ Edit Profile', '👤 Profile', '👯‍♀️ Group Dating', '🏷️ Interests', '✨ Daily Spark', '❌ Delete Account',
     '📝 Nickname', '🎂 Age', '🏠 Address', '📷 Photo', '📄 Bio', '📍 Share My Location'
 ]);
 
@@ -910,7 +910,7 @@ ${existingUser.nickname} မင်္ဂလာပါ! MM Cupid မှာ ပြ�
             // Show main menu
             return await ctx.reply(
                 `🔥 သင့်ဖူးစာရှင်ကို စတင်ရှာဖွေလိုက်ပါ!`,
-                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize()
+                Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize()
             );
         }
         
@@ -1138,7 +1138,7 @@ bot.on('message', async (ctx) => {
                 args: [ctx.from.id]
             });
             
-            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            await ctx.reply('❌ Chat မှ ထွက်ပြီးပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             return;
         }
         
@@ -1229,7 +1229,7 @@ bot.on('message', async (ctx) => {
             if (sessionResult.rows.length === 0) {
                 // No active chat session, exit chat mode
                 await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+                return await ctx.reply("Chat session မတွေ့ပါ။ ပြန်လည်စတင်ပါ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             }
             
             const matchedUserId = sessionResult.rows[0].matched_user_id;
@@ -1288,7 +1288,7 @@ bot.on('message', async (ctx) => {
         }
         if (text === '❌ Cancel') {
             await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         }
     }
 
@@ -1307,7 +1307,7 @@ bot.on('message', async (ctx) => {
             args: [text.trim(), expiresAt, ctx.from.id]
         });
         
-        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        await ctx.reply("✅ Daily Spark တင်ပြီးပါပြီ!\n\nသင့် Profile ကို ဝင်ဆွိုက်တဲ့ သူတွေက ဒီ status ကို ၂၄ နာရီအတွင်း မြင်ရမှာဖြစ်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         return;
     }
 
@@ -1317,12 +1317,12 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_address') {
             if (isRealLocation(ctx.message.location)) {
                 await saveSharedLocation(ctx, 'done');
-                return await ctx.reply("✅ Location ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+                return await ctx.reply("✅ Location ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             }
             if (text && text.trim() !== '') {
                 if (isReservedUserInput(text)) return await reservedInputReply(ctx);
                 await db.execute({ sql: "UPDATE users SET address = ?, step = 'done' WHERE telegram_id = ?", args: [text.trim(), ctx.from.id] });
-                return await ctx.reply("✅ Address ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+                return await ctx.reply("✅ Address ပြင်ဆင်ပြီးပါပြီ!", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             }
             return await ctx.reply("❌ Location မတွေ့ပါ။\n\n📍 Telegram ကြောင့် အတည်ပြုထားတဲ့ Location ကို Share လုပ်ပေးပါ၊ သို့မဟုတ် သင့်နေရာအမည်ကို ရိုက်ထည့်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
         }
@@ -1339,13 +1339,13 @@ bot.on('message', async (ctx) => {
         if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
-        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     }
 
     if (user.step === 'edit_photo' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         await db.execute({ sql: "UPDATE users SET photo_id = ?, step = 'done' WHERE telegram_id = ?", args: [photoId, ctx.from.id] });
-        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return await ctx.reply("ပုံပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     }
 
     if (user.is_registered) return await handleChat(ctx, user);
@@ -1392,7 +1392,7 @@ bot.on('message', async (ctx) => {
         // allow skipping interests during initial registration
         if (user.step === 'ask_interests' && text === '/skip') {
             await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             return;
         }
 
@@ -1405,13 +1405,13 @@ bot.on('message', async (ctx) => {
         if (user.step === 'ask_interests') {
             // Finalize registration when interests provided during signup
             await db.execute({ sql: "UPDATE users SET interests = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
-            await ctx.reply('✅ Registration completed! Interests saved: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            await ctx.reply('✅ Registration completed! Interests saved: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
             return;
         }
 
         // edit_interests flow
         await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
-        await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         return;
     }
     if (user.step === 'ask_gender') {
@@ -1567,7 +1567,7 @@ bot.action('delete_confirm', async (ctx) => {
 bot.action('delete_cancel', async (ctx) => {
     try {
         await ctx.answerCbQuery().catch(() => {});
-        await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     } catch (error) {
         console.error('Delete cancel error:', error);
     }
@@ -1689,7 +1689,7 @@ bot.command('update', async (ctx) => {
 
 bot.command('cancel', async (ctx) => {
     await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-    await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+    await ctx.reply("ပယ်ဖျက်လိုက်ပါတယ်။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
 });
 
 // --- Group Dating Commands ---
@@ -1780,7 +1780,7 @@ bot.command('leavegroup', async (ctx) => {
             return await ctx.reply(result.error);
         }
 
-        await ctx.reply('✅ အဖွဲ့မှ ထွက်လိုက်ပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+        await ctx.reply('✅ အဖွဲ့မှ ထွက်လိုက်ပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     } catch (error) {
         console.error('Leave group error:', error);
         await ctx.reply('အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
@@ -2443,7 +2443,7 @@ bot.action(/^report_fake_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -2461,7 +2461,7 @@ bot.action(/^report_spam_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -2479,7 +2479,7 @@ bot.action(/^report_inappropriate_(.+)$/, async (ctx) => {
             args: [reporterId, reportedUserId]
         });
         
-        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+        await ctx.reply('🚨 Report တင်ပြီးပါပြီ။ ကျေးဇူးပါ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     } catch (error) {
         console.error('Report error:', error);
     }
@@ -2652,13 +2652,154 @@ bot.action(/^group_skip_(.+)$/, async (ctx) => {
 async function handleChat(ctx, user) {
     const text = ctx.message.text;
     
+    // Handle Group Dating button click
+    if (text === '👯‍♀️ Group Dating') {
+        const userGroup = await getUserGroup(ctx.from.id);
+        if (userGroup) {
+            // User is already in a group
+            const members = await getGroupMembers(userGroup.id);
+            const memberList = members.map(m => m.nickname).join(', ');
+            
+            await ctx.reply(
+                `👯‍♀️ **သင့်အဖွဲ့**\n\n` +
+                `📛 အဖွဲ့နာမည်: ${userGroup.name}\n` +
+                `📝 Bio: ${userGroup.bio || 'None'}\n` +
+                `👥 အဖွဲ့ဝင်: ${memberList}\n` +
+                `🆔 Group ID: ${userGroup.id}\n\n` +
+                `အဖွဲ့ချိတ်ဆက်မှုရှာရန် /groupfind နှိပ်ပါ။`,
+                { parse_mode: 'Markdown', ...Markup.keyboard([['🔍 Group Find', '💬 Group Chat'], ['👤 My Group', '🚪 Leave Group'], ['🔙 Back to Main Menu']]).resize() }
+            );
+        } else {
+            // User is not in a group
+            await ctx.reply(
+                `👯‍♀️ **Group Dating**\n\n` +
+                `သူငယ်ချင်းများနှင့် အဖွဲ့ဖွဲ့ပြီး တစ်ပါတည်း ဖူးစာရှင်ရှာနိုင်ပါသည်။\n\n` +
+                `/creategroup - အသစ်ဖွဲ့မည်\n` +
+                `/joingroup [Group ID] - အဖွဲ့ဝင်မည်\n` +
+                `/groupfind - အဖွဲ့ချိတ်ဆက်မှုရှာမည်`,
+                { parse_mode: 'Markdown', ...Markup.keyboard([['🆕 Create Group', '🔗 Join Group'], ['🔍 Group Find'], ['🔙 Back to Main Menu']]).resize() }
+            );
+        }
+        return;
+    }
+    
+    // Handle Group Dating submenu buttons
+    if (text === '🔙 Back to Main Menu') {
+        await ctx.reply('Main Menu သို့ ပြန်သွားပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return;
+    }
+    
+    if (text === '🆕 Create Group') {
+        await db.execute({ sql: "UPDATE users SET step = 'ask_group_name' WHERE telegram_id = ?", args: [ctx.from.id] });
+        await ctx.reply('အဖွဲ့နာမည် ရိုက်ထည့်ပေးပါ:');
+        return;
+    }
+    
+    if (text === '🔗 Join Group') {
+        await db.execute({ sql: "UPDATE users SET step = 'ask_group_id' WHERE telegram_id = ?", args: [ctx.from.id] });
+        await ctx.reply('Group ID ရိုက်ထည့်ပေးပါ:');
+        return;
+    }
+    
+    if (text === '🔍 Group Find') {
+        await showNextGroupProfile(ctx);
+        return;
+    }
+    
+    if (text === '💬 Group Chat') {
+        // Trigger the groupchat command
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.is_registered) {
+            return await ctx.reply('Profile မရှိသေးပါ။ /start နှိပ်ပြီး မှတ်ပုံတင်ပါ။');
+        }
+        
+        const userGroup = await getUserGroup(ctx.from.id);
+        if (!userGroup) {
+            return await ctx.reply('သင် အဖွဲ့တွင် မပါဝင်ပါ။');
+        }
+        
+        // Find active group match
+        const matchResult = await db.execute({
+            sql: `SELECT gm.*, 
+                   CASE WHEN gm.group_one_id = ? THEN gm.group_two_id ELSE gm.group_one_id END as other_group_id
+                   FROM group_matches gm
+                   WHERE (gm.group_one_id = ? OR gm.group_two_id = ?)
+                   ORDER BY gm.created_at DESC LIMIT 1`,
+            args: [userGroup.id, userGroup.id, userGroup.id]
+        });
+        
+        if (matchResult.rows.length === 0) {
+            return await ctx.reply('သင့်အဖွဲ့အတွက် ချိတ်ဆက်ထားသော အဖွဲ့မရှိပါ။ /groupfind ဖြင့် အဖွဲ့ရှာပါ။');
+        }
+        
+        const match = matchResult.rows[0];
+        const otherGroupId = match.other_group_id;
+        
+        // Check if chat session already exists
+        const existingSession = await db.execute({
+            sql: "SELECT * FROM group_chat_sessions WHERE group_match_id = ?",
+            args: [match.id]
+        });
+        
+        if (existingSession.rows.length > 0) {
+            await db.execute({ sql: "UPDATE users SET step = 'group_chat_mode' WHERE telegram_id = ?", args: [ctx.from.id] });
+            return await ctx.reply('Group Chat ပြန်စတင်ပါပြီ။ စာပို့ပေးပါ:', Markup.keyboard([['❌ Chat မှထွက်မည်']]).resize());
+        }
+        
+        // Create new chat session
+        await db.execute({
+            sql: "INSERT INTO group_chat_sessions (group_match_id, group_one_id, group_two_id) VALUES (?, ?, ?)",
+            args: [match.id, match.group_one_id, match.group_two_id]
+        });
+        
+        const userMembers = await getGroupMembers(userGroup.id);
+        const otherMembers = await getGroupMembers(otherGroupId);
+        const allMembers = [...userMembers, ...otherMembers];
+        
+        for (const member of allMembers) {
+            await db.execute({ sql: "UPDATE users SET step = 'group_chat_mode' WHERE telegram_id = ?", args: [member.telegram_id] });
+        }
+        
+        const otherGroup = await db.execute({ sql: "SELECT name FROM groups WHERE id = ?", args: [otherGroupId] });
+        await ctx.reply(`🎉 Group Chat စတင်ပါပြီ!\n\nသင့်အဖွဲ့နဲ့ "${otherGroup.rows[0].name}" အဖွဲ့ကြား Chat လုပ်နိုင်ပါပြီ။`, Markup.keyboard([['❌ Chat မှထွက်မည်']]).resize());
+        return;
+    }
+    
+    if (text === '👤 My Group') {
+        const userGroup = await getUserGroup(ctx.from.id);
+        if (!userGroup) {
+            return await ctx.reply('သင် အဖွဲ့တွင် မပါဝင်ပါ။');
+        }
+        
+        const members = await getGroupMembers(userGroup.id);
+        const memberList = members.map(m => `${m.nickname} (${m.age})`).join('\n');
+        
+        const groupText = `👯‍♀️ **သင့်အဖွဲ့**\n\n` +
+            `📛 အဖွဲ့နာမည်: ${userGroup.name}\n` +
+            `📝 Bio: ${userGroup.bio || 'None'}\n` +
+            `🆔 Group ID: ${userGroup.id}\n\n` +
+            `👥 အဖွဲ့ဝင် (${members.length} ယောက်):\n${memberList}`;
+        
+        await ctx.reply(groupText, { parse_mode: 'Markdown', ...Markup.keyboard([['🔙 Back to Main Menu']]).resize() });
+        return;
+    }
+    
+    if (text === '🚪 Leave Group') {
+        const result = await leaveGroup(ctx.from.id);
+        if (result.error) {
+            return await ctx.reply(result.error);
+        }
+        await ctx.reply('✅ အဖွဲ့မှ ထွက်လိုက်ပါပြီ။', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return;
+    }
+    
     // Handle interests when registered users edit or update interests
     if (user.step === 'ask_interests' || user.step === 'edit_interests') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
 
         if (user.step === 'ask_interests' && text === '/skip') {
             await db.execute({ sql: "UPDATE users SET interests = NULL, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
-            return await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return await ctx.reply('✅ Registration completed without interests. You can set interests later with /interests', Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         }
 
         if (!text || text.trim() === '') return await ctx.reply('ကျေးဇူးပြု၍ interests (tags) တစ်ခုခု ရိုက်ထည့်ပါ၊ ဥပမာ: travel, music, food');
@@ -2668,11 +2809,11 @@ async function handleChat(ctx, user) {
 
         if (user.step === 'ask_interests') {
             await db.execute({ sql: "UPDATE users SET interests = ?, is_registered = 1, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
-            return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ:' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+            return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ:' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         }
 
         await db.execute({ sql: "UPDATE users SET interests = ?, step = 'done' WHERE telegram_id = ?", args: [normalized, ctx.from.id] });
-        return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
+        return await ctx.reply('✅ Interests သိမ်းပြီးပါပြီ: ' + formatInterests(normalized), Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
     }
     
     // Handle report description input
@@ -2697,7 +2838,7 @@ async function handleChat(ctx, user) {
         await ctx.reply(`✅ Report တင်ပြီးပါပြီ။
 
 သင့် Report ကို Admin team က စစ်ဆေးပါမည်။
-ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '❌ Delete Account'], ['/help']]).resize());
+ကျေးဇူးတင်ပါတယ်! 🙏`, Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['👯‍♀️ Group Dating', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
         return;
     }
     
@@ -3110,37 +3251,47 @@ async function handleDashboardAPI(req, res) {
             
             const days = parseInt(req.query?.days) || 30;
             
-            // Get daily swipe (like) counts
-            const swipeResult = await db.execute({
-                sql: `SELECT 
-                    date(created_at) as swipe_date,
-                    COUNT(*) as swipe_count,
-                    COUNT(DISTINCT from_user) as unique_swipers
-                FROM likes 
-                WHERE created_at >= date('now', '-${days} days')
-                GROUP BY date(created_at)
-                ORDER BY swipe_date ASC`,
-                args: []
-            });
-            
-            // Get profile view counts
-            const viewResult = await db.execute({
-                sql: `SELECT 
-                    date(viewed_at) as view_date,
-                    COUNT(*) as view_count,
-                    COUNT(DISTINCT user_id) as unique_viewers
-                FROM profile_views 
-                WHERE viewed_at >= date('now', '-${days} days')
-                GROUP BY date(viewed_at)
-                ORDER BY view_date ASC`,
-                args: []
-            });
-            
-            return res.status(200).json({
-                swipeData: swipeResult.rows || [],
-                viewData: viewResult.rows || [],
-                period: days
-            });
+            try {
+                // Get daily swipe (like) counts
+                const swipeResult = await db.execute({
+                    sql: `SELECT 
+                        date(created_at) as swipe_date,
+                        COUNT(*) as swipe_count,
+                        COUNT(DISTINCT from_user) as unique_swipers
+                    FROM likes 
+                    WHERE created_at >= date('now', '-${days} days')
+                    GROUP BY date(created_at)
+                    ORDER BY swipe_date ASC`,
+                    args: []
+                });
+                
+                // Get profile view counts
+                const viewResult = await db.execute({
+                    sql: `SELECT 
+                        date(viewed_at) as view_date,
+                        COUNT(*) as view_count,
+                        COUNT(DISTINCT user_id) as unique_viewers
+                    FROM profile_views 
+                    WHERE viewed_at >= date('now', '-${days} days')
+                    GROUP BY date(viewed_at)
+                    ORDER BY view_date ASC`,
+                    args: []
+                });
+                
+                return res.status(200).json({
+                    swipeData: swipeResult.rows || [],
+                    viewData: viewResult.rows || [],
+                    period: days
+                });
+            } catch (error) {
+                console.error('Swipe data fetch error:', error);
+                // Return empty data if the query fails (e.g., created_at column doesn't exist yet)
+                return res.status(200).json({
+                    swipeData: [],
+                    viewData: [],
+                    period: days
+                });
+            }
         }
 
         // API: /api/search - Search users
@@ -3771,7 +3922,7 @@ const dashboardHTML = `<!DOCTYPE html>
                     
                     const headers = { 'X-Password': password };
                     
-                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes, reportsRes] = await Promise.all([
+                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes, reportsRes, retentionRes, dauRes, swipeRes] = await Promise.all([
                         fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
                             if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
                             return r.json();
@@ -3794,6 +3945,18 @@ const dashboardHTML = `<!DOCTYPE html>
                         }),
                         fetch(\`\${API_URL}/api/reports\`, { headers }).then(async r => {
                             if (!r.ok) return { reports: [] };
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/retention\`, { headers }).then(async r => {
+                            if (!r.ok) return null;
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/dau\`, { headers }).then(async r => {
+                            if (!r.ok) return null;
+                            return r.json();
+                        }),
+                        fetch(\`\${API_URL}/api/swipes\`, { headers }).then(async r => {
+                            if (!r.ok) return null;
                             return r.json();
                         })
                     ]);
