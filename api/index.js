@@ -2288,24 +2288,40 @@ bot.action(/^like_(.+)$/, async (ctx) => {
             }
         } else {
             try {
-                const me = await getUser(senderId);
-                if (me) {
-                    let likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*\n\nသင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉`;
-                    
-                    if (secretMessage) {
-                        likeNotifyText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
+                // Check if target user exists and is not banned
+                const targetUser = await getUser(targetId);
+                if (!targetUser) {
+                    console.log('Target user not found for notification:', targetId);
+                } else if (targetUser.is_banned || targetUser.is_shadowbanned) {
+                    console.log('Target user is banned/shadowbanned, skipping notification:', targetId);
+                } else {
+                    const me = await getUser(senderId);
+                    if (me) {
+                        let likeNotifyText = `🔔 *သတင်းကောင်းရှိပါတယ်။*\n\nသင့်ကို သဘောကျလို့ Like လုပ်ထားပါတယ်။ 😉`;
+                        
+                        if (secretMessage) {
+                            // Escape special characters for Markdown if needed, but the current app seems to use raw
+                            likeNotifyText += `\n\n💌 *သူ့ရဲ့စိတ်ကူးလေး:* "${secretMessage}"`;
+                        }
+                        
+                        likeNotifyText += `\n\nအဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
+                        
+                        console.log('Sending like notification to:', targetId);
+                        await bot.telegram.sendMessage(targetId, likeNotifyText, {
+                            parse_mode: 'Markdown',
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback('👀 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
+                            ])
+                        }).catch(err => {
+                            console.error(`Failed to send message to ${targetId}:`, err.message);
+                            // If it's a "bot was blocked by the user" error, we can't do much
+                        });
+                        console.log('Like notification process completed');
                     }
-                    
-                    likeNotifyText += `\n\nအဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
-                    
-                    await bot.telegram.sendMessage(targetId, likeNotifyText, {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('👀 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
-                        ])
-                    });
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Error in like notification block:', e);
+            }
         }
     } catch (error) {
         console.error('Like Error:', error);
