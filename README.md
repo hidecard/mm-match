@@ -88,7 +88,7 @@
 * **စမတ် Session Cache:** Swiping လုပ်နေစဉ်အတွင်း တူညီသော ပရိုဖိုင်ဟောင်းများ ထပ်မံပေါ်ပေါက်မလာစေရန် ခေတ္တ Cache စနစ်ဖြင့် ထိန်းချုပ်ထားပါသည်။
 * **အမြဲတမ်းပရိုဖိုင် မှတ်သားမှု:** အသုံးပြုသူတစ်ဦး ကြည့်ရှုပြီးသမျှ ပရိုဖိုင်များကို ဒေတာဘေ့စ်တွင် အမြဲတမ်း မှတ်သားထားသဖြင့် Session အသစ်များတွင်လည်း ပရိုဖိုင်ဟောင်းများ ထပ်ပေါ်လာမည် မဟုတ်ပါသည်။
 * **Proxy Message Routing:** ဆာဗာမဲ့စနစ်နှင့် အကိုက်ညီဆုံးဖြစ်အောင် အမည်မဖော်ဘဲ စကားပြောဆိုမှု မက်ဆေ့ခ်ျများကို စနစ်တကျ လမ်းကြောင်းလွှဲ ပေးပို့ပေးပါသည်။
-* **Session စီမံခန့်ခွဲမှု:** အမြဲတမ်း ချိတ်ဆက်ထားရမည့် Persistent Connection များ မလိုဘဲ Real-time Chat မက်ဆေ့ခ်ျများကို ကောင်းမွန်စွာ ထိန်းချုပ်နိုင်ပါသည်။
+* **Session စီမံခန့်ခွဲမှု:** အမြဲတမ်း ချက်ဆက်ထားရမည့် Persistent Connection များ မလိုဘဲ Real-time Chat မက်ဆေ့ခ်ျများကို ကောင်းမွန်စွာ ထိန်းချုပ်နိုင်ပါသည်။
 * **Ban/Shadowban စနစ်:** ဘော့အတွင်း စည်းကမ်းဖောက်ဖျက်သူများကို ပိတ်ပင်ရန်နှင့် တိတ်တဆိတ်ဖျောက်ထားရန် စနစ်များ ပါဝင်ပါသည်။
 * **Admin Dashboard:** အချက်အလက်များကို ဝဘ်ဆိုဒ်ပုံစံဖြင့် တစ်နေရာတည်းတွင် စောင့်ကြည့်နိုင်သော လျှို့ဝှက်နံပါတ်ခံ Web Dashboard ပါဝင်ပါသည်။
 * **လုံခြုံရေးမြင့်မားခြင်း:** SQL Injection ကာကွယ်ခြင်း၊ Input စစ်ဆေးခြင်းနှင့် Webhook လုံခြုံရေးစနစ်များ ထည့်သွင်းထားပါသည်။
@@ -247,7 +247,7 @@ $$d = R \cdot c$$
                               │
 [ တည်နေရာပေးပို့ပါ ]  ──> GPS ကိုဖတ်မည် (အဆင့်='get_photo')
                               │
-[ ဓာတ်ပုံတင်ပါ ]       ──> တယ်လီဂရမ် Photo ID ကိုသိမ်းမည် (အဆင့်='get_bio')
+[ ဓာတ်ပုံတင်ပါ ]       ──> တယ်လီဂရမ် Photo ID ကိုသိမ်းမည် (အဆင့်='get_photo_check')
                               │
 [ Bio ရေးသားပါ ]     ──> စာသားတို သိမ်းဆည်းမည် (အဆင့်='get_gender')
                               │
@@ -268,292 +268,80 @@ $$d = R \cdot c$$
 5. **Bio (ကိုယ်ရေးအကျဉ်း):** သင့်အကြောင်း စာလုံး ၂၀၀ အတွင်း အကျဉ်းချုပ် ရေးသားပါ။
 6. **Gender (မိမိလိင်):** ခလုတ်ကို နှိပ်၍ `Male` သို့မဟုတ် `Female` ရွေးချယ်ပါ။
 7. **Looking For (ရှာဖွေလိုသည့်လိင်):** သင်ကြည့်ရှုလိုသည့် လိင်အမျိုးအစားကို ရွေးချယ်ပါ။
-8. **Distance Radius (ရှာမည့်အကွာအဝေး):** မိမိပတ်ဝန်းကျင် မည်မျှအကွာအဝေးအတွင်း ရှာမည်ကို ရွေးချယ်ပါ (`10km`, `25km`, `50km`, `100km` သို့မဟုတ် `Any`)။
-
-### **၃။ ဖူးစာရှင် ရှာဖွေခြင်း (Finding Matches)**
-
-* `/find` ဟု ရိုက်ပါ သို့မဟုတ် `🔍 ဖူးစာရှင်ရှာမည်` ခလုတ်ကို နှိပ်ပါ။
-* သင့်ရှေ့တွင် ပေါ်လာသော Profile ကတ်ပြားများကို အောက်ပါအတိုင်း တုံ့ပြန်နိုင်သည်-
-* **❤️ Like:** သဘောကျကြောင်း ပြသမည်။
-* **💌 Like + Message:** Like လုပ်သည့်အပြင် တစ်ပါတည်း လျှို့ဝှက်စာတို ပေးပို့မည်။
-* **➡️ Next:** ကျော်သွားပြီး နောက်ထပ် Profile တစ်ခုကို ကြည့်မည်။
-* **🚨 Report:** စည်းကမ်းမလိုက်နာသော စာမျက်နှာများကို Admin သိစေရန် တိုင်ကြားမည်။
-
-
-* နှစ်ဦးလုံး အပြန်အလှန် Like လုပ်မိပါက Match ဖြစ်သွားမည်ဖြစ်ပြီး အမည်မဖော်ဘဲ စကားပြောနိုင်မည့် Chat လမ်းကြောင်း ပွင့်လာမည် ဖြစ်သည်။
-* **တည်နေရာအလိုက် စစ်ထုတ်မှု:** သင် တည်နေရာ မျှဝေထားပါက သင်ရွေးချယ်ထားသော အကွာအဝေးအတွင်းရှိ ပရိုဖိုင်များကိုသာ စနစ်က ရွေးထုတ်ပြသပေးမည် ဖြစ်သည်။
-
-### **၄။ ပရိုဖိုင် စီမံခန့်ခွဲခြင်း (Managing Your Profile)**
-
-* **ပရိုဖိုင်ကြည့်ရန်:** `/profile` ဟု ရိုက်ပါ သို့မဟုတ် `👤 Profile` ခလုတ်ကို နှိပ်ပါ။
-* **ပရိုဖိုင်ပြင်ရန်:** `/edit` ဟု ရိုက်ပါ သို့မဟုတ် `⚙️ Edit Profile` ခလုတ်ကို နှိပ်ပြီး နာမည်၊ အသက်၊ တည်နေရာ၊ ဓာတ်ပုံ သို့မဟုတ် Bio များကို ပြန်ပြင်နိုင်ပါသည်။
-* **ရှာဖွေမှုပြောင်းရန်:** စိတ်ဝင်စားသည့် လိင်အမျိုးအစားကို ပြောင်းလဲလိုပါက `/update` ဟု ရိုက်နှိပ်ပါ။
-
-### **၅။ Live စာရင်းဇယား ကြည့်ရှုခြင်း**
-
-* `/pulse` ဟု ရိုက်ပါ သို့မဟုတ် `💓 Pulse` ခလုတ်ကို နှိပ်ပြီး ဘော့ပေါ်ရှိ စုစုပေါင်းမှတ်ပုံတင်ထားသူနှင့် ယနေ့ Match အရေအတွက်ကို Live ကြည့်ရှုနိုင်ပါသည်။
-
-### **၆။ နေ့စဉ် Spark တင်ခြင်း**
-
-* `/spark` ဟု ရိုက်နှိပ်ပြီး မိမိရဲ့ လက်ရှိ Mood သို့မဟုတ် အလုပ်အကိုင်ကို အီမိုဂျီလေးများနှင့်အတူ တင်ထားနိုင်ပါသည်။ ၎င်းသည် ၂၄ နာရီပြည့်ပါက စနစ်ထဲမှ အလိုအလျောက် ပျောက်ပျက်သွားမည် ဖြစ်သည်။
-
-### **၇။ ပင်မ Menu အမိန့်စာတိုများ (Main Menu Commands)**
-
-* **🔍 ဖူးစာရှင်ရှာမည်** - ပရိုဖိုင်များ စတင်ရှာဖွေရန်
-* **💓 Pulse** - Live စာရင်းဇယားများ ကြည့်ရန်
-* **⚙️ Edit Profile** - မိမိအချက်အလက်များ ပြန်ပြင်ရန်
-* **👤 Profile** - မိမိလက်ရှိပရိုဖိုင်ကို ပြန်ကြည့်ရန်
-* **✨ Daily Spark** - ၂၄ နာရီခံ စတေးတပ်စ် တင်ရန်
-* **❌ Delete Account** - မိမိအကောင့်နှင့် ဒေတာအားလုံးကို အပြီးတိုင်ဖျက်သိမ်းရန်
-* **/help** - အသုံးပြုပုံ လမ်းညွှန်ချက် ပြသရန်
+8. **Distance Radius (ရှာမည့်အကွာအဝေး):** မိမိပတ်ဝန်းကျင် မည်မျှအကွာအဝေးအတွင်း ရှာဖွေမည်ကို ရွေးချယ်ပါ။
 
 ---
 
-## 🗄️ ဒေတာဘေ့စ် တည်ဆောက်ပုံစနစ် (Turso / SQLite Schema)
+## ⚙️ တပ်ဆင်အသုံးပြုနည်း (Installation & Deployment)
 
-```sql
--- Users table - stores user profiles and registration state
-CREATE TABLE users (
-    telegram_id INTEGER PRIMARY KEY,
-    username TEXT,
-    nickname TEXT,
-    age INTEGER,
-    address TEXT,
-    bio TEXT,
-    photo_id TEXT,
-    gender TEXT,
-    looking_for TEXT,
-    interests TEXT, -- Interest tags like #travel #music #food
-    mood_status TEXT, -- Current mood status with emoji
-    step TEXT DEFAULT 'start', -- Registration step tracking
-    is_registered BOOLEAN DEFAULT 0,
-    latitude REAL, -- User's location latitude
-    longitude REAL, -- User's location longitude
-    max_distance_km INTEGER DEFAULT 50, -- Maximum distance for matches in km
-    is_banned BOOLEAN DEFAULT 0,
-    is_shadowbanned BOOLEAN DEFAULT 0,
-    ban_reason TEXT,
-    banned_at DATETIME,
-    banned_by INTEGER -- Admin telegram_id who banned the user
-);
+### **၁။ လိုအပ်ချက်များ (Prerequisites)**
 
--- Profile views table - tracks which profiles have been viewed
-CREATE TABLE profile_views (
-    user_id INTEGER,
-    viewed_profile_id INTEGER,
-    viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, viewed_profile_id)
-);
+* Node.js (v18 သို့မဟုတ် ထို့ထက်မြင့်သော version)
+* Telegram Bot Token (BotFather ထံမှ ရယူပါ)
+* Turso Database Account (Database URL နှင့် Token ရယူပါ)
+* Vercel Account (Deployment ပြုလုပ်ရန်)
 
--- Likes table - tracks who likes whom
-CREATE TABLE likes (
-    from_user INTEGER,
-    to_user INTEGER,
-    status TEXT DEFAULT 'pending', -- 'pending' or 'accepted'
-    PRIMARY KEY (from_user, to_user)
-);
+### **၂။ စတင်ပြင်ဆင်ခြင်း (Setup)**
 
--- Reports table - tracks user reports for trust & safety
-CREATE TABLE reports (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reporter_id INTEGER NOT NULL, -- User who filed the report
-    reported_user_id INTEGER NOT NULL, -- User being reported
-    reason TEXT NOT NULL, -- 'fake_profile', 'spam', 'inappropriate'
-    description TEXT, -- Additional details
-    status TEXT DEFAULT 'pending', -- 'pending', 'reviewed', 'resolved', 'dismissed'
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    reviewed_at DATETIME,
-    reviewed_by INTEGER, -- Admin telegram_id who reviewed
-    action_taken TEXT, -- 'banned', 'shadowbanned', 'warned', 'no_action'
-    FOREIGN KEY (reporter_id) REFERENCES users(telegram_id),
-    FOREIGN KEY (reported_user_id) REFERENCES users(telegram_id)
-);
-
--- Performance indexes
-CREATE INDEX idx_discovery ON users(is_registered, gender, looking_for);
-CREATE INDEX idx_interests ON users(interests);
-CREATE INDEX idx_mood_status ON users(mood_status);
-CREATE INDEX idx_likes_from ON likes(from_user);
-CREATE INDEX idx_likes_to ON likes(to_user);
-CREATE INDEX idx_reports_reported ON reports(reported_user_id, status);
-CREATE INDEX idx_reports_reporter ON reports(reporter_id);
-CREATE INDEX idx_reports_status ON reports(status);
-CREATE INDEX idx_users_banned ON users(is_banned);
-CREATE INDEX idx_users_shadowbanned ON users(is_shadowbanned);
-CREATE INDEX idx_location ON users(latitude, longitude) WHERE is_registered = 1;
-CREATE INDEX idx_max_distance ON users(max_distance_km) WHERE is_registered = 1;
-
-```
-
----
-
-## 🚀 စနစ်စတင် တည်ဆောက်ခြင်းနှင့် Deploy လုပ်နည်း လမ်းညွှန်
-
-### **လိုအပ်ချက်များ (Prerequisites)**
-
-* Node.js 18+ အထက် ရှိရပါမည်။
-* တယ်လီဂရမ် Bot Token ([@BotFather](https://t.me/botfather) မှတစ်ဆင့် ရယူပါ)။
-* Turso Database အကောင့် ([turso.tech](https://turso.tech))။
-* Vercel အကောင့် ([vercel.com](https://vercel.com))။
-
-### **၁။ ပတ်ဝန်းကျင်ကိန်းရှင်များ ဖြည့်စွက်ခြင်း (Environment Variables)**
-
-ပရောဂျက်၏ Root ဖိုဒါထဲတွင် `.env` ဖိုင်တစ်ခု ဆောက်ပြီး အောက်ပါအတိုင်း ဖြည့်စွက်ပေးပါ-
-
+၁။ Repository ကို Clone လုပ်ပါ-
 ```bash
-BOT_TOKEN=your_telegram_bot_token
-TURSO_URL=libsql://your-db-name.turso.io
-TURSO_TOKEN=your_turso_token
-DASHBOARD_PASSWORD=your_secure_password
-
-```
-
-### **၂။ ဒေတာဘေ့စ် ပြင်ဆင်ခြင်း (Database Setup)**
-
-Turso CLI သို့မဟုတ် Web Shell ကို အသုံးပြု၍ အထက်ပါ schema.sql ကို ဒေတာဘေ့စ်ထဲသို့ ထည့်သွင်းပါ-
-
-```bash
-# Apply schema to Turso
-turso db shell your-db-name < schema.sql
-
-```
-
-### **၃။ ဒေသတွင်း စမ်းသပ်ခြင်း (Local Development)**
-
-```bash
-# Clone repository
-git clone <repository-url>
+git clone https://github.com/hidecard/mm-match.git
 cd mm-match
+```
 
-# Install dependencies
+၂။ လိုအပ်သော package များသွင်းပါ-
+```bash
 npm install
-
-# Set environment variables
-cp .env.example .env
-# Edit .env with your credentials
-
-# Start development server
-npm run dev
-
 ```
 
-### **၄။ ဆာဗာပေါ်သို့ လွှင့်တင်ခြင်း (Production Deployment)**
+၃။ `.env` ဖိုင်ကို တည်ဆောက်ပြီး အချက်အလက်များ ဖြည့်သွင်းပါ-
+```env
+BOT_TOKEN=သင့်ဘော့တိုကင်
+TURSO_URL=libsql://your-db-name.turso.io
+TURSO_TOKEN=your-auth-token
+ADMIN_PASSWORD=သင့်အက်ဒမင်စကားဝှက်
+```
 
-Vercel ပေါ်သို့ လွှင့်တင်ပြီး Webhook အား ချိတ်ဆက်ရန် အောက်ပါ command များကို အသုံးပြုပါ-
+၄။ ဒေတာဘေ့စ်ကို Schema သွင်းပါ-
+`schema.sql` ထဲရှိ ကုဒ်များကို Turso CLI သို့မဟုတ် Web Dashboard တွင် Run ပေးပါ။
 
+### **၃။ Vercel ပေါ်သို့ တင်ခြင်း (Deployment)**
+
+၁။ Vercel CLI ဖြင့် တင်ပါ-
 ```bash
-# Deploy to Vercel
-vercel --prod
-
-# Set environment variables on Vercel
-vercel env add BOT_TOKEN
-vercel env add TURSO_URL
-vercel env add TURSO_TOKEN
-vercel env add DASHBOARD_PASSWORD
-
-# Set webhook (replace with your Vercel URL)
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -d "url=https://mm-match.vercel.app/api" \
-  -d "allowed_updates=[\"message\",\"callback_query\"]"
-
+vercel
 ```
 
----
-
-## 💻 Admin စိစစ်ရေး Dashboard
-
-သင့် Vercel ဝဘ်ဆိုဒ်လင့်ခ် `https://your-app.vercel.app/` မှတစ်ဆင့် Dashboard ကို ဝင်ရောက်နိုင်ပါသည်။
-
-### **လုပ်ဆောင်ချက်များ**
-
-* **Real-time Stats:** စုစုပေါင်းအသုံးပြုသူ၊ ယနေ့ Match ရရှိမှုနှင့် လက်ရှိ Active ဖြစ်နေသူများကို ကြည့်ရှုနိုင်သည်။
-* **User List:** မှတ်ပုံတင်ထားသည့် အသုံးပြုသူစာရင်းကို အသေးစိတ် ကြည့်ရှုနိုင်သည်။
-* **Match List:** အောင်မြင်စွာ Match ဖြစ်သွားသည့် စုံတွဲများစာရင်းကို စစ်ဆေးနိုင်သည်။
-* **Auto-refresh:** စာရင်းဇယားများကို စက္ကန့် ၃၀ တိုင်း အလိုအလျောက် Update လုပ်ပေးပါသည်။
-
-### **Dashboard Password ပြင်ဆင်ခြင်း**
-
-မူလစံသတ်မှတ်ချက် လျှို့ဝှက်နံပါတ်မှာ `admin123` ဖြစ်ပြီး အောက်ပါအတိုင်း စိတ်ကြိုက်ပြောင်းလဲနိုင်ပါသည်-
-
-```bash
-# Set custom password
-vercel env add DASHBOARD_PASSWORD
-# Enter your secure password
-vercel --prod
-
-```
-
-### **API Endpoints**
-
-* `GET /api/stats` - Dashboard ဆိုင်ရာ စာရင်းဇယားများ
-* `GET /api/users` - အသုံးပြုသူစာရင်း
-* `GET /api/matches` - Match ဖြစ်သွားသည့် စုံတွဲများစာရင်း
-
-*မှတ်ချက်။ ။ API အားလုံးကို ခေါ်ယူရန်အတွက် Header တွင် `X-Password: yourpassword` ကို ထည့်သွင်းပေးပို့ရပါမည်။*
+၂။ တယ်လီဂရမ် Webhook ကို သတ်မှတ်ပါ-
+`https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook?url=<YOUR_VERCEL_URL>/api/index` ကို Browser တွင် တစ်ကြိမ် Run ပေးပါ။
 
 ---
 
-## 🎯 Bot Commands ကိုးကားချက် ရည်ညွှန်းဇယား
+## 🛡️ Admin Dashboard အသုံးပြုနည်း
 
-| Command | ဖော်ပြချက် | အသုံးပြုနိုင်သူ |
-| --- | --- | --- |
-| `/start` | မှတ်ပုံတင်ခြင်း စတင်ရန် သို့မဟုတ် ပြန်လည်ကြိုဆိုရန် | အသုံးပြုသူအားလုံး |
-| `/find` | ဖူးစာရှင် ပရိုဖိုင်များ စတင်ရှာဖွေရန် | မှတ်ပုံတင်ပြီးသူများ |
-| `/pulse` | Live စာရင်းဇယားများနှင့် အခြေအနေများကို ကြည့်ရန် | အသုံးပြုသူအားလုံး |
-| `/profile` | မိမိ၏ ကိုယ်ပိုင်ပရိုဖိုင်ကို ပြန်လည်ကြည့်ရှုရန် | မှတ်ပုံတင်ပြီးသူများ |
-| `/edit` | ပရိုဖိုင် အချက်အလက်များ ပြန်လည်ပြင်ဆင်ရန် | မှတ်ပုံတင်ပြီးသူများ |
-| `/update` | မိမိစိတ်ဝင်စားသည့် လိင်အမျိုးအစား ပြောင်းလဲရန် | မှတ်ပုံတင်ပြီးသူများ |
-| `/help` | အသုံးပြုပုံ လမ်းညွှန်ချက်ကို ကြည့်ရှုရန် | အသုံးပြုသူအားလုံး |
+အက်ဒမင်များသည် ဘော့၏ အခြေအနေကို Web Dashboard မှတစ်ဆင့် စောင့်ကြည့်နိုင်ပါသည်။
 
----
+* **URL:** `<YOUR_VERCEL_URL>/api/index?admin=true`
+* **Password:** `.env` တွင် သတ်မှတ်ထားသော စကားဝှက်ကို အသုံးပြုပါ။
 
-## 🌟 အဓိက အကျိုးကျေးဇူးများ (Key Benefits)
-
-### **အသုံးပြုသူများအတွက်**
-
-* **လွယ်ကူရိုးရှင်းခြင်း:** စာရိုက်စရာမလိုဘဲ ခလုတ်လေးများနှိပ်ရုံဖြင့် အလွယ်တကူ သုံးနိုင်ခြင်း။
-* **လုံခြုံစိတ်ချရခြင်း:** ကိုယ်ရေးကိုယ်တာနှင့် တည်နေရာလုံခြုံမှုကို အဓိကဦးစားပေးထားခြင်း။
-* **Real-time အကြောင်းကြားစနစ်:** Match ဖြစ်သွားပါက ချက်ချင်း Notification ပေးပို့ခြင်း။
-* **အခမဲ့အသုံးပြုနိုင်ခြင်း:** အခြေခံလုပ်ဆောင်ချက် အားလုံးကို လုံးဝအခမဲ့ သုံးနိုင်ခြင်း။
-
-### **Developer များအတွက်**
-
-* **အလွန်ကျယ်ပြန့်ခြင်း:** လူဦးရေ ၁၀၀,၀၀၀ ကျော်အထိ ဝန်ဆောင်မှုကို ချောမွေ့စွာ ပေးနိုင်ခြင်း။
-* **အသေးစား ကုန်ကျစရိတ်:** ဆာဗာမဲ့စနစ် ဖြစ်သောကြောင့် လစဉ် ပုံသေကုန်ကျစရိတ် သုညနီးပါးဖြစ်ခြင်း။
-* **ခေတ်မီနည်းပညာ:** နောက်ဆုံးပေါ် JavaScript နှင့် ကမ္ဘာ့အမြန်ဆုံး Edge Database ကို သုံးထားခြင်း။
+**လုပ်ဆောင်နိုင်စွမ်းများ:**
+* အသုံးပြုသူ စာရင်းကို ကြည့်ရှုခြင်း။
+* စည်းကမ်းဖောက်ဖျက်သူများကို Ban/Shadowban ပြုလုပ်ခြင်း။
+* ပရိုဖိုင် တိုင်ကြားမှုများကို စစ်ဆေးခြင်း။
+* နေ့စဉ် Match ဖြစ်မှုနှုန်းကို စောင့်ကြည့်ခြင်း။
 
 ---
 
-## 📈 ရှေ့ဆက်လုပ်ဆောင်မည့် အဆင့်မြှင့်တင်မှုများ (Future Enhancements)
+## 🤝 ပူးပေါင်းပါဝင်ရန် (Contribution)
 
-* **အဆင့်မြင့်စစ်ထုတ်စနစ်:** အသက်အပိုင်းအခြား၊ ဝါသနာနှင့် စိတ်ဝင်စားမှုတူရာအလိုက် ထပ်မံစစ်ထုတ်နိုင်ခြင်း။
-* **ဓာတ်ပုံအစစ်အမှန် စစ်ဆေးခြင်း:** ပရိုဖိုင်များ ပိုမိုစိတ်ချရစေရန် Photo Verification စနစ် ထည့်သွင်းခြင်း။
-* **အပြန်အလှန် စကားပြောစနစ် တိုးမြှင့်ခြင်း:** ဘော့အတွင်း မက်ဆေ့ခ်ျ ပေးပို့မှုများကို ပိုမိုမြန်ဆန် ကောင်းမွန်အောင် ပြုလုပ်ခြင်း။
-* **ပရီမီယံ လုပ်ဆောင်ချက်များ:** ပိုမိုထူးခြားဆန်းသစ်သော ရှာဖွေမှု အယ်လ်ဂိုရီသမ်များ ထည့်သွင်းခြင်း။
+ဤပရောဂျက်သည် Open Source ဖြစ်ပါသည်။ ပိုမိုကောင်းမွန်အောင် ပြုပြင်လိုပါက Fork ပြုလုပ်ပြီး Pull Request ပေးပို့နိုင်ပါသည်။
 
 ---
 
-## 🤝 ပူးပေါင်းပါဝင်ရန် (Contributing)
+## 📜 လိုင်စင် (License)
 
-ဤပရောဂျက်ကို ပိုမိုကောင်းမွန်အောင် ဝိုင်းဝန်းကူညီ ပြင်ဆင်နိုင်ပါသည်။ အဓိကအားဖြင့် အောက်ပါကဏ္ဍများတွင် ပါဝင်နိုင်ပါသည်-
-
-* UI/UX ပိုမိုလှပအောင် ပြင်ဆင်ခြင်း
-* စနစ်အမြန်နှုန်း ပိုမိုကောင်းမွန်အောင် အကောင်းဆုံးဖြစ်အောင် လုပ်ဆောင်ခြင်း (Performance Optimization)
-* လုပ်ဆောင်ချက်အသစ်များ စဉ်းစားထည့်သွင်းခြင်း
-* Bug များနှင့် အမှားများကို ရှာဖွေပြင်ဆင်ခြင်း
+MIT License ဖြင့် ဖြန့်ချိထားပါသည်။ စီးပွားရေးအရ လွတ်လပ်စွာ အသုံးပြုနိုင်ပါသည်။
 
 ---
-
-## 📄 လိုင်စင် (License)
-
-MIT License - မိမိတို့၏ ပရောဂျက်များတွင် စိတ်ကြိုက် ရယူအသုံးပြုနိုင်ပြီး လွတ်လပ်စွာ ပြုပြင်မွမ်းမံနိုင်ပါသည်။
-
----
-
-## 🎉 MM Match ကို ယနေ့ပဲ စတင်အသုံးပြုလိုက်ပါ!
-
-**ဘော့လင့်ခ်:** [@mmcupid_bot](https://t.me/mmcupid_bot)
-
-**တိုက်ရိုက်လင့်ခ်:** [https://t.me/mmcupid_bot](https://t.me/mmcupid_bot)
-
-MM Match မှတစ်ဆင့် ထောင်ပေါင်းများစွာသော အသုံးပြုသူများနှင့်အတူ သင့်ရဲ့ စစ်မှန်တဲ့ ဖူးစာရှင်ကို အမြန်ဆုံး ရှာဖွေလိုက်ပါ! 💕
+**ဖန်တီးသူ:** [Hidecard](https://github.com/hidecard)
+**MM Match - Connecting Hearts across Myanmar** ❤️
