@@ -1963,6 +1963,7 @@ async function handleDashboardAPI(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Password');
+    res.setHeader('Content-Type', 'application/json');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -2342,7 +2343,7 @@ export default async (req, res) => {
     }
     
     // Serve dashboard HTML for root path
-    if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard' || req.url === '/api' || req.url === '/api/')) {
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard' || req.url === '/api' || req.url === '/api/' || req.url === '/api/index' || req.url === '/api/index/' || req.url?.startsWith('/api/index?'))) {
         res.setHeader('Content-Type', 'text/html');
         return res.status(200).send(dashboardHTML);
     }
@@ -2494,8 +2495,12 @@ const dashboardHTML = `<!DOCTYPE html>
             const password = getPassword();
             if (password) headers['X-Password'] = password;
             const response = await fetch(path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
-            if (response.status === 401) {
-                throw new Error('Unauthorized');
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => null);
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error(errorBody?.error || errorBody?.message || response.statusText || 'Request failed');
             }
             return await response.json();
         }
@@ -2575,7 +2580,7 @@ const dashboardHTML = `<!DOCTYPE html>
                             '</div>' +
                             '<button type="submit" class="button">Unlock Dashboard</button>' +
                         '</form>' +
-                        '<p class="small-text text-muted" style="margin-top: 16px;">Default password: <strong>admin123</strong></p>' +
+                        '<p class="small-text text-muted" style="margin-top: 16px;">Contact your admin for the dashboard password.</p>' +
                         (state.error ? '<p class="warning">' + state.error + '</p>' : '') +
                     '</div>' +
                 '</div>';
@@ -2588,8 +2593,10 @@ const dashboardHTML = `<!DOCTYPE html>
 
         function buildUserRows(users) {
             return users.map(function(user) {
-                var genderClass = user.gender === 'male' ? 'male' : 'female';
-                var lookingForClass = user.looking_for === 'male' ? 'male' : 'female';
+                var gender = (user.gender || 'N/A').toLowerCase();
+                var lookingFor = (user.looking_for || '-').toLowerCase();
+                var genderClass = gender === 'male' ? 'male' : gender === 'female' ? 'female' : '';
+                var lookingForClass = lookingFor === 'male' ? 'male' : lookingFor === 'female' ? 'female' : '';
                 var statusClass = user.is_registered ? 'active' : 'pending';
                 var statusText = user.is_registered ? 'Active' : 'Pending';
                 return '<tr>' +
