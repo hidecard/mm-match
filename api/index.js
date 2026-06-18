@@ -2380,918 +2380,348 @@ export default async (req, res) => {
     }
 };
 
-// Dashboard HTML with React
+// Dashboard HTML with plain JS
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MM Cupid Dashboard</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); }
+        button { cursor: pointer; }
+        .app-shell { width: min(1200px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 48px; }
+        .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-mark { width: 48px; height: 48px; border-radius: 16px; background: linear-gradient(135deg, #ec4899, #ef4444); display: grid; place-items: center; color: white; font-weight: 700; }
+        .brand-name { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.04em; }
+        .brand-subtitle { color: #6b7280; margin: 4px 0 0; font-size: 0.95rem; }
+        .button { border: none; border-radius: 999px; padding: 10px 18px; background: #ec4899; color: white; font-weight: 600; transition: transform 0.2s ease, background 0.2s ease; }
+        .button:hover { transform: translateY(-1px); background: #db2777; }
+        .button-muted { background: #e5e7eb; color: #374151; }
+        .button-muted:hover { background: #d1d5db; }
+        .panel { background: white; border-radius: 24px; box-shadow: 0 24px 64px rgba(15, 23, 42, 0.08); border: 1px solid rgba(229, 231, 235, 0.9); padding: 24px; }
+        .cards { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 20px; margin-bottom: 24px; }
+        @media (min-width: 768px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        .card { background: #fff; border-radius: 24px; padding: 22px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06); border: 1px solid #e5e7eb; }
+        .card-title { margin: 0; font-size: 0.9rem; font-weight: 600; color: #6b7280; }
+        .card-value { margin: 12px 0 0; font-size: 2rem; font-weight: 800; color: #111827; }
+        .card-meta { margin-top: 8px; font-size: 0.85rem; color: #10b981; }
+        .grid { display: grid; gap: 20px; }
+        .grid-2 { grid-template-columns: 1fr; }
+        @media (min-width: 900px) { .grid-2 { grid-template-columns: 1.3fr 0.85fr; } }
+        .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+        .section-title h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+        .section-title p { margin: 0; color: #6b7280; }
+        .tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .tab { padding: 10px 18px; border-radius: 999px; background: #f9fafb; color: #374151; border: 1px solid #e5e7eb; font-weight: 600; }
+        .tab.active { background: #ec4899; color: white; border-color: transparent; }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 640px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7280; font-weight: 700; }
+        td { color: #374151; vertical-align: middle; }
+        tr:hover { background: #f9fafb; }
+        .badge { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+        .badge.active { background: #d1fae5; color: #065f46; }
+        .badge.pending { background: #fef3c7; color: #92400e; }
+        .badge.male { background: #dbeafe; color: #1d4ed8; }
+        .badge.female { background: #fce7f3; color: #be185d; }
+        .warning { color: #b91c1c; margin-bottom: 18px; }
+        .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+        .login-panel { width: 100%; max-width: 420px; background: white; border-radius: 32px; padding: 32px; box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12); }
+        .login-panel h1 { margin: 0 0 12px; font-size: 1.75rem; }
+        .login-panel p { margin: 0 0 24px; color: #6b7280; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #374151; font-weight: 600; }
+        .input { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid #d1d5db; outline: none; font-size: 0.95rem; }
+        .input:focus { border-color: #ec4899; box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.12); }
+        .text-muted { color: #6b7280; }
+        .small-text { font-size: 0.85rem; }
+        .card-grid { display: grid; gap: 18px; }
+        @media (min-width: 640px) { .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(236, 72, 153, 0.2); border-top-color: #ec4899; border-radius: 50%; animation: spin 0.9s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-
-        // Card Component
-        const StatCard = ({ title, value, icon, color, trend }) => (
-            <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-sm text-gray-500 mb-1">{title}</p>
-                        <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
-                        {trend && (
-                            <p className="text-xs text-green-500 mt-1">
-                                <i className="fas fa-arrow-up mr-1"></i>{trend}
-                            </p>
-                        )}
-                    </div>
-                    <div className={\`w-12 h-12 rounded-full \${color} flex items-center justify-center text-white text-xl\`}>
-                        <i className={\`fas \${icon}\`}></i>
-                    </div>
-                </div>
-            </div>
-        );
-
-        // User List Component
-        const UserList = ({ users, loading }) => {
-            if (loading) return <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-3xl text-pink-500"></i></div>;
-            
-            return (
-                <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Looking For</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {users.map((user) => (
-                                    <tr key={user.telegram_id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center">
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white text-sm font-medium mr-3">
-                                                    {user.nickname?.charAt(0)?.toUpperCase() || '?'}
-                                                </div>
-                                                <span className="font-medium text-gray-800">{user.nickname}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600">{user.age}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}\`}>
-                                                {user.gender?.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.looking_for === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}\`}>
-                                                {user.looking_for?.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={\`px-2 py-1 rounded-full text-xs \${user.is_registered ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}\`}>
-                                                {user.is_registered ? 'Active' : 'Pending'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
+    <div id="app"></div>
+    <script>
+        const PASSWORD_KEY = 'mm_cupid_dashboard_password';
+        const app = document.getElementById('app');
+        const state = {
+            auth: false,
+            loading: false,
+            error: '',
+            activeTab: 'overview',
+            stats: { totalUsers: 0, todayMatches: 0, lastUpdated: '' },
+            users: [],
+            matches: [],
+            analytics: { genderDistribution: [], totalLikes: 0, dailyActiveUsers: 0, topCities: [], ageDistribution: [], matchSuccessRate: '0%', totalMatches: 0 }
         };
 
-        // Match List Component
-        const MatchList = ({ matches, loading }) => {
-            if (loading) return <div className="text-center py-8"><i className="fas fa-spinner fa-spin text-3xl text-pink-500"></i></div>;
-            
-            return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {matches.map((match, index) => (
-                        <div key={index} className="bg-white rounded-xl shadow-md p-4 border border-gray-100">
-                            <div className="flex items-center justify-center mb-4">
-                                <div className="flex items-center">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-medium">
-                                        {match.user1.nickname?.charAt(0)?.toUpperCase()}
-                                    </div>
-                                    <div className="mx-2 text-red-500">
-                                        <i className="fas fa-heart"></i>
-                                    </div>
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-red-500 flex items-center justify-center text-white font-medium">
-                                        {match.user2.nickname?.charAt(0)?.toUpperCase()}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="text-center">
-                                <p className="font-medium text-gray-800">{match.user1.nickname} ❤️ {match.user2.nickname}</p>
-                                <p className="text-xs text-pink-500 mt-1">
-                                    <i className="fas fa-heart mr-1"></i>Match!
-                                </p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            );
-        };
+        function setError(message) {
+            state.error = message;
+            render();
+        }
 
-        // Login Component
-        const LoginScreen = ({ onLogin, loginError }) => {
-            const [password, setPassword] = useState('');
-            const [showPassword, setShowPassword] = useState(false);
+        function setLoading(value) {
+            state.loading = value;
+            render();
+        }
 
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                onLogin(password);
-            };
+        function getPassword() {
+            return sessionStorage.getItem(PASSWORD_KEY) || '';
+        }
 
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-pink-500 via-red-500 to-purple-600 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 to-red-600 flex items-center justify-center text-white text-3xl mx-auto mb-4">
-                                <i className="fas fa-heart"></i>
-                            </div>
-                            <h1 className="text-2xl font-bold text-gray-800">MM Cupid</h1>
-                            <p className="text-gray-500">Admin Dashboard</p>
-                        </div>
+        function savePassword(password) {
+            sessionStorage.setItem(PASSWORD_KEY, password);
+        }
 
-                        <form onSubmit={handleSubmit}>
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Password
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none"
-                                        placeholder="Enter password"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                    >
-                                        <i className={\`fas \${showPassword ? 'fa-eye-slash' : 'fa-eye'}\`}></i>
-                                    </button>
-                                </div>
-                            </div>
+        function clearPassword() {
+            sessionStorage.removeItem(PASSWORD_KEY);
+        }
 
-                            {loginError && (
-                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                    <p className="text-red-600 text-sm">
-                                        <i className="fas fa-exclamation-circle mr-2"></i>
-                                        {loginError}
-                                    </p>
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                className="w-full py-3 bg-gradient-to-r from-pink-500 to-red-600 text-white rounded-lg font-medium hover:from-pink-600 hover:to-red-700 transition-all transform hover:scale-[1.02]"
-                            >
-                                <i className="fas fa-lock mr-2"></i>Login
-                            </button>
-                        </form>
-
-                        <div className="mt-6 text-center">
-                            <p className="text-xs text-gray-400">
-                                Default: admin123
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // Main Dashboard Component
-        const Dashboard = () => {
-            const [stats, setStats] = useState({ totalUsers: 0, todayMatches: 0 });
-            const [users, setUsers] = useState([]);
-            const [matches, setMatches] = useState([]);
-            const [activeTab, setActiveTab] = useState('overview');
-            const [loading, setLoading] = useState(true);
-            const [lastUpdate, setLastUpdate] = useState(new Date());
-            const [error, setError] = useState(null);
-            const [isLoggedIn, setIsLoggedIn] = useState(false);
-            const [password, setPassword] = useState('');
-            const [loginError, setLoginError] = useState('');
-            
-            // Analytics state
-            const [analytics, setAnalytics] = useState({
-                genderDistribution: [],
-                totalLikes: 0,
-                dailyActiveUsers: 0,
-                topCities: [],
-                ageDistribution: [],
-                matchSuccessRate: '0%',
-                totalMatches: 0
-            });
-            
-            // Search state
-            const [searchQuery, setSearchQuery] = useState('');
-            const [searchType, setSearchType] = useState('nickname');
-            const [searchResults, setSearchResults] = useState([]);
-            const [searchLoading, setSearchLoading] = useState(false);
-            
-            // Moderation state
-            const [bannedUsers, setBannedUsers] = useState([]);
-            const [reports, setReports] = useState([]);
-            const [actionMessage, setActionMessage] = useState('');
-
-            const API_URL = '';
-
-            const handleLogin = async (pwd) => {
-                setPassword(pwd);
-                setLoginError('');
-                
-                try {
-                    const res = await fetch(\`\${API_URL}/api/check-auth?password=\${encodeURIComponent(pwd)}\`);
-                    if (res.ok) {
-                        setIsLoggedIn(true);
-                        sessionStorage.setItem('dashboardPassword', pwd);
-                    } else {
-                        setLoginError('Invalid password');
-                    }
-                } catch (err) {
-                    setLoginError('Connection error');
-                }
-            };
-
-            // Check for saved password on mount
-            useEffect(() => {
-                const savedPwd = sessionStorage.getItem('dashboardPassword');
-                if (savedPwd) {
-                    handleLogin(savedPwd);
-                }
-            }, []);
-
-            const fetchData = async () => {
-                if (!isLoggedIn || !password) return;
-                
-                try {
-                    setLoading(true);
-                    setError(null);
-                    
-                    console.log('Fetching dashboard data...');
-                    
-                    const headers = { 'X-Password': password };
-                    
-                    const [statsRes, usersRes, matchesRes, analyticsRes, bannedRes, reportsRes] = await Promise.all([
-                        fetch(\`\${API_URL}/api/stats\`, { headers }).then(async r => {
-                            if (!r.ok) throw new Error(\`Stats API error: \${r.status}\`);
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/users\`, { headers }).then(async r => {
-                            if (!r.ok) throw new Error(\`Users API error: \${r.status}\`);
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/matches\`, { headers }).then(async r => {
-                            if (!r.ok) throw new Error(\`Matches API error: \${r.status}\`);
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/analytics\`, { headers }).then(async r => {
-                            if (!r.ok) throw new Error(\`Analytics API error: \${r.status}\`);
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/banned-users\`, { headers }).then(async r => {
-                            if (!r.ok) return { bannedUsers: [] };
-                            return r.json();
-                        }),
-                        fetch(\`\${API_URL}/api/reports\`, { headers }).then(async r => {
-                            if (!r.ok) return { reports: [] };
-                            return r.json();
-                        })
-                    ]);
-                    
-                    console.log('Stats:', statsRes);
-                    console.log('Users:', usersRes);
-                    console.log('Matches:', matchesRes);
-                    console.log('Analytics:', analyticsRes);
-                    
-                    if (statsRes.error) throw new Error(statsRes.error);
-                    if (usersRes.error) throw new Error(usersRes.error);
-                    if (matchesRes.error) throw new Error(matchesRes.error);
-                    
-                    setStats(statsRes);
-                    setUsers(usersRes.users || []);
-                    setMatches(matchesRes.matches || []);
-                    setAnalytics(analyticsRes || {});
-                    setBannedUsers(bannedRes?.bannedUsers || []);
-                    setReports(reportsRes?.reports || []);
-                    setLastUpdate(new Date());
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    setError(error.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            // Search function
-            const handleSearch = async () => {
-                if (!searchQuery.trim()) return;
-                
-                setSearchLoading(true);
-                try {
-                    const headers = { 'X-Password': password };
-                    const res = await fetch(\`\${API_URL}/api/search?type=\${searchType}&q=\${encodeURIComponent(searchQuery)}\`, { headers });
-                    const data = await res.json();
-                    setSearchResults(data.users || []);
-                } catch (err) {
-                    console.error('Search error:', err);
-                } finally {
-                    setSearchLoading(false);
-                }
-            };
-
-            // Ban user function
-            const handleBanUser = async (userId, action) => {
-                try {
-                    const headers = { 
-                        'X-Password': password,
-                        'Content-Type': 'application/json'
-                    };
-                    const res = await fetch(\`\${API_URL}/api/ban\`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({ userId, action })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        setActionMessage(\`User \${action === 'ban' ? 'banned' : 'unbanned'} successfully\`);
-                        fetchData(); // Refresh data
-                        setTimeout(() => setActionMessage(''), 3000);
-                    }
-                } catch (err) {
-                    console.error('Ban error:', err);
-                    setActionMessage('Error performing action');
-                }
-            };
-
-            // Delete user function
-            const handleDeleteUser = async (userId) => {
-                if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
-                
-                try {
-                    const headers = { 
-                        'X-Password': password,
-                        'Content-Type': 'application/json'
-                    };
-                    const res = await fetch(\`\${API_URL}/api/delete-user\`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({ userId })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        setActionMessage('User deleted successfully');
-                        fetchData(); // Refresh data
-                        setTimeout(() => setActionMessage(''), 3000);
-                    }
-                } catch (err) {
-                    console.error('Delete error:', err);
-                    setActionMessage('Error deleting user');
-                }
-            };
-
-            // Review report function
-            const handleReviewReport = async (reportId, action, actionTaken) => {
-                try {
-                    const headers = { 
-                        'X-Password': password,
-                        'Content-Type': 'application/json'
-                    };
-                    const res = await fetch(\`\${API_URL}/api/review-report\`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({ reportId, action, actionTaken })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        setActionMessage(\`Report \${action} successfully\`);
-                        fetchData(); // Refresh data
-                        setTimeout(() => setActionMessage(''), 3000);
-                    }
-                } catch (err) {
-                    console.error('Review error:', err);
-                    setActionMessage('Error reviewing report');
-                }
-            };
-
-            useEffect(() => {
-                if (isLoggedIn && password) {
-                    fetchData();
-                    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-                    return () => clearInterval(interval);
-                }
-            }, [isLoggedIn, password]);
-
-            // Show login screen if not authenticated
-            if (!isLoggedIn) {
-                return <LoginScreen onLogin={handleLogin} loginError={loginError} />;
+        async function apiRequest(path, options = {}) {
+            const headers = { 'Content-Type': 'application/json' };
+            const password = getPassword();
+            if (password) headers['X-Password'] = password;
+            const response = await fetch(path, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined });
+            if (response.status === 401) {
+                throw new Error('Unauthorized');
             }
+            return await response.json();
+        }
 
-            return (
-                <div className="min-h-screen bg-gray-50">
-                    {/* Header */}
-                    <header className="bg-white shadow-sm border-b border-gray-200">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-red-600 flex items-center justify-center text-white mr-3">
-                                        <i className="fas fa-heart"></i>
-                                    </div>
-                                    <div>
-                                        <h1 className="text-xl font-bold text-gray-800">MM Cupid</h1>
-                                        <p className="text-xs text-gray-500">Admin Dashboard</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <span className="text-sm text-gray-500">
-                                        Last updated: {lastUpdate.toLocaleTimeString()}
-                                    </span>
-                                    <button 
-                                        onClick={fetchData}
-                                        className="p-2 rounded-lg bg-pink-50 text-pink-600 hover:bg-pink-100 transition-colors"
-                                    >
-                                        <i className={\`fas fa-sync-alt \${loading ? 'fa-spin' : ''}\`}></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </header>
+        async function verifyPassword(password) {
+            const response = await fetch('/api/check-auth', { method: 'GET', headers: { 'X-Password': password } });
+            return response.ok;
+        }
 
-                    {/* Navigation */}
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
-                            {[
-                                { id: 'overview', label: 'Overview', icon: 'fa-chart-line' },
-                                { id: 'analytics', label: 'Analytics', icon: 'fa-chart-pie' },
-                                { id: 'users', label: 'Users', icon: 'fa-users' },
-                                { id: 'search', label: 'Search', icon: 'fa-search' },
-                                { id: 'matches', label: 'Matches', icon: 'fa-heart' },
-                                { id: 'reports', label: 'Reports', icon: 'fa-flag' },
-                                { id: 'moderation', label: 'Moderation', icon: 'fa-shield-alt' }
-                            ].map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={\`px-4 py-2 rounded-md text-sm font-medium transition-all \${
-                                        activeTab === tab.id 
-                                            ? 'bg-white text-pink-600 shadow-sm' 
-                                            : 'text-gray-600 hover:text-gray-800'
-                                    }\`}
-                                >
-                                    <i className={\`fas \${tab.icon} mr-2\`}></i>
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
+        async function login(password) {
+            state.error = '';
+            state.loading = true;
+            render();
+            try {
+                const valid = await verifyPassword(password);
+                if (!valid) {
+                    setError('Invalid password. Please try again.');
+                    return;
+                }
+                savePassword(password);
+                state.auth = true;
+                await loadDashboard();
+            } catch (err) {
+                setError(err.message || 'Login failed.');
+            } finally {
+                state.loading = false;
+            }
+        }
 
-                        {/* Error Display */}
-                        {error && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                                <div className="flex items-center">
-                                    <i className="fas fa-exclamation-circle text-red-500 mr-3"></i>
-                                    <div>
-                                        <p className="text-red-800 font-medium">Error loading data</p>
-                                        <p className="text-red-600 text-sm">{error}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+        async function loadDashboard() {
+            state.error = '';
+            state.loading = true;
+            render();
+            try {
+                const [statsResult, usersResult, matchesResult, analyticsResult] = await Promise.all([
+                    apiRequest('/api/stats'),
+                    apiRequest('/api/users'),
+                    apiRequest('/api/matches'),
+                    apiRequest('/api/analytics')
+                ]);
+                state.stats = Object.assign({}, state.stats, statsResult);
+                state.users = usersResult.users || [];
+                state.matches = matchesResult.matches || [];
+                state.analytics = Object.assign({}, state.analytics, analyticsResult);
+                state.auth = true;
+            } catch (err) {
+                if (err.message === 'Unauthorized') {
+                    clearPassword();
+                    state.auth = false;
+                    setError('Session expired. Please log in again.');
+                } else {
+                    setError(err.message || 'Unable to load dashboard.');
+                }
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
 
-                        {/* Content */}
-                        {activeTab === 'overview' && (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <StatCard 
-                                        title="Total Users" 
-                                        value={stats.totalUsers} 
-                                        icon="fa-users" 
-                                        color="bg-blue-500"
-                                        trend="All time"
-                                    />
-                                    <StatCard 
-                                        title="Today's Matches" 
-                                        value={stats.todayMatches} 
-                                        icon="fa-heart" 
-                                        color="bg-pink-500"
-                                        trend="Real-time"
-                                    />
-                                    <StatCard 
-                                        title="Active Now" 
-                                        value={users.filter(u => u.is_registered).length} 
-                                        icon="fa-signal" 
-                                        color="bg-green-500"
-                                        trend="Registered"
-                                    />
-                                </div>
+        function renderLogin() {
+            app.innerHTML =
+                '<div class="login-shell">' +
+                    '<div class="login-panel">' +
+                        '<div class="brand" style="margin-bottom: 28px;">' +
+                            '<div class="brand-mark">❤</div>' +
+                            '<div>' +
+                                '<div class="brand-name">MM Cupid</div>' +
+                                '<div class="brand-subtitle">Admin Dashboard</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<h1>Welcome back</h1>' +
+                        '<p class="text-muted">Enter the dashboard password to continue.</p>' +
+                        '<form id="login-form">' +
+                            '<div class="form-group">' +
+                                '<label for="password">Password</label>' +
+                                '<input id="password" class="input" type="password" autocomplete="current-password" placeholder="Enter password" />' +
+                            '</div>' +
+                            '<button type="submit" class="button">Unlock Dashboard</button>' +
+                        '</form>' +
+                        '<p class="small-text text-muted" style="margin-top: 16px;">Default password: <strong>admin123</strong></p>' +
+                        (state.error ? '<p class="warning">' + state.error + '</p>' : '') +
+                    '</div>' +
+                '</div>';
+            document.getElementById('login-form').addEventListener('submit', function(event) {
+                event.preventDefault();
+                var password = document.getElementById('password').value.trim();
+                login(password);
+            });
+        }
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    <div className="bg-white rounded-xl shadow-md p-6">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                            <i className="fas fa-users mr-2 text-blue-500"></i>
-                                            Recent Users
-                                        </h3>
-                                        <UserList users={users.slice(0, 5)} loading={loading} />
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-6">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-4">
-                                            <i className="fas fa-heart mr-2 text-pink-500"></i>
-                                            Recent Matches
-                                        </h3>
-                                        <MatchList matches={matches.slice(0, 6)} loading={loading} />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+        function buildUserRows(users) {
+            return users.map(function(user) {
+                var genderClass = user.gender === 'male' ? 'male' : 'female';
+                var lookingForClass = user.looking_for === 'male' ? 'male' : 'female';
+                var statusClass = user.is_registered ? 'active' : 'pending';
+                var statusText = user.is_registered ? 'Active' : 'Pending';
+                return '<tr>' +
+                    '<td>' + (user.nickname || 'Unknown') + '</td>' +
+                    '<td>' + (user.age || '-') + '</td>' +
+                    '<td><span class="badge ' + genderClass + '">' + (user.gender || 'N/A') + '</span></td>' +
+                    '<td><span class="badge ' + lookingForClass + '">' + (user.looking_for || '-') + '</span></td>' +
+                    '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
+                '</tr>';
+            }).join('');
+        }
 
-                        {activeTab === 'users' && (
-                            <div>
-                                <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-xl font-bold text-gray-800">All Users</h2>
-                                    <span className="text-sm text-gray-500">Total: {users.length}</span>
-                                </div>
-                                <UserList users={users} loading={loading} />
-                            </div>
-                        )}
+        function buildMatchRows(matches) {
+            return matches.map(function(match) {
+                return '<tr><td>' + (match.user1.nickname || 'Unknown') + '</td><td>❤️ ' + (match.user2.nickname || 'Unknown') + '</td></tr>';
+            }).join('');
+        }
 
-                        {activeTab === 'matches' && (
-                            <div>
-                                <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-xl font-bold text-gray-800">All Matches</h2>
-                                    <span className="text-sm text-gray-500">Total: {matches.length}</span>
-                                </div>
-                                <MatchList matches={matches} loading={loading} />
-                            </div>
-                        )}
+        function buildCitiesRows(cities) {
+            return (cities || []).map(function(city) {
+                return '<tr><td>' + (city.address || 'Unknown') + '</td><td>' + (city.count || 0) + '</td></tr>';
+            }).join('');
+        }
 
-                        {activeTab === 'analytics' && (
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-800">Analytics</h2>
-                                
-                                {/* Stats Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Total Likes</p>
-                                        <p className="text-2xl font-bold text-pink-600">{analytics.totalLikes || 0}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Daily Active Users</p>
-                                        <p className="text-2xl font-bold text-blue-600">{analytics.dailyActiveUsers || 0}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Match Success Rate</p>
-                                        <p className="text-2xl font-bold text-green-600">{analytics.matchSuccessRate || '0%'}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Total Matches</p>
-                                        <p className="text-2xl font-bold text-red-600">{analytics.totalMatches || 0}</p>
-                                    </div>
-                                </div>
+        function renderDashboard() {
+            var stats = state.stats;
+            var users = state.users;
+            var matches = state.matches;
+            var analytics = state.analytics;
+            var activeTab = state.activeTab;
+            app.innerHTML =
+                '<div class="app-shell">' +
+                    '<div class="topbar">' +
+                        '<div class="brand">' +
+                            '<div class="brand-mark">❤</div>' +
+                            '<div>' +
+                                '<div class="brand-name">MM Cupid Admin</div>' +
+                                '<div class="brand-subtitle">Live bot analytics and user controls</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">' +
+                            '<button class="button" id="refresh-button">Refresh</button>' +
+                            '<button class="button button-muted" id="logout-button">Logout</button>' +
+                        '</div>' +
+                    '</div>' +
+                    (state.error ? '<p class="warning">' + state.error + '</p>' : '') +
+                    '<div class="cards">' +
+                        '<div class="card"><p class="card-title">Registered users</p><p class="card-value">' + (stats.totalUsers || 0) + '</p><p class="card-meta">Latest total active users</p></div>' +
+                        '<div class="card"><p class="card-title">Total matches</p><p class="card-value">' + (stats.todayMatches || 0) + '</p><p class="card-meta">Mutual likes from database</p></div>' +
+                        '<div class="card"><p class="card-title">Last synced</p><p class="card-value">' + new Date(stats.lastUpdated || Date.now()).toLocaleString() + '</p><p class="card-meta">Data refresh timestamp</p></div>' +
+                    '</div>' +
+                    '<div class="section-title"><div><h2>Overview</h2><p class="text-muted">Quick access to users, matches, and analytics.</p></div></div>' +
+                    '<div class="tabs">' +
+                        '<button class="tab' + (activeTab === 'overview' ? ' active' : '') + '" data-tab="overview">Overview</button>' +
+                        '<button class="tab' + (activeTab === 'users' ? ' active' : '') + '" data-tab="users">Users</button>' +
+                        '<button class="tab' + (activeTab === 'matches' ? ' active' : '') + '" data-tab="matches">Matches</button>' +
+                        '<button class="tab' + (activeTab === 'analytics' ? ' active' : '') + '" data-tab="analytics">Analytics</button>' +
+                    '</div>' +
+                    '<div class="grid grid-2">' +
+                        '<div class="panel" style="display:' + (activeTab === 'overview' ? 'block' : 'none') + ';">' +
+                            '<div class="section-title"><h2>Summary</h2></div>' +
+                            '<div class="card-grid" style="margin-bottom: 20px;">' +
+                                '<div class="card"><p class="card-title">Daily active users</p><p class="card-value">' + (analytics.dailyActiveUsers || 0) + '</p></div>' +
+                                '<div class="card"><p class="card-title">Total likes</p><p class="card-value">' + (analytics.totalLikes || 0) + '</p></div>' +
+                                '<div class="card"><p class="card-title">Match success</p><p class="card-value">' + (analytics.matchSuccessRate || '0%') + '</p></div>' +
+                            '</div>' +
+                            '<div class="section-title"><h2>Top cities</h2></div>' +
+                            '<div class="table-wrapper"><table><tbody>' + buildCitiesRows(analytics.topCities) + '</tbody></table></div>' +
+                        '</div>' +
+                        '<div class="panel" style="display:' + (activeTab === 'analytics' ? 'block' : 'none') + ';">' +
+                            '<div class="section-title"><h2>Detailed analytics</h2></div>' +
+                            '<div class="card-grid" style="margin-bottom: 20px;">' +
+                                '<div class="card"><p class="card-title">Match total</p><p class="card-value">' + (analytics.totalMatches || 0) + '</p></div>' +
+                                '<div class="card"><p class="card-title">Gender segments</p><p class="card-value">' + ((analytics.genderDistribution || []).map(function(item){ return item.gender + ': ' + item.count; }).join(', ') || 'No data') + '</p></div>' +
+                                '<div class="card"><p class="card-title">Age spread</p><p class="card-value">' + ((analytics.ageDistribution || []).map(function(item){ return item.range + ': ' + item.count; }).join(', ') || 'No data') + '</p></div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="panel" style="display:' + (activeTab === 'users' ? 'block' : 'none') + ';">' +
+                        '<div class="section-title"><h2>Users</h2></div>' +
+                        '<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th>Looking for</th><th>Status</th></tr></thead><tbody>' + buildUserRows(users) + '</tbody></table></div>' +
+                    '</div>' +
+                    '<div class="panel" style="display:' + (activeTab === 'matches' ? 'block' : 'none') + ';">' +
+                        '<div class="section-title"><h2>Latest matches</h2></div>' +
+                        '<div class="table-wrapper"><table><thead><tr><th>Match</th><th></th></tr></thead><tbody>' + buildMatchRows(matches) + '</tbody></table></div>' +
+                    '</div>' +
+                '</div>';
+            document.getElementById('refresh-button').addEventListener('click', function() { loadDashboard(); });
+            document.getElementById('logout-button').addEventListener('click', function() { clearPassword(); state.auth = false; render(); });
+            var tabs = document.querySelectorAll('.tab');
+            tabs.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    state.activeTab = button.getAttribute('data-tab');
+                    render();
+                });
+            });
+        }
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Gender Distribution */}
-                                    <div className="bg-white rounded-xl shadow-md p-6">
-                                        <h3 className="text-lg font-semibold mb-4">Gender Distribution</h3>
-                                        <div className="space-y-3">
-                                            {(analytics.genderDistribution || []).map((g, i) => (
-                                                <div key={i} className="flex items-center justify-between">
-                                                    <span className="capitalize">{g.gender || 'Unknown'}</span>
-                                                    <div className="flex items-center">
-                                                        <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                                                            <div 
-                                                                className={\`h-2 rounded-full \${g.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'}\`}
-                                                                style={{ width: \`\${(g.count / (stats.totalUsers || 1)) * 100}%\` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-sm font-medium">{g.count}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+        function render() {
+            if (!state.auth) {
+                renderLogin();
+                return;
+            }
+            if (state.loading) {
+                app.innerHTML = '<div class="app-shell" style="text-align:center;padding:60px;"><div class="spinner"></div><p style="margin-top:16px;color:#6b7280;">Loading dashboard...</p></div>';
+                return;
+            }
+            renderDashboard();
+        }
 
-                                    {/* Age Distribution */}
-                                    <div className="bg-white rounded-xl shadow-md p-6">
-                                        <h3 className="text-lg font-semibold mb-4">Age Distribution</h3>
-                                        <div className="space-y-3">
-                                            {(analytics.ageDistribution || []).map((a, i) => (
-                                                <div key={i} className="flex items-center justify-between">
-                                                    <span>{a.range}</span>
-                                                    <div className="flex items-center">
-                                                        <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                                                            <div 
-                                                                className="h-2 rounded-full bg-purple-500"
-                                                                style={{ width: \`\${(a.count / (stats.totalUsers || 1)) * 100}%\` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-sm font-medium">{a.count}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+        async function init() {
+            var password = getPassword();
+            if (password) {
+                state.loading = true;
+                render();
+                try {
+                    var valid = await verifyPassword(password);
+                    if (valid) {
+                        state.auth = true;
+                        await loadDashboard();
+                        return;
+                    }
+                } catch (err) {
+                    console.warn('Auth verify failed', err);
+                }
+                clearPassword();
+                state.loading = false;
+            }
+            render();
+        }
 
-                                {/* Top Cities */}
-                                <div className="bg-white rounded-xl shadow-md p-6">
-                                    <h3 className="text-lg font-semibold mb-4">Top Cities</h3>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                        {(analytics.topCities || []).map((city, i) => (
-                                            <div key={i} className="bg-gray-50 rounded-lg p-3 text-center">
-                                                <p className="text-sm font-medium text-gray-800">{city.address}</p>
-                                                <p className="text-xs text-gray-500">{city.count} users</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'search' && (
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-800">Search Users</h2>
-                                
-                                <div className="bg-white rounded-xl shadow-md p-4">
-                                    <div className="flex gap-2 mb-4">
-                                        <select 
-                                            value={searchType} 
-                                            onChange={(e) => setSearchType(e.target.value)}
-                                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
-                                        >
-                                            <option value="nickname">Nickname</option>
-                                            <option value="city">City</option>
-                                            <option value="age">Age</option>
-                                        </select>
-                                        <input
-                                            type="text"
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder={\`Search by \${searchType}...\`}
-                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                                        />
-                                        <button
-                                            onClick={handleSearch}
-                                            disabled={searchLoading}
-                                            className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors disabled:opacity-50"
-                                        >
-                                            <i className={\`fas \${searchLoading ? 'fa-spinner fa-spin' : 'fa-search'}\`}></i>
-                                        </button>
-                                    </div>
-
-                                    {searchResults.length > 0 && (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="px-4 py-2 text-left">Nickname</th>
-                                                        <th className="px-4 py-2 text-left">Age</th>
-                                                        <th className="px-4 py-2 text-left">Gender</th>
-                                                        <th className="px-4 py-2 text-left">City</th>
-                                                        <th className="px-4 py-2 text-left">Bio</th>
-                                                        <th className="px-4 py-2 text-left">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {searchResults.map((user) => (
-                                                        <tr key={user.telegram_id}>
-                                                            <td className="px-4 py-2 font-medium">{user.nickname}</td>
-                                                            <td className="px-4 py-2">{user.age}</td>
-                                                            <td className="px-4 py-2 capitalize">{user.gender}</td>
-                                                            <td className="px-4 py-2">{user.address}</td>
-                                                            <td className="px-4 py-2 text-sm text-gray-500 max-w-xs truncate">{user.bio}</td>
-                                                            <td className="px-4 py-2">
-                                                                <button
-                                                                    onClick={() => handleBanUser(user.telegram_id, 'ban')}
-                                                                    className="text-red-500 hover:text-red-700 mr-2"
-                                                                    title="Ban User"
-                                                                >
-                                                                    <i className="fas fa-ban"></i>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteUser(user.telegram_id)}
-                                                                    className="text-red-600 hover:text-red-800"
-                                                                    title="Delete User"
-                                                                >
-                                                                    <i className="fas fa-trash"></i>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-
-                                    {searchResults.length === 0 && searchQuery && !searchLoading && (
-                                        <p className="text-center text-gray-500 py-4">No users found</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'reports' && (
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-800">User Reports</h2>
-                                
-                                {actionMessage && (
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                        <p className="text-green-600 text-sm">{actionMessage}</p>
-                                    </div>
-                                )}
-
-                                {/* Reports List */}
-                                <div className="bg-white rounded-xl shadow-md p-6">
-                                    <h3 className="text-lg font-semibold mb-4">Reports ({reports.length})</h3>
-                                    {reports.length > 0 ? (
-                                        <div className="space-y-4">
-                                            {reports.map((report) => (
-                                                <div key={report.id} className="border border-gray-200 rounded-lg p-4">
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div>
-                                                            <span className={\`px-2 py-1 rounded-full text-xs font-medium \${
-                                                                report.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
-                                                                report.status === 'reviewed' ? 'bg-blue-100 text-blue-600' :
-                                                                report.status === 'resolved' ? 'bg-green-100 text-green-600' :
-                                                                'bg-gray-100 text-gray-600'
-                                                            }\`}>
-                                                                {report.status?.toUpperCase()}
-                                                            </span>
-                                                            <span className="ml-2 text-sm text-gray-500">
-                                                                {new Date(report.created_at).toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                        <span className="text-sm font-mono text-gray-400">#{report.id}</span>
-                                                    </div>
-                                                    
-                                                    <div className="mb-3">
-                                                        <p className="text-sm text-gray-600">
-                                                            <span className="font-medium">Reporter:</span> {report.reporter_name || 'Unknown'} (ID: {report.reporter_id})
-                                                        </p>
-                                                        <p className="text-sm text-gray-600">
-                                                            <span className="font-medium">Reported:</span> {report.reported_name || 'Unknown'} (ID: {report.reported_user_id})
-                                                        </p>
-                                                        <p className="text-sm text-gray-600">
-                                                            <span className="font-medium">Reason:</span> 
-                                                            <span className={\`ml-1 px-2 py-0.5 rounded text-xs \${
-                                                                report.reason === 'fake' ? 'bg-purple-100 text-purple-600' :
-                                                                report.reason === 'spam' ? 'bg-orange-100 text-orange-600' :
-                                                                'bg-red-100 text-red-600'
-                                                            }\`}>
-                                                                {report.reason?.toUpperCase()}
-                                                            </span>
-                                                        </p>
-                                                        {report.description && (
-                                                            <p className="text-sm text-gray-600 mt-1">
-                                                                <span className="font-medium">Description:</span> {report.description}
-                                                            </p>
-                                                        )}
-                                                    </div>
-
-                                                    {report.status === 'pending' && (
-                                                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                                                            <button
-                                                                onClick={() => handleReviewReport(report.id, 'resolved', 'banned')}
-                                                                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                                                            >
-                                                                Ban User
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleReviewReport(report.id, 'resolved', 'shadowbanned')}
-                                                                className="px-3 py-1 bg-orange-500 text-white rounded text-sm hover:bg-orange-600"
-                                                            >
-                                                                Shadowban
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleReviewReport(report.id, 'dismissed', 'no_action')}
-                                                                className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-                                                            >
-                                                                Dismiss
-                                                            </button>
-                                                        </div>
-                                                    )}
-
-                                                    {report.status !== 'pending' && (
-                                                        <div className="mt-3 pt-3 border-t border-gray-100">
-                                                            <p className="text-sm text-gray-500">
-                                                                <span className="font-medium">Action Taken:</span> {report.action_taken || 'None'}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-gray-500 text-center py-4">No reports</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'moderation' && (
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-800">Moderation</h2>
-                                
-                                {actionMessage && (
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                        <p className="text-green-600 text-sm">{actionMessage}</p>
-                                    </div>
-                                )}
-
-                                {/* Banned Users */}
-                                <div className="bg-white rounded-xl shadow-md p-6">
-                                    <h3 className="text-lg font-semibold mb-4">Banned Users ({bannedUsers.length})</h3>
-                                    {bannedUsers.length > 0 ? (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="px-4 py-2 text-left">User ID</th>
-                                                        <th className="px-4 py-2 text-left">Nickname</th>
-                                                        <th className="px-4 py-2 text-left">Type</th>
-                                                        <th className="px-4 py-2 text-left">Reason</th>
-                                                        <th className="px-4 py-2 text-left">Banned At</th>
-                                                        <th className="px-4 py-2 text-left">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {bannedUsers.map((user) => (
-                                                        <tr key={user.telegram_id}>
-                                                            <td className="px-4 py-2 font-mono text-sm">{user.telegram_id}</td>
-                                                            <td className="px-4 py-2">{user.nickname || 'Unknown'}</td>
-                                                            <td className="px-4 py-2">
-                                                                <span className={\`px-2 py-1 rounded-full text-xs \${
-                                                                    user.is_banned ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                                                                }\`}>
-                                                                    {user.is_banned ? 'Banned' : 'Shadowbanned'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-2 text-sm text-gray-500">{user.ban_reason || 'N/A'}</td>
-                                                            <td className="px-4 py-2 text-sm text-gray-500">
-                                                                {user.banned_at ? new Date(user.banned_at).toLocaleString() : 'N/A'}
-                                                            </td>
-                                                            <td className="px-4 py-2">
-                                                                <button
-                                                                    onClick={() => handleBanUser(user.telegram_id, user.is_banned ? 'unban' : 'unshadowban')}
-                                                                    className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-                                                                >
-                                                                    {user.is_banned ? 'Unban' : 'Unshadowban'}
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : (
-                                        <p className="text-gray-500 text-center py-4">No banned users</p>
-                                    )}
-                                </div>
-
-                                {/* Quick Stats */}
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Total Users</p>
-                                        <p className="text-2xl font-bold text-blue-600">{stats.totalUsers}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Banned Users</p>
-                                        <p className="text-2xl font-bold text-red-600">{bannedUsers.filter(u => u.is_banned).length}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Shadowbanned</p>
-                                        <p className="text-2xl font-bold text-orange-600">{bannedUsers.filter(u => u.is_shadowbanned).length}</p>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-md p-4">
-                                        <p className="text-sm text-gray-500">Pending Reports</p>
-                                        <p className="text-2xl font-bold text-yellow-600">{reports.filter(r => r.status === 'pending').length}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<Dashboard />);
+        window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>`;
