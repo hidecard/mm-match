@@ -140,59 +140,6 @@ const migrateLocationSchema = async () => {
 
 migrateLocationSchema().catch((error) => console.error('Location schema migration failed:', error));
 
-const migrateAnalyticsSchema = async () => {
-    if (!db) return;
-
-    // Create user_sessions table
-    try {
-        await db.execute({
-            sql: `CREATE TABLE IF NOT EXISTS user_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                session_date DATE NOT NULL,
-                first_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                activities_count INTEGER DEFAULT 1,
-                FOREIGN KEY(user_id) REFERENCES users(telegram_id)
-            )`
-        });
-        console.log('Created user_sessions table');
-    } catch (error) {
-        console.error('User sessions table creation error:', error);
-    }
-
-    // Add created_at column to likes table
-    try {
-        await db.execute({ sql: 'ALTER TABLE likes ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP' });
-        console.log('Migrated likes table: added created_at column');
-    } catch (error) {
-        if (!/duplicate column|already exists/i.test(error.message)) {
-            console.error('Likes schema migration error:', error);
-        }
-    }
-
-    // Create indexes for analytics queries
-    const indexes = [
-        'CREATE INDEX IF NOT EXISTS idx_user_sessions_user_date ON user_sessions(user_id, session_date)',
-        'CREATE INDEX IF NOT EXISTS idx_user_sessions_date ON user_sessions(session_date)',
-        'CREATE INDEX IF NOT EXISTS idx_likes_created_at ON likes(created_at)',
-        'CREATE INDEX IF NOT EXISTS idx_likes_from_created ON likes(from_user, created_at)',
-        'CREATE INDEX IF NOT EXISTS idx_profile_views_date ON profile_views(viewed_at)'
-    ];
-
-    for (const indexSql of indexes) {
-        try {
-            await db.execute({ sql: indexSql });
-        } catch (error) {
-            console.error('Index creation error:', error);
-        }
-    }
-
-    console.log('Analytics schema migration completed');
-};
-
-migrateAnalyticsSchema().catch((error) => console.error('Analytics schema migration failed:', error));
-
 // --- Helper Functions ---
 const getUser = async (id) => {
     try {
@@ -202,36 +149,6 @@ const getUser = async (id) => {
     } catch (error) {
         console.error('Error in getUser:', error);
         return null;
-    }
-};
-
-// Track user session for analytics
-const trackUserSession = async (userId) => {
-    try {
-        if (!db) return;
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Check if session exists for today
-        const existingSession = await db.execute({
-            sql: "SELECT * FROM user_sessions WHERE user_id = ? AND session_date = ?",
-            args: [userId, today]
-        });
-        
-        if (existingSession.rows.length > 0) {
-            // Update existing session
-            await db.execute({
-                sql: "UPDATE user_sessions SET last_activity_at = CURRENT_TIMESTAMP, activities_count = activities_count + 1 WHERE user_id = ? AND session_date = ?",
-                args: [userId, today]
-            });
-        } else {
-            // Create new session
-            await db.execute({
-                sql: "INSERT INTO user_sessions (user_id, session_date, first_activity_at, last_activity_at, activities_count) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)",
-                args: [userId, today]
-            });
-        }
-    } catch (error) {
-        console.error('Error tracking user session:', error);
     }
 };
 
@@ -481,11 +398,9 @@ const markProfileAsViewed = async (userId, profileId) => {
     try {
         if (!db) return;
         await db.execute({
-            sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id, viewed_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id) VALUES (?, ?)",
             args: [userId, profileId]
         });
-        // Track session when viewing profiles
-        await trackUserSession(userId);
     } catch (error) {
         console.error('Error marking profile as viewed:', error.message);
     }
@@ -499,9 +414,6 @@ bot.start(async (ctx) => {
         if (!db) {
             return await ctx.reply("Database မချိတ်ဆက်နိုင်ပါ။ နောက်မှ ပြန်စမ်းကြည့်ပါ။");
         }
-        
-        // Track user session for analytics
-        await trackUserSession(userId);
         
         // Check if user already exists
         const existingUser = await getUser(userId);
@@ -1491,16 +1403,13 @@ bot.action(/^like_(.+)$/, async (ctx) => {
     }
     
     try {
-        // Track user session for analytics
-        await trackUserSession(senderId);
-        
         // Answer callback query
         await ctx.answerCbQuery(secretMessage ? '❤️ Like + Message!' : '❤️ Like!').catch((e) => console.log('Answer error:', e.message));
         
         // Record the like and wait for it to complete
         console.log('Recording like...');
         await db.execute({ 
-            sql: "INSERT OR IGNORE INTO likes (from_user, to_user, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)", 
+            sql: "INSERT OR IGNORE INTO likes (from_user, to_user) VALUES (?, ?)", 
             args: [senderId, targetId] 
         });
         console.log('Like recorded successfully');
@@ -2255,126 +2164,6 @@ async function handleDashboardAPI(req, res) {
             });
         }
 
-        // API: /api/retention - Retention rate data
-        if (path === 'api/retention' || path === 'retention') {
-            console.log('Fetching retention data...');
-            
-            // Get retention data - users who returned after X days
-            const retentionResult = await db.execute({
-                sql: `SELECT 
-                    COUNT(DISTINCT CASE WHEN session_count >= 1 THEN user_id END) as day_1,
-                    COUNT(DISTINCT CASE WHEN session_count >= 3 THEN user_id END) as day_3,
-                    COUNT(DISTINCT CASE WHEN session_count >= 7 THEN user_id END) as day_7,
-                    COUNT(DISTINCT CASE WHEN session_count >= 14 THEN user_id END) as day_14,
-                    COUNT(DISTINCT CASE WHEN session_count >= 30 THEN user_id END) as day_30
-                FROM (
-                    SELECT user_id, COUNT(*) as session_count 
-                    FROM user_sessions 
-                    WHERE session_date >= date('now', '-30 days')
-                    GROUP BY user_id
-                )`,
-                args: []
-            });
-            
-            // Get daily retention for the last 30 days
-            const dailyRetentionResult = await db.execute({
-                sql: `SELECT 
-                    session_date,
-                    COUNT(DISTINCT user_id) as active_users
-                FROM user_sessions 
-                WHERE session_date >= date('now', '-30 days')
-                GROUP BY session_date 
-                ORDER BY session_date ASC`,
-                args: []
-            });
-            
-            const retentionRow = retentionResult.rows[0] || {};
-            const totalUsers = (await db.execute({ sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1", args: [] })).rows[0]?.count || 0;
-            
-            return res.status(200).json({
-                day1: Math.round((retentionRow.day_1 || 0) / (totalUsers || 1) * 100),
-                day3: Math.round((retentionRow.day_3 || 0) / (totalUsers || 1) * 100),
-                day7: Math.round((retentionRow.day_7 || 0) / (totalUsers || 1) * 100),
-                day14: Math.round((retentionRow.day_14 || 0) / (totalUsers || 1) * 100),
-                day30: Math.round((retentionRow.day_30 || 0) / (totalUsers || 1) * 100),
-                dailyRetention: dailyRetentionResult.rows || [],
-                totalUsers: totalUsers
-            });
-        }
-
-        // API: /api/dau - Daily Active Users historical data
-        if (path === 'api/dau' || path === 'dau') {
-            console.log('Fetching DAU data...');
-            
-            const days = parseInt(req.query?.days) || 30;
-            
-            // Get DAU for the last N days
-            const dauResult = await db.execute({
-                sql: `SELECT 
-                    session_date,
-                    COUNT(DISTINCT user_id) as dau,
-                    SUM(activities_count) as total_activities
-                FROM user_sessions 
-                WHERE session_date >= date('now', '-${days} days')
-                GROUP BY session_date 
-                ORDER BY session_date ASC`,
-                args: []
-            });
-            
-            // Also get MAU (Monthly Active Users)
-            const mauResult = await db.execute({
-                sql: `SELECT COUNT(DISTINCT user_id) as mau 
-                FROM user_sessions 
-                WHERE session_date >= date('now', '-30 days')`,
-                args: []
-            });
-            
-            return res.status(200).json({
-                dailyData: dauResult.rows || [],
-                mau: mauResult.rows[0]?.mau || 0,
-                period: days
-            });
-        }
-
-        // API: /api/swipes - Swipe activity data
-        if (path === 'api/swipes' || path === 'swipes') {
-            console.log('Fetching swipe data...');
-            
-            const days = parseInt(req.query?.days) || 30;
-            
-            // Get daily swipe (like) counts
-            const swipeResult = await db.execute({
-                sql: `SELECT 
-                    date(created_at) as swipe_date,
-                    COUNT(*) as swipe_count,
-                    COUNT(DISTINCT from_user) as unique_swipers
-                FROM likes 
-                WHERE created_at >= date('now', '-${days} days')
-                GROUP BY date(created_at)
-                ORDER BY swipe_date ASC`,
-                args: []
-            });
-            
-            // Get profile view counts
-            const viewResult = await db.execute({
-                sql: `SELECT 
-                    date(viewed_at) as view_date,
-                    COUNT(*) as view_count,
-                    COUNT(DISTINCT user_id) as unique_viewers
-                FROM profile_views 
-                WHERE viewed_at >= date('now', '-${days} days')
-                GROUP BY date(viewed_at)
-                ORDER BY view_date ASC`,
-                args: []
-            });
-            
-            return res.status(200).json({
-                swipeData: swipeResult.rows || [],
-                viewData: viewResult.rows || [],
-                period: days
-            });
-        }
-
         // API: /api/search - Search users
         if (path === 'api/search' || path === 'search') {
             const searchQuery = req.query?.q || '';
@@ -2603,7 +2392,6 @@ const dashboardHTML = `<!DOCTYPE html>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="root"></div>
@@ -2629,137 +2417,6 @@ const dashboardHTML = `<!DOCTYPE html>
                 </div>
             </div>
         );
-
-        // Line Chart Component
-        const LineChart = ({ data, label, color, title }) => {
-            const chartRef = React.useRef(null);
-            const chartInstance = React.useRef(null);
-
-            useEffect(() => {
-                if (chartRef.current && data) {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                    }
-
-                    const ctx = chartRef.current.getContext('2d');
-                    chartInstance.current = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: data.map(d => d.date || d.session_date || d.swipe_date || d.view_date),
-                            datasets: [{
-                                label: label,
-                                data: data.map(d => d.count || d.dau || d.active_users || d.swipe_count || d.view_count),
-                                borderColor: color,
-                                backgroundColor: color + '20',
-                                fill: true,
-                                tension: 0.4
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true
-                                }
-                            }
-                        }
-                    });
-                }
-
-                return () => {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                    }
-                };
-            }, [data, label, color]);
-
-            return (
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="text-lg font-semibold mb-4">{title}</h3>
-                    <div style={{ height: '300px' }}>
-                        <canvas ref={chartRef}></canvas>
-                    </div>
-                </div>
-            );
-        };
-
-        // Retention Chart Component
-        const RetentionChart = ({ data }) => {
-            const chartRef = React.useRef(null);
-            const chartInstance = React.useRef(null);
-
-            useEffect(() => {
-                if (chartRef.current && data) {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                    }
-
-                    const ctx = chartRef.current.getContext('2d');
-                    chartInstance.current = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: ['Day 1', 'Day 3', 'Day 7', 'Day 14', 'Day 30'],
-                            datasets: [{
-                                label: 'Retention Rate %',
-                                data: [data.day1, data.day3, data.day7, data.day14, data.day30],
-                                backgroundColor: [
-                                    'rgba(236, 72, 153, 0.8)',
-                                    'rgba(236, 72, 153, 0.7)',
-                                    'rgba(236, 72, 153, 0.6)',
-                                    'rgba(236, 72, 153, 0.5)',
-                                    'rgba(236, 72, 153, 0.4)'
-                                ],
-                                borderColor: 'rgba(236, 72, 153, 1)',
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: 100,
-                                    ticks: {
-                                        callback: function(value) {
-                                            return value + '%';
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                return () => {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                    }
-                };
-            }, [data]);
-
-            return (
-                <div className="bg-white rounded-xl shadow-md p-6">
-                    <h3 className="text-lg font-semibold mb-4">User Retention Rate</h3>
-                    <div style={{ height: '300px' }}>
-                        <canvas ref={chartRef}></canvas>
-                    </div>
-                </div>
-            );
-        };
 
         // User List Component
         const UserList = ({ users, loading }) => {
@@ -2943,11 +2600,6 @@ const dashboardHTML = `<!DOCTYPE html>
                 totalMatches: 0
             });
             
-            // New analytics state for graphs
-            const [retentionData, setRetentionData] = useState(null);
-            const [dauData, setDauData] = useState(null);
-            const [swipeData, setSwipeData] = useState(null);
-            
             // Search state
             const [searchQuery, setSearchQuery] = useState('');
             const [searchType, setSearchType] = useState('nickname');
@@ -3039,9 +2691,6 @@ const dashboardHTML = `<!DOCTYPE html>
                     setAnalytics(analyticsRes || {});
                     setBannedUsers(bannedRes?.bannedUsers || []);
                     setReports(reportsRes?.reports || []);
-                    setRetentionData(retentionRes);
-                    setDauData(dauRes);
-                    setSwipeData(swipeRes);
                     setLastUpdate(new Date());
                 } catch (error) {
                     console.error('Error fetching data:', error);
@@ -3370,46 +3019,6 @@ const dashboardHTML = `<!DOCTYPE html>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-
-                                {/* Analytics Graphs */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Retention Rate Graph */}
-                                    {retentionData && (
-                                        <RetentionChart data={retentionData} />
-                                    )}
-
-                                    {/* DAU Graph */}
-                                    {dauData && dauData.dailyData && (
-                                        <LineChart 
-                                            data={dauData.dailyData} 
-                                            label="Daily Active Users" 
-                                            color="rgb(59, 130, 246)"
-                                            title="Daily Active Users (Last 30 Days)"
-                                        />
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Swipe Activity Graph */}
-                                    {swipeData && swipeData.swipeData && (
-                                        <LineChart 
-                                            data={swipeData.swipeData} 
-                                            label="Swipe Count (Likes)" 
-                                            color="rgb(236, 72, 153)"
-                                            title="Swipe Activity (Last 30 Days)"
-                                        />
-                                    )}
-
-                                    {/* Profile View Activity Graph */}
-                                    {swipeData && swipeData.viewData && (
-                                        <LineChart 
-                                            data={swipeData.viewData} 
-                                            label="Profile Views" 
-                                            color="rgb(168, 85, 247)"
-                                            title="Profile View Activity (Last 30 Days)"
-                                        />
-                                    )}
                                 </div>
                             </div>
                         )}
