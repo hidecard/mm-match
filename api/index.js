@@ -1,6 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@libsql/client';
 import 'dotenv/config';
+import { validateNickname, validateAge, validateBio } from './validation.js';
 
 // Check environment variables
 if (!process.env.BOT_TOKEN) console.error('BOT_TOKEN is missing');
@@ -806,13 +807,24 @@ bot.on('message', async (ctx) => {
         let updateSql = "";
         let arg = text;
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        if (user.step === 'edit_nickname') updateSql = "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?";
-        if (user.step === 'edit_age') {
-            if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-            updateSql = "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?";
-            arg = parseInt(text);
+        if (user.step === 'edit_nickname') {
+            const validation = validateNickname(text);
+            if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+            updateSql = "UPDATE users SET nickname = ?, step = 'done' WHERE telegram_id = ?";
+            arg = validation.value;
         }
-        if (user.step === 'edit_bio') updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
+        if (user.step === 'edit_age') {
+            const validation = validateAge(text);
+            if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+            updateSql = "UPDATE users SET age = ?, step = 'done' WHERE telegram_id = ?";
+            arg = validation.value;
+        }
+        if (user.step === 'edit_bio') {
+            const validation = validateBio(text);
+            if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+            updateSql = "UPDATE users SET bio = ?, step = 'done' WHERE telegram_id = ?";
+            arg = validation.value;
+        }
         
         await db.execute({ sql: updateSql, args: [arg, ctx.from.id] });
         return await ctx.reply("ပြင်ဆင်ပြီးပါပြီ။", Markup.keyboard([['🔍 ဖူးစာရှင်ရှာမည်', '💓 Pulse'], ['⚙️ Edit Profile', '👤 Profile'], ['✨ Daily Spark', '🏷️ Interests'], ['❌ Delete Account', '/help']]).resize());
@@ -829,13 +841,16 @@ bot.on('message', async (ctx) => {
     // Registration flow
     if (user.step === 'ask_name') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+        const validation = validateNickname(text);
+        if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+        await db.execute({ sql: "UPDATE users SET nickname = ?, step = 'ask_age' WHERE telegram_id = ?", args: [validation.value, ctx.from.id] });
         return await ctx.reply("သင့်အသက်ကို ဂဏန်းဖြင့် ရိုက်ထည့်ပေးပါ:");
     }
     if (user.step === 'ask_age') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        if (isNaN(text)) return await ctx.reply("ဂဏန်းအမှန်ရိုက်ပေးပါ:");
-        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [parseInt(text), ctx.from.id] });
+        const validation = validateAge(text);
+        if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+        await db.execute({ sql: "UPDATE users SET age = ?, step = 'ask_address' WHERE telegram_id = ?", args: [validation.value, ctx.from.id] });
         return await ctx.reply("📍 သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ\n\nအနီးနားရှိ ဖူးစာရှင်များကို ရှာဖွေရန် Location လိုအပ်ပါသည်။\n\n📱 Telegram ရဲ့ Location ခလုတ်ကို နှိပ်ပြီး သင့်လက်ရှိ Location ကို Share လုပ်ပေးပါ:", Markup.keyboard([Markup.button.locationRequest('📍 Share My Location')]).resize());
     }
     if (user.step === 'ask_address') {
@@ -858,7 +873,9 @@ bot.on('message', async (ctx) => {
     }
     if (user.step === 'ask_bio') {
         if (isReservedUserInput(text)) return await reservedInputReply(ctx);
-        await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [text, ctx.from.id] });
+        const validation = validateBio(text);
+        if (!validation.valid) return await ctx.reply(`❌ ${validation.error}`);
+        await db.execute({ sql: "UPDATE users SET bio = ?, step = 'ask_gender' WHERE telegram_id = ?", args: [validation.value, ctx.from.id] });
         return await ctx.reply("သင့်လိင်ကို ရွေးပါ (Male သို့မဟုတ် Female):", Markup.keyboard([['Male', 'Female']]).resize());
     }
     // Handle interests during registration or when user runs /interests
