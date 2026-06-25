@@ -127,15 +127,12 @@ const migrateLocationSchema = async () => {
     }
 
     try {
-        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_location ON users(latitude, longitude) WHERE is_registered = 1' });
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_location ON users(latitude, longitude) WHERE is_registered = 1 AND is_banned = 0 AND is_shadowbanned = 0' });
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_gender_registered ON users(gender, is_registered, is_banned, is_shadowbanned)' });
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_profile_views_user ON profile_views(user_id, viewed_profile_id)' });
+        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_likes_from ON likes(from_user, to_user)' });
     } catch (error) {
-        console.error('Location index migration error:', error);
-    }
-
-    try {
-        await db.execute({ sql: 'CREATE INDEX IF NOT EXISTS idx_interests ON users(interests)' });
-    } catch (error) {
-        console.error('Location index migration error:', error);
+        console.error('Database index optimization error:', error);
     }
 };
 
@@ -208,29 +205,33 @@ const reservedInputReply = async (ctx) => {
 
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
-        // Get current user's location and max distance preference
         const currentUser = await getUser(userId);
         const userLat = currentUser?.latitude;
         const userLon = currentUser?.longitude;
         const maxDistance = currentUser?.max_distance_km || 50;
+        const userInterests = currentUser?.interests ? currentUser.interests.split(',').map(i => i.trim()).filter(Boolean) : [];
         
-        // Build the NOT IN clause for session viewed IDs (temporary - only current session)
         const allViewedIds = [...viewedIds];
         const notInClause = allViewedIds.length > 0 
             ? `AND u.telegram_id NOT IN (${allViewedIds.map(() => '?').join(',')})`
             : '';
         const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
         
-        // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles + exclude BANNED users
         try {
             let sql, args;
-            
+            // Build interest matching part of the query
+            let interestScoreSql = '0 as interest_score';
+            if (userInterests.length > 0) {
+                interestScoreSql = userInterests.map(interest => 
+                    `(CASE WHEN u.interests LIKE '%${interest}%' THEN 1 ELSE 0 END)`
+                ).join(' + ') + ' as interest_score';
+            }
+
             if (userLat != null && userLon != null && maxDistance < 9999) {
-                // Use bounding box approximation for location filtering (1 degree ≈ 111 km)
                 const latDelta = maxDistance / 111;
                 const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
                 
-                sql = `SELECT u.* FROM users u 
+                sql = `SELECT u.*, ${interestScoreSql} FROM users u 
                           LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                           WHERE u.is_registered = 1 
                             AND u.telegram_id != ? 
@@ -238,23 +239,18 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                             AND u.is_banned = 0
                             AND u.is_shadowbanned = 0
                             AND pv.viewed_profile_id IS NULL
-                            AND u.telegram_id NOT IN (
-                                SELECT to_user FROM likes WHERE from_user = ?
-                            )
-                            AND u.latitude IS NOT NULL
-                            AND u.longitude IS NOT NULL
+                            AND u.telegram_id NOT IN (SELECT to_user FROM likes WHERE from_user = ?)
                             AND u.latitude BETWEEN ? AND ?
                             AND u.longitude BETWEEN ? AND ?
                             ${notInClause}
-                          ORDER BY RANDOM() LIMIT 1`;
+                          ORDER BY interest_score DESC, RANDOM() LIMIT 1`;
                 
                 args = [userId, userId, lookingFor, userId, 
                        userLat - latDelta, userLat + latDelta,
                        userLon - lonDelta, userLon + lonDelta,
                        ...notInArgs];
             } else {
-                // No location filtering
-                sql = `SELECT u.* FROM users u 
+                sql = `SELECT u.*, ${interestScoreSql} FROM users u 
                           LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
                           WHERE u.is_registered = 1 
                             AND u.telegram_id != ? 
@@ -262,11 +258,9 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                             AND u.is_banned = 0
                             AND u.is_shadowbanned = 0
                             AND pv.viewed_profile_id IS NULL
-                            AND u.telegram_id NOT IN (
-                                SELECT to_user FROM likes WHERE from_user = ?
-                            )
+                            AND u.telegram_id NOT IN (SELECT to_user FROM likes WHERE from_user = ?)
                             ${notInClause}
-                          ORDER BY RANDOM() LIMIT 1`;
+                          ORDER BY interest_score DESC, RANDOM() LIMIT 1`;
                 
                 args = [userId, userId, lookingFor, userId, ...notInArgs];
             }
