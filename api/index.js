@@ -2263,23 +2263,28 @@ async function handleDashboardAPI(req, res) {
         // API: /api/users - Get user list
         if (path === 'api/users' || path === 'users') {
             console.log('Fetching users...');
-            
-            const usersResult = await db.execute({
-                sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users",
-                args: []
-            });
-            
-            const countResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM users",
-                args: []
-            });
-            
-            console.log('Users fetched:', usersResult.rows.length);
-            
-            return res.status(200).json({
-                users: usersResult.rows || [],
-                total: countResult.rows[0]?.count || 0
-            });
+            try {
+                // Limit returned rows to prevent extremely large payloads from blocking the client
+                const usersResult = await db.execute({
+                    sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 1000",
+                    args: []
+                });
+
+                const countResult = await db.execute({
+                    sql: "SELECT COUNT(*) as count FROM users",
+                    args: []
+                });
+
+                console.log('Users fetched (limited):', usersResult.rows.length, 'Total users:', countResult.rows[0]?.count || 0);
+
+                return res.status(200).json({
+                    users: usersResult.rows || [],
+                    total: countResult.rows[0]?.count || 0
+                });
+            } catch (err) {
+                console.error('Users API error:', err);
+                return res.status(500).json({ error: 'Unable to fetch users', message: err.message });
+            }
         }
         
         // API: /api/matches - Get match list
