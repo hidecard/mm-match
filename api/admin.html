@@ -906,9 +906,10 @@ async function loadDashboard() {
         } else {
             console.error(err);
             const msg = (err.message && err.message.includes('404'))
-                ? 'Admin API not found (404). Ensure DASHBOARD_PASSWORD is set in Vercel env and that /api/index.js is deployed.'
-                : 'Unable to load admin dashboard. Check console/network for details.';
-            showLogin(msg);
+                ? 'Admin API not found (404). Ensure DASHBOARD_PASSWORD is set and /api/index.js is deployed.'
+                : `Unable to load admin dashboard: ${err.message || 'check console/network for details.'}`;
+            // Do not show the login overlay for non-auth errors; log to debug panel instead
+            appendDebug(msg);
         }
     }
 }
