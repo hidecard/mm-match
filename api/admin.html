@@ -526,7 +526,6 @@ async function apiRequest(path, options = {}) {
 
     for (const p of tryPaths) {
         try {
-            appendDebug(`Fetching: ${p}`);
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
                 controller.abort();
@@ -537,7 +536,6 @@ async function apiRequest(path, options = {}) {
                 body: options.body ? JSON.stringify(options.body) : undefined,
                 signal: controller.signal
             }).finally(() => clearTimeout(timeoutId));
-            appendDebug(`Response: ${p} -> ${response.status}`);
             if (!response.ok) {
                 const text = await response.text().catch(() => '');
                 let errorBody = null;
@@ -553,15 +551,11 @@ async function apiRequest(path, options = {}) {
                 const jsonPromise = response.json();
                 const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('JSON parse timeout')), 5000));
                 parsed = await Promise.race([jsonPromise, timeoutPromise]);
-                appendDebug(`Parsed JSON: ${p} -> keys: ${Object.keys(parsed || {}).join(',')}`);
                 return parsed;
             } catch (parseErr) {
-                appendDebug(`JSON parse failed for ${p}: ${parseErr.message}. Falling back to text.`);
                 const textBody = await response.text().catch(() => '');
-                appendDebug(`Response text for ${p}: ${textBody.slice(0,200)}`);
                 try {
                     parsed = JSON.parse(textBody);
-                    appendDebug(`Recovered JSON parse for ${p}`);
                     return parsed;
                 } catch (recoverErr) {
                     throw new Error(`Invalid JSON response from ${p}: ${recoverErr.message}`);
@@ -569,10 +563,6 @@ async function apiRequest(path, options = {}) {
             }
         } catch (err) {
             lastErr = err;
-            appendDebug(`Error fetching ${p}: ${err.message}`);
-            if (err.name === 'AbortError') {
-                appendDebug(`Fetch aborted (timeout) for ${p}`);
-            }
             if (err.message && err.message.includes('404')) continue;
         }
     }
@@ -895,8 +885,7 @@ async function loadDashboard() {
             const msg = (err.message && err.message.includes('404'))
                 ? 'Admin API not found (404). Ensure DASHBOARD_PASSWORD is set and /api/index.js is deployed.'
                 : `Unable to load admin dashboard: ${err.message || 'check console/network for details.'}`;
-            // Do not show the login overlay for non-auth errors; log to debug panel instead
-            appendDebug(msg);
+            console.error(msg);
         }
     }
 }
