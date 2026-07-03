@@ -2260,14 +2260,20 @@ async function handleDashboardAPI(req, res) {
             });
         }
         
-        // API: /api/users - Get user list
+        // API: /api/users - Get user list (supports pagination)
         if (path === 'api/users' || path === 'users') {
-            console.log('Fetching users...');
+            console.log('Fetching users (paginated)...');
             try {
-                // Limit returned rows to prevent extremely large payloads from blocking the client
+                // Read pagination params
+                const page = Math.max(1, parseInt(req.query?.page || req.query?.p || '1')) || 1;
+                let pageSize = Math.max(1, parseInt(req.query?.pageSize || req.query?.limit || '50')) || 50;
+                // Cap pageSize to prevent huge responses
+                if (pageSize > 1000) pageSize = 1000;
+                const offset = (page - 1) * pageSize;
+
                 const usersResult = await db.execute({
-                    sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 1000",
-                    args: []
+                    sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users ORDER BY telegram_id DESC LIMIT ? OFFSET ?",
+                    args: [pageSize, offset]
                 });
 
                 const countResult = await db.execute({
@@ -2275,11 +2281,17 @@ async function handleDashboardAPI(req, res) {
                     args: []
                 });
 
-                console.log('Users fetched (limited):', usersResult.rows.length, 'Total users:', countResult.rows[0]?.count || 0);
+                const total = countResult.rows[0]?.count || 0;
+                const totalPages = Math.ceil(total / pageSize) || 1;
+
+                console.log('Users fetched (page):', page, 'rows:', usersResult.rows.length, 'total:', total);
 
                 return res.status(200).json({
                     users: usersResult.rows || [],
-                    total: countResult.rows[0]?.count || 0
+                    total: total,
+                    page: page,
+                    pageSize: pageSize,
+                    totalPages: totalPages
                 });
             } catch (err) {
                 console.error('Users API error:', err);
