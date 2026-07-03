@@ -35,7 +35,10 @@ const stats = {
     
     // Get real stats from database
     async getRealStats() {
-        if (!db) return { online: 0, matches: 0, total: 0 };
+        if (!db) {
+            console.warn('Database not available in getRealStats');
+            return { online: 0, matches: 0, total: 0 };
+        }
         
         try {
             // Get total registered users (always fresh data)
@@ -104,8 +107,11 @@ const getSessionViewed = (userId) => {
 
 try {
     db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
+    console.log('Database connected successfully');
 } catch (error) {
     console.error('Database connection error:', error);
+    console.error('Bot will not function without database connection');
+    // Don't throw - allow bot to start but with limited functionality
 }
 
 const migrateLocationSchema = async () => {
@@ -238,9 +244,16 @@ migrateLocationSchema().catch((error) => console.error('Location schema migratio
 // --- Helper Functions ---
 const getUser = async (id) => {
     try {
-        if (!db) return null;
+        if (!db) {
+            console.warn('Database not available in getUser');
+            return null;
+        }
+        if (!id) {
+            console.warn('Invalid id provided to getUser');
+            return null;
+        }
         const result = await db.execute({ sql: "SELECT * FROM users WHERE telegram_id = ?", args: [id] });
-        return result.rows[0];
+        return result.rows[0] || null;
     } catch (error) {
         console.error('Error in getUser:', error);
         return null;
@@ -248,7 +261,10 @@ const getUser = async (id) => {
 };
 
 const getRecentFeedItems = async () => {
-    if (!db) return [];
+    if (!db) {
+        console.warn('Database not available in getRecentFeedItems');
+        return [];
+    }
     try {
         const feedResult = await db.execute({
             sql: `
@@ -258,6 +274,7 @@ const getRecentFeedItems = async () => {
                 FROM matches m
                 LEFT JOIN users u1 ON m.user_one = u1.telegram_id
                 LEFT JOIN users u2 ON m.user_two = u2.telegram_id
+                WHERE m.created_at >= datetime('now', '-7 days')
                 UNION ALL
                 SELECT 'view' as type, pv.viewed_at as timestamp,
                        COALESCE(u1.nickname, 'User') || ' viewed ' || COALESCE(u2.nickname, 'User') as title,
@@ -265,6 +282,7 @@ const getRecentFeedItems = async () => {
                 FROM profile_views pv
                 LEFT JOIN users u1 ON pv.user_id = u1.telegram_id
                 LEFT JOIN users u2 ON pv.viewed_profile_id = u2.telegram_id
+                WHERE pv.viewed_at >= datetime('now', '-7 days')
                 UNION ALL
                 SELECT 'report' as type, r.created_at as timestamp,
                        COALESCE(rep.nickname, 'User') || ' reported ' || COALESCE(rpd.nickname, 'User') as title,
@@ -272,12 +290,14 @@ const getRecentFeedItems = async () => {
                 FROM reports r
                 LEFT JOIN users rep ON r.reporter_id = rep.telegram_id
                 LEFT JOIN users rpd ON r.reported_user_id = rpd.telegram_id
+                WHERE r.created_at >= datetime('now', '-7 days')
                 UNION ALL
                 SELECT 'message' as type, sm.created_at as timestamp,
                        COALESCE(u.nickname, 'User') || ' sent a secret message' as title,
                        'Secret message sent' as subtitle
                 FROM secret_messages sm
                 LEFT JOIN users u ON sm.from_user = u.telegram_id
+                WHERE sm.created_at >= datetime('now', '-7 days')
                 ORDER BY timestamp DESC
                 LIMIT 20
             `,
@@ -293,6 +313,15 @@ const getRecentFeedItems = async () => {
 
 // Calculate distance between two coordinates using Haversine formula (in km)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (typeof lat1 !== 'number' || typeof lon1 !== 'number' || 
+        typeof lat2 !== 'number' || typeof lon2 !== 'number') {
+        console.warn('Invalid coordinates in calculateDistance');
+        return Infinity;
+    }
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+        console.warn('NaN coordinates in calculateDistance');
+        return Infinity;
+    }
     const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -308,13 +337,31 @@ const isRealLocation = (location) => {
 };
 
 const saveSharedLocation = async (ctx, nextStep) => {
-    const latitude = ctx.message.location.latitude;
-    const longitude = ctx.message.location.longitude;
-    const addressText = ctx.message.text?.trim() || 'Location shared';
-    await db.execute({
-        sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = ? WHERE telegram_id = ?",
-        args: [addressText, latitude, longitude, nextStep, ctx.from.id]
-    });
+    try {
+        if (!db) {
+            console.warn('Database not available in saveSharedLocation');
+            return;
+        }
+        if (!ctx.message?.location) {
+            console.warn('No location data in saveSharedLocation');
+            return;
+        }
+        const latitude = ctx.message.location.latitude;
+        const longitude = ctx.message.location.longitude;
+        const addressText = ctx.message.text?.trim() || 'Location shared';
+        
+        if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+            console.warn('Invalid coordinates in saveSharedLocation');
+            return;
+        }
+        
+        await db.execute({
+            sql: "UPDATE users SET address = ?, latitude = ?, longitude = ?, step = ? WHERE telegram_id = ?",
+            args: [addressText, latitude, longitude, nextStep, ctx.from.id]
+        });
+    } catch (error) {
+        console.error('Error saving shared location:', error);
+    }
 };
 
 const RESERVED_USER_INPUTS = new Set([
@@ -346,24 +393,33 @@ const reservedInputReply = async (ctx) => {
 
 const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
     try {
+        if (!db) {
+            console.warn('Database not available in getRandomProfile');
+            return null;
+        }
+
         // Get current user's location and max distance preference
         const currentUser = await getUser(userId);
+        if (!currentUser) {
+            console.warn('User not found in getRandomProfile');
+            return null;
+        }
+
         const userLat = currentUser?.latitude;
         const userLon = currentUser?.longitude;
         const maxDistance = currentUser?.max_distance_km || 50;
         
-        // Build the NOT IN clause for session viewed IDs (temporary - only current session)
-        const allViewedIds = [...viewedIds];
-        const notInClause = allViewedIds.length > 0 
-            ? `AND u.telegram_id NOT IN (${allViewedIds.map(() => '?').join(',')})`
-            : '';
-        const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
-        
-        // Main query: exclude session viewed + exclude LIKED profiles + exclude PERMANENTLY VIEWED profiles + exclude BANNED users
-        try {
+        // Helper function to build profile query
+        const buildProfileQuery = (useLocation, excludeSessionViewed = true) => {
+            const allViewedIds = excludeSessionViewed ? [...viewedIds] : [];
+            const notInClause = allViewedIds.length > 0 
+                ? `AND u.telegram_id NOT IN (${allViewedIds.map(() => '?').join(',')})`
+                : '';
+            const notInArgs = allViewedIds.length > 0 ? allViewedIds : [];
+            
             let sql, args;
             
-            if (userLat != null && userLon != null && maxDistance < 9999) {
+            if (useLocation && userLat != null && userLon != null && maxDistance < 9999) {
                 // Use bounding box approximation for location filtering (1 degree ≈ 111 km)
                 const latDelta = maxDistance / 111;
                 const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
@@ -409,121 +465,70 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
                 args = [userId, userId, lookingFor, userId, ...notInArgs];
             }
             
-            console.log('Fetching random profile with viewedIds:', allViewedIds.length);
-            const unviewedResult = await db.execute({ sql, args });
+            return { sql, args };
+        };
+
+        // Helper function to validate distance for location-based results
+        const validateDistance = (profile) => {
+            if (!userLat || !userLon || maxDistance >= 9999) return true;
+            if (!profile?.latitude || !profile?.longitude) return false;
+            const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
+            return distance <= maxDistance;
+        };
+
+        // Try with session viewed IDs first
+        try {
+            const query = buildProfileQuery(true, true);
+            console.log('Fetching random profile with viewedIds:', viewedIds.length);
+            const result = await db.execute(query);
             
-            if (unviewedResult.rows.length > 0) {
-                // Precise distance filtering for location-based results
-                if (userLat != null && userLon != null && maxDistance < 9999) {
-                    const profile = unviewedResult.rows[0];
-                    if (profile.latitude != null && profile.longitude != null) {
-                        const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
-                        if (distance <= maxDistance) {
-                            return profile;
-                        }
-                    }
-                } else {
-                    return unviewedResult.rows[0];
-                }
-            }
-            
-            // If no results with strict filtering, try without session viewed IDs (but keep liked and permanently viewed exclusion)
-            if (allViewedIds.length > 0) {
-                console.log('No new profiles in session, clearing session cache and retrying with database history...');
-                sessionViewedCache.delete(userId);
-                
-                let fallbackSql, fallbackArgs;
-                
-                if (userLat != null && userLon != null && maxDistance < 9999) {
-                    const latDelta = maxDistance / 111;
-                    const lonDelta = maxDistance / (111 * Math.cos(userLat * Math.PI / 180));
-                    
-                    fallbackSql = `SELECT u.* FROM users u 
-                                   LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                                   WHERE u.is_registered = 1 
-                                     AND u.telegram_id != ? 
-                                     AND u.gender = ? 
-                                     AND u.is_banned = 0
-                                     AND u.is_shadowbanned = 0
-                                     AND pv.viewed_profile_id IS NULL
-                                     AND u.telegram_id NOT IN (
-                                         SELECT to_user FROM likes WHERE from_user = ?
-                                     )
-                                     AND u.latitude IS NOT NULL
-                                     AND u.longitude IS NOT NULL
-                                     AND u.latitude BETWEEN ? AND ?
-                                     AND u.longitude BETWEEN ? AND ?
-                                   ORDER BY RANDOM() LIMIT 1`;
-                    
-                    fallbackArgs = [userId, userId, lookingFor, userId,
-                                  userLat - latDelta, userLat + latDelta,
-                                  userLon - lonDelta, userLon + lonDelta];
-                } else {
-                    fallbackSql = `SELECT u.* FROM users u 
-                                   LEFT JOIN profile_views pv ON u.telegram_id = pv.viewed_profile_id AND pv.user_id = ?
-                                   WHERE u.is_registered = 1 
-                                     AND u.telegram_id != ? 
-                                     AND u.gender = ? 
-                                     AND u.is_banned = 0
-                                     AND u.is_shadowbanned = 0
-                                     AND pv.viewed_profile_id IS NULL
-                                     AND u.telegram_id NOT IN (
-                                         SELECT to_user FROM likes WHERE from_user = ?
-                                     )
-                                   ORDER BY RANDOM() LIMIT 1`;
-                    
-                    fallbackArgs = [userId, userId, lookingFor, userId];
-                }
-                
-                const fallbackResult = await db.execute({ sql: fallbackSql, args: fallbackArgs });
-                
-                if (fallbackResult.rows.length > 0) {
-                    if (userLat != null && userLon != null && maxDistance < 9999) {
-                        const profile = fallbackResult.rows[0];
-                        if (profile.latitude != null && profile.longitude != null) {
-                            const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
-                            if (distance <= maxDistance) {
-                                return profile;
-                            }
-                        }
-                    } else {
-                        return fallbackResult.rows[0];
-                    }
-                }
+            if (result.rows.length > 0 && validateDistance(result.rows[0])) {
+                return result.rows[0];
             }
         } catch (dbError) {
             console.error('Profile query failed:', dbError.message);
         }
-        
-        // Fallback: get any random profile (excluding liked and permanently viewed and banned users)
-        const allResult = await db.execute({
-            sql: `SELECT u.* FROM users WHERE u.is_registered = 1 
-                  AND u.telegram_id != ? 
-                  AND u.gender = ? 
-                  AND u.is_banned = 0
-                  AND u.is_shadowbanned = 0
-                  AND u.telegram_id NOT IN (
-                      SELECT to_user FROM likes WHERE from_user = ?
-                  )
-                  AND u.telegram_id NOT IN (
-                      SELECT viewed_profile_id FROM profile_views WHERE user_id = ?
-                  )
-                  ORDER BY RANDOM() LIMIT 1`,
-            args: [userId, lookingFor, userId, userId]
-        });
-        
-        if (allResult.rows.length > 0) {
-            if (userLat != null && userLon != null && maxDistance < 9999) {
-                const profile = allResult.rows[0];
-                if (profile.latitude != null && profile.longitude != null) {
-                    const distance = calculateDistance(userLat, userLon, profile.latitude, profile.longitude);
-                    if (distance <= maxDistance) {
-                        return profile;
-                    }
+
+        // Fallback: try without session viewed IDs
+        if (viewedIds.length > 0) {
+            console.log('No new profiles in session, clearing session cache and retrying...');
+            sessionViewedCache.delete(userId);
+            
+            try {
+                const query = buildProfileQuery(true, false);
+                const result = await db.execute(query);
+                
+                if (result.rows.length > 0 && validateDistance(result.rows[0])) {
+                    return result.rows[0];
                 }
-            } else {
-                return allResult.rows[0];
+            } catch (dbError) {
+                console.error('Fallback profile query failed:', dbError.message);
             }
+        }
+        
+        // Final fallback: get any random profile (excluding liked and permanently viewed and banned users)
+        try {
+            const result = await db.execute({
+                sql: `SELECT u.* FROM users WHERE u.is_registered = 1 
+                      AND u.telegram_id != ? 
+                      AND u.gender = ? 
+                      AND u.is_banned = 0
+                      AND u.is_shadowbanned = 0
+                      AND u.telegram_id NOT IN (
+                          SELECT to_user FROM likes WHERE from_user = ?
+                      )
+                      AND u.telegram_id NOT IN (
+                          SELECT viewed_profile_id FROM profile_views WHERE user_id = ?
+                      )
+                      ORDER BY RANDOM() LIMIT 1`,
+                args: [userId, lookingFor, userId, userId]
+            });
+            
+            if (result.rows.length > 0 && validateDistance(result.rows[0])) {
+                return result.rows[0];
+            }
+        } catch (dbError) {
+            console.error('Final fallback profile query failed:', dbError.message);
         }
         
         return null;
@@ -535,7 +540,14 @@ const getRandomProfile = async (userId, lookingFor, viewedIds = []) => {
 
 const markProfileAsViewed = async (userId, profileId) => {
     try {
-        if (!db) return;
+        if (!db) {
+            console.warn('Database not available in markProfileAsViewed');
+            return;
+        }
+        if (!userId || !profileId) {
+            console.warn('Invalid userId or profileId in markProfileAsViewed');
+            return;
+        }
         await db.execute({
             sql: "INSERT OR IGNORE INTO profile_views (user_id, viewed_profile_id) VALUES (?, ?)",
             args: [userId, profileId]
