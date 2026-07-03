@@ -2157,20 +2157,27 @@ async function handleDashboardAPI(req, res) {
     // Password check (skip for login check endpoint)
     const rawUrl = req.url || '';
     const originalUrl = req.headers['x-vercel-original-path'] || req.headers['x-now-original-path'] || req.headers['x-original-url'] || rawUrl;
-    if (!originalUrl.includes('/api/check-auth') && !originalUrl.includes('/check-auth')) {
+    const normalizePath = (url) => {
+        let normalized = (url || '').split('?')[0];
+        if (normalized.startsWith('/api/index.js')) {
+            normalized = normalized.replace(/^\/api\/index\.js/, '') || '/';
+        }
+        if (normalized.startsWith('/api/index')) {
+            normalized = normalized.replace(/^\/api\/index/, '') || '/';
+        }
+        return normalized.replace(/^\//, '');
+    };
+
+    if (!normalizePath(originalUrl).includes('api/check-auth') && !normalizePath(originalUrl).includes('check-auth')) {
         const password = req.headers['x-password'] || req.query?.password;
         if (password !== DASHBOARD_PASSWORD) {
             return res.status(401).json({ error: 'Unauthorized - Invalid password' });
         }
     }
-    
-    // Get path from original URL or raw URL
-    let path = originalUrl || rawUrl;
-    console.log('Dashboard API request:', path, 'rawUrl:', rawUrl, 'originalUrl:', originalUrl);
-    
-    // Remove query params and normalize
-    path = path.split('?')[0].replace(/^\//, '');
-    console.log('Normalized path:', path);
+
+    // Get path from original URL or raw URL and normalize rewritten /api/index.js paths
+    let path = normalizePath(originalUrl || rawUrl);
+    console.log('Dashboard API request:', originalUrl || rawUrl, 'normalized:', path);
     
     // Check password endpoint
     if (path === 'api/check-auth' || path === 'check-auth') {
@@ -2583,7 +2590,7 @@ async function handleDashboardAPI(req, res) {
 // Vercel Handler - Ensures all async operations complete
 export default async (req, res) => {
     // Handle Dashboard API routes
-    const routingUrl = req.url || req.headers['x-vercel-original-path'] || req.headers['x-now-original-path'] || req.headers['x-original-url'] || '';
+    const routingUrl = req.headers['x-vercel-original-path'] || req.headers['x-now-original-path'] || req.headers['x-original-url'] || req.url || '';
     if (routingUrl?.startsWith('/api/stats') || routingUrl?.startsWith('/api/users') || routingUrl?.startsWith('/api/matches') ||
         routingUrl?.startsWith('/api/analytics') || routingUrl?.startsWith('/api/search') || routingUrl?.startsWith('/api/ban') ||
         routingUrl?.startsWith('/api/delete-user') || routingUrl?.startsWith('/api/banned-users') || routingUrl?.startsWith('/api/reports') ||
