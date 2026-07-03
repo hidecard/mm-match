@@ -162,21 +162,24 @@
 <h1 class="text-headline-md font-headline-md font-bold text-primary">MM Cupid Admin</h1>
 <p class="text-label-sm text-on-surface-variant mt-1">System Administrator</p>
 </div>
-<nav class="flex-1 px-3 space-y-1">
-<!-- Active: Analytics -->
-<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg opacity-90 transition-opacity" href="#">
+<nav class="flex-1 px-3 space-y-1" id="sidebar-menu">
+<button class="dashboard-tab flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg opacity-90 transition-opacity w-full text-left" data-target="overview-section">
 <span class="material-symbols-outlined">analytics</span>
 <span class="text-label-lg font-label-lg">Analytics</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200" href="#">
+</button>
+<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="users-section">
 <span class="material-symbols-outlined">group</span>
 <span class="text-label-lg font-label-lg">User Management</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200" href="#">
+</button>
+<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="reports-section">
 <span class="material-symbols-outlined">summarize</span>
 <span class="text-label-lg font-label-lg">Reports</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200" href="#">
+</button>
+<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="banned-section">
+<span class="material-symbols-outlined">person_remove</span>
+<span class="text-label-lg font-label-lg">Banned Users</span>
+</button>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" href="#">
 <span class="material-symbols-outlined">settings</span>
 <span class="text-label-lg font-label-lg">System Settings</span>
 </a>
@@ -235,7 +238,7 @@
 <p id="login-error" class="mt-4 text-error hidden"></p>
 </div>
 </div>
-<div class="fade-in">
+<div id="overview-section" class="fade-in">
 <header class="mb-8">
 <h2 class="text-display-lg font-display-lg text-on-surface">System Overview</h2>
 <p class="text-body-lg text-on-surface-variant">Welcome back, Admin. Here's what's happening on MM Cupid today.</p>
@@ -340,7 +343,7 @@
 <span class="material-symbols-outlined text-primary">sensors</span>
 <h3 class="text-headline-sm font-headline-sm text-on-surface">Live Pulse Feed</h3>
 </div>
-<div class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
+<div id="live-feed" class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
 <!-- Feed Item -->
 <div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all">
 <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0">
@@ -386,7 +389,7 @@
 </div>
 </div>
 <!-- Reported Profiles Table -->
-<section class="glass-card rounded-2xl overflow-hidden border border-outline-variant">
+<section id="reports-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant hidden">
 <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-error">gavel</span>
@@ -412,8 +415,9 @@
 </tbody>
 </table>
 </div>
+<div id="reports-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
 </section>
-<section class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8">
+<section id="users-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8 hidden">
 <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-secondary">group</span>
@@ -440,8 +444,9 @@
 </tbody>
 </table>
 </div>
+<div id="users-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
 </section>
-<section class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8">
+<section id="banned-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8 hidden">
 <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-primary">person_remove</span>
@@ -467,6 +472,7 @@
 </tbody>
 </table>
 </div>
+<div id="banned-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
 </section>
 </div>
 </main>
@@ -493,7 +499,15 @@ const reportsBody = document.getElementById('reports-table-body');
 const usersBody = document.getElementById('users-table-body');
 const bannedBody = document.getElementById('banned-table-body');
 const refreshButton = document.getElementById('refresh-data');
-const feed = document.querySelector('.custom-scrollbar');
+const feed = document.getElementById('live-feed');
+const sidebarTabs = document.querySelectorAll('.dashboard-tab');
+const overviewSection = document.getElementById('overview-section');
+const reportsSection = document.getElementById('reports-section');
+const usersSection = document.getElementById('users-section');
+const bannedSection = document.getElementById('banned-section');
+const reportsPagination = document.getElementById('reports-pagination');
+const usersPagination = document.getElementById('users-pagination');
+const bannedPagination = document.getElementById('banned-pagination');
 
 function getPassword() {
     return localStorage.getItem(PASSWORD_KEY) || '';
@@ -609,14 +623,35 @@ function renderStats(data) {
     serverStatus.textContent = 'Healthy';
 }
 
-function renderReports(reports) {
+function renderPagination(container, currentPage, totalPages, onPageClick) {
+    if (!container) return;
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    const pageButtons = [];
+    for (let page = 1; page <= totalPages; page++) {
+        pageButtons.push(`<button class="px-3 py-2 rounded-full ${page === currentPage ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface'}" data-page="${page}">${page}</button>`);
+    }
+    container.innerHTML = `<div class="flex flex-wrap gap-2 items-center"><span class="text-label-sm text-on-surface-variant">Page:</span>${pageButtons.join('')}</div>`;
+    container.querySelectorAll('button[data-page]').forEach(btn => {
+        btn.addEventListener('click', () => onPageClick(Number(btn.dataset.page)));
+    });
+}
+
+function renderReports(reports, page = 1, pageSize = 10) {
     state.reports = reports || [];
     if (!state.reports.length) {
         reportsBody.innerHTML = '<tr class="hover:bg-surface-container-high/20 transition-colors"><td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="5">No reports found.</td></tr>';
+        renderPagination(reportsPagination, 1, 1, () => {});
         return;
     }
 
-    reportsBody.innerHTML = state.reports.map(report => {
+    const totalPages = Math.ceil(state.reports.length / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const pagedReports = state.reports.slice(startIndex, startIndex + pageSize);
+
+    reportsBody.innerHTML = pagedReports.map(report => {
         const statusLabel = report.status ? report.status.toUpperCase() : 'PENDING';
         return `<tr class="hover:bg-surface-container-high/20 transition-colors">
             <td class="px-6 py-5 text-label-sm text-on-surface">${report.reporter_name || report.reporter_id || 'Unknown'}</td>
@@ -630,16 +665,23 @@ function renderReports(reports) {
             </td>
         </tr>`;
     }).join('');
+
+    renderPagination(reportsPagination, page, totalPages, (newPage) => renderReports(state.reports, newPage, pageSize));
 }
 
-function renderUsers(users) {
+function renderUsers(users, page = 1, pageSize = 10) {
     state.users = users || [];
     if (!state.users.length) {
         usersBody.innerHTML = '<tr class="hover:bg-surface-container-high/20 transition-colors"><td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="6">No users found.</td></tr>';
+        renderPagination(usersPagination, 1, 1, () => {});
         return;
     }
 
-    usersBody.innerHTML = state.users.map(user => {
+    const totalPages = Math.ceil(state.users.length / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const pagedUsers = state.users.slice(startIndex, startIndex + pageSize);
+
+    usersBody.innerHTML = pagedUsers.map(user => {
         const status = user.is_registered ? 'Active' : 'Pending';
         return `<tr class="hover:bg-surface-container-high/20 transition-colors">
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.nickname || 'Unknown'}</td>
@@ -654,28 +696,37 @@ function renderUsers(users) {
             </td>
         </tr>`;
     }).join('');
+
+    renderPagination(usersPagination, page, totalPages, (newPage) => renderUsers(state.users, newPage, pageSize));
 }
 
-function renderBanned(users) {
+function renderBanned(users, page = 1, pageSize = 10) {
     state.bannedUsers = users || [];
     if (!state.bannedUsers.length) {
         bannedBody.innerHTML = '<tr class="hover:bg-surface-container-high/20 transition-colors"><td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="5">No banned users found.</td></tr>';
+        renderPagination(bannedPagination, 1, 1, () => {});
         return;
     }
 
-    bannedBody.innerHTML = state.bannedUsers.map(user => {
+    const totalPages = Math.ceil(state.bannedUsers.length / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const pagedUsers = state.bannedUsers.slice(startIndex, startIndex + pageSize);
+
+    bannedBody.innerHTML = pagedUsers.map(user => {
         const statusText = user.is_shadowbanned ? 'Shadowbanned' : 'Banned';
         return `<tr class="hover:bg-surface-container-high/20 transition-colors">
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.nickname || 'Unknown'}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${statusText}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.ban_reason || '-'}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${formatDate(user.banned_at)}</td>
-            <td class="px-6 py-5 text-right space-x-2">
+            <td class="px-6 py-2 text-right space-x-2">
                 <button class="px-4 py-2 rounded-lg bg-surface-container-highest text-on-surface hover:bg-primary-container hover:text-on-primary-container transition-colors text-label-sm font-bold" onclick="banOrUnbanUser(${user.telegram_id}, 'unban')">Unban</button>
                 <button class="px-4 py-2 rounded-lg bg-surface-container-highest text-on-surface hover:bg-primary-container hover:text-on-primary-container transition-colors text-label-sm font-bold" onclick="banOrUnbanUser(${user.telegram_id}, 'unshadowban')">Unshadow</button>
             </td>
         </tr>`;
     }).join('');
+
+    renderPagination(bannedPagination, page, totalPages, (newPage) => renderBanned(state.bannedUsers, newPage, pageSize));
 }
 
 async function loadDashboard() {
@@ -697,13 +748,34 @@ async function loadDashboard() {
             showLogin('Session expired. Please log in again.');
         } else {
             console.error(err);
-            // Provide guidance when backend endpoints are missing (404) or unreachable
             const msg = (err.message && err.message.includes('404'))
                 ? 'Admin API not found (404). Ensure DASHBOARD_PASSWORD is set in Vercel env and that /api/index.js is deployed.'
                 : 'Unable to load admin dashboard. Check console/network for details.';
             showLogin(msg);
         }
     }
+}
+
+function hideAllSections() {
+    overviewSection.classList.add('hidden');
+    reportsSection.classList.add('hidden');
+    usersSection.classList.add('hidden');
+    bannedSection.classList.add('hidden');
+}
+
+function setActiveTab(targetId) {
+    sidebarTabs.forEach(tab => {
+        if (tab.dataset.target === targetId) {
+            tab.classList.add('bg-secondary-container', 'text-on-secondary-container');
+            tab.classList.remove('text-on-surface-variant');
+        } else {
+            tab.classList.remove('bg-secondary-container', 'text-on-secondary-container');
+            tab.classList.add('text-on-surface-variant');
+        }
+    });
+
+    hideAllSections();
+    document.getElementById(targetId).classList.remove('hidden');
 }
 
 async function reviewReport(reportId, action) {
@@ -785,7 +857,16 @@ loginButton.addEventListener('click', login);
 searchInput.addEventListener('keyup', debounce(() => searchUsers(searchInput.value.trim()), 300));
 refreshButton.addEventListener('click', loadDashboard);
 
-window.addEventListener('DOMContentLoaded', init);
+sidebarTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        setActiveTab(tab.dataset.target);
+    });
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+    await init();
+    setActiveTab('overview-section');
+});
 
 // Micro-interactions for the Dashboard
 const buttons = document.querySelectorAll('button');
@@ -802,13 +883,13 @@ buttons.forEach(btn => {
 });
 
 // Simulating Live Feed Updates
-const userNames = ['Aung K.', 'Moe M.', 'Su Su', 'Kyaw Kyaw', 'Pyae S.'];
-const actions = ['Matched in Naypyidaw', 'New user joined', 'Verified their account', 'Purchased Premium'];
+const pulseFeedItems = ['Aung K.', 'Moe M.', 'Su Su', 'Kyaw Kyaw', 'Pyae S.'];
+const pulseActions = ['Matched in Naypyidaw', 'New user joined', 'Verified their account', 'Purchased Premium'];
 setInterval(() => {
     if (!feed) return;
     if (Math.random() > 0.7) {
-        const name = userNames[Math.floor(Math.random() * userNames.length)];
-        const action = actions[Math.floor(Math.random() * actions.length)];
+        const name = pulseFeedItems[Math.floor(Math.random() * pulseFeedItems.length)];
+        const action = pulseActions[Math.floor(Math.random() * pulseActions.length)];
         const div = document.createElement('div');
         div.className = 'flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all fade-in';
         div.innerHTML = `
@@ -822,7 +903,9 @@ setInterval(() => {
             <span class="text-[10px] text-on-surface-variant shrink-0">Just now</span>
         `;
         feed.prepend(div);
-        if (feed.children.length > 8) feed.lastElementChild.remove();
+        while (feed.children.length > 8) {
+            feed.lastElementChild.remove();
+        }
     }
 }, 8000);
 </script>
