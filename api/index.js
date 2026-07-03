@@ -2709,8 +2709,8 @@ const dashboardHTML = `<!DOCTYPE html>
                     '<td><span class="badge ' + lookingForClass + '">' + (user.looking_for || '-') + '</span></td>' +
                     '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
                     '<td>' +
-                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'ban\')">Ban</button> ' +
-                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'shadowban\')">Shadowban</button> ' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', &quot;ban&quot;)">Ban</button> ' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', &quot;shadowban&quot;)">Shadowban</button> ' +
                         '<button class="button button-muted" onclick="deleteUser(' + user.telegram_id + ')">Delete</button>' +
                     '</td>' +
                 '</tr>';
@@ -2740,9 +2740,9 @@ const dashboardHTML = `<!DOCTYPE html>
                     '<td>' + (report.description || '-') + '</td>' +
                     '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
                     '<td>' +
-                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'resolved\')">Resolve</button> ' +
-                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'rejected\')">Reject</button>' +
-                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'banned\')">Ban user</button>' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', &quot;resolved&quot;)">Resolve</button> ' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', &quot;rejected&quot;)">Reject</button>' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', &quot;banned&quot;)">Ban user</button>' +
                     '</td>' +
                 '</tr>';
             }).join('');
@@ -2759,8 +2759,8 @@ const dashboardHTML = `<!DOCTYPE html>
                     '<td>' + (user.ban_reason || '-') + '</td>' +
                     '<td>' + (user.banned_at || '-') + '</td>' +
                     '<td>' +
-                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'unban\')">Unban</button> ' +
-                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'unshadowban\')">Unshadow</button>' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', &quot;unban&quot;)">Unban</button> ' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', &quot;unshadowban&quot;)">Unshadow</button>' +
                     '</td>' +
                 '</tr>';
             }).join('');
