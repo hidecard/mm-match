@@ -105,6 +105,19 @@ const getSessionViewed = (userId) => {
     return sessionViewedCache.has(userId) ? Array.from(sessionViewedCache.get(userId)) : [];
 };
 
+// Helper for Telegram-style push notification messages
+const sendPushNotification = async (userId, text, extra = {}) => {
+    try {
+        await bot.telegram.sendMessage(userId, text, {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+            ...extra
+        });
+    } catch (error) {
+        console.error(`Notification error to ${userId}:`, error.message);
+    }
+};
+
 try {
     db = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
     console.log('Database connected successfully');
@@ -834,7 +847,7 @@ bot.on('message', async (ctx) => {
                 // Notify both sides without revealing identities
                 await ctx.reply('✅ Chat ပိတ်ပြီး Match ကို ဖျက်ပြီးပါပြီ။ သင်ထင်ရသလို အရိုင်းစိုင်းမှုများရှိခဲ့လျှင် admin ကို report လုပ်ပေးပါ။');
                 try {
-                    await bot.telegram.sendMessage(matchedUserId, '❌ တစ်ဦးက သင်နှင့် Match ကို ဖျက်ပြီး Chat ကို ပိတ်ထားသည်။ အကယ်၍ သင်အနေဖြင့် သတင်းပေးချင်ပါက admin ကို ဆက်သွယ်ပါ။');
+                    await sendPushNotification(matchedUserId, '❌ တစ်ဦးက သင်နှင့် Match ကို ဖျက်ပြီး Chat ကို ပိတ်ထားသည်။ အကယ်၍ သင်အနေဖြင့် သတင်းပေးချင်ပါက admin ကို ဆက်သွယ်ပါ။');
                 } catch (notifyErr) {
                     console.error('Notify partner error:', notifyErr.message);
                 }
@@ -862,18 +875,25 @@ bot.on('message', async (ctx) => {
             const matchedUserId = sessionResult.rows[0].matched_user_id;
             const sender = await getUser(ctx.from.id);
             
-            // Handle different message types
+            // Handle different message types with push-friendly context
+            const senderNickname = sender?.nickname || 'Your match';
             if (ctx.message.text) {
-                await bot.telegram.sendMessage(matchedUserId, ctx.message.text);
+                await sendPushNotification(matchedUserId, `💬 *New message from ${senderNickname}*\n\n${ctx.message.text}`);
             } else if (ctx.message.photo) {
                 const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
                 const caption = ctx.message.caption || '';
-                await bot.telegram.sendPhoto(matchedUserId, photoId, { caption });
+                await sendPushNotification(matchedUserId, `💬 *New photo from ${senderNickname}*\n\n${caption}`);
+                await bot.telegram.sendPhoto(matchedUserId, photoId, {
+                    caption: `💬 *New photo from ${senderNickname}*\n\n${caption}`,
+                    parse_mode: 'Markdown'
+                });
             } else if (ctx.message.voice) {
                 const voiceId = ctx.message.voice.file_id;
+                await sendPushNotification(matchedUserId, `💬 *New voice message from ${senderNickname}*`);
                 await bot.telegram.sendVoice(matchedUserId, voiceId);
             } else if (ctx.message.sticker) {
                 const stickerId = ctx.message.sticker.file_id;
+                await sendPushNotification(matchedUserId, `💬 *New sticker from ${senderNickname}*`);
                 await bot.telegram.sendSticker(matchedUserId, stickerId);
             }
             
@@ -1696,12 +1716,11 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                         partnerMatchText += `\n\n💌 *သင်ပို့တဲ့စိတ်ကူးလေး:* "${partnerMessage}"`;
                     }
                     
-                    await bot.telegram.sendMessage(targetId, partnerMatchText, {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
+                    await sendPushNotification(targetId, partnerMatchText, {
+                        reply_markup: Markup.inlineKeyboard([
                             [Markup.button.callback('💬 စကားပြောမည်', `chat_${senderId}`)],
                             [Markup.button.callback('➡️ ဆက်ရှာမည်', 'next_profile')]
-                        ])
+                        ]).reply_markup
                     });
                 } catch (e) {
                     console.error('Error sending partner match notification:', e);
@@ -1719,11 +1738,10 @@ bot.action(/^like_(.+)$/, async (ctx) => {
                     
                     likeNotifyText += `\n\nအဲဒီလူက ဘယ်သူဖြစ်မလဲဆိုတာ သိချင်ရင် အောက်က ခလုတ်ကိုနှိပ်လိုက်ပါ!`;
                     
-                    await bot.telegram.sendMessage(targetId, likeNotifyText, {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
+                    await sendPushNotification(targetId, likeNotifyText, {
+                        reply_markup: Markup.inlineKeyboard([
                             [Markup.button.callback('👀 သူ့ကို ကြည့်မယ်', `view_back_${senderId}`)]
-                        ])
+                        ]).reply_markup
                     });
                 }
             } catch (e) {}
