@@ -393,10 +393,13 @@
 <div id="reports-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
 </section>
 <section id="users-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8 hidden">
-<div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<div class="p-6 border-b border-outline-variant flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-surface-container-low">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-secondary">group</span>
+<div>
 <h3 class="text-headline-sm font-headline-sm text-on-surface">User Management</h3>
+<p id="user-management-count" class="text-label-sm text-on-surface-variant">Loading users…</p>
+</div>
 </div>
 <span class="text-label-sm text-on-surface-variant">Search by nickname using the top bar.</span>
 </div>
@@ -404,6 +407,7 @@
 <table class="w-full text-left border-collapse">
 <thead>
 <tr class="bg-surface-container-high/50 text-label-sm text-on-surface-variant uppercase tracking-wider">
+<th class="px-6 py-4 font-semibold">Telegram Username</th>
 <th class="px-6 py-4 font-semibold">Nickname</th>
 <th class="px-6 py-4 font-semibold">Age</th>
 <th class="px-6 py-4 font-semibold">Gender</th>
@@ -473,6 +477,7 @@ const serverStatus = document.getElementById('server-status');
 const reportsBody = document.getElementById('reports-table-body');
 const usersBody = document.getElementById('users-table-body');
 const bannedBody = document.getElementById('banned-table-body');
+const userManagementCount = document.getElementById('user-management-count');
 const refreshButton = document.getElementById('refresh-data');
 const feed = document.getElementById('live-feed');
 const sidebarMenu = document.getElementById('sidebar-menu');
@@ -663,10 +668,15 @@ function renderReports(reports, page = 1, pageSize = 10) {
     renderPagination(reportsPagination, page, totalPages, (newPage) => renderReports(state.reports, newPage, pageSize));
 }
 
-function renderUsers(users, page = 1, pageSize = 10) {
+function renderUsers(users, totalCount = 0, page = 1, pageSize = 10) {
     state.users = users || [];
+    if (userManagementCount) {
+        const visible = state.users.length;
+        const total = totalCount || visible;
+        userManagementCount.textContent = `${visible} of ${total} users shown`;
+    }
     if (!state.users.length) {
-        usersBody.innerHTML = '<tr class="hover:bg-surface-container-high/20 transition-colors"><td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="6">No users found.</td></tr>';
+        usersBody.innerHTML = '<tr class="hover:bg-surface-container-high/20 transition-colors"><td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="7">No users found.</td></tr>';
         renderPagination(usersPagination, 1, 1, () => {});
         return;
     }
@@ -678,6 +688,7 @@ function renderUsers(users, page = 1, pageSize = 10) {
     usersBody.innerHTML = pagedUsers.map(user => {
         const status = user.is_registered ? 'Active' : 'Pending';
         return `<tr class="hover:bg-surface-container-high/20 transition-colors">
+            <td class="px-6 py-5 text-label-sm text-on-surface">${user.username ? `@${user.username}` : '-'}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.nickname || 'Unknown'}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.age || '-'}</td>
             <td class="px-6 py-5 text-label-sm text-on-surface">${user.gender || '-'}</td>
@@ -691,7 +702,7 @@ function renderUsers(users, page = 1, pageSize = 10) {
         </tr>`;
     }).join('');
 
-    renderPagination(usersPagination, page, totalPages, (newPage) => renderUsers(state.users, newPage, pageSize));
+    renderPagination(usersPagination, page, totalPages, (newPage) => renderUsers(state.users, totalCount, newPage, pageSize));
 }
 
 function renderBanned(users, page = 1, pageSize = 10) {
@@ -834,7 +845,7 @@ async function loadDashboard() {
         ]);
 
         renderStats(statsData);
-        renderUsers(usersData.users || []);
+        renderUsers(usersData.users || [], usersData.total || 0);
         renderReports(reportsData.reports || []);
         renderBanned(bannedData.bannedUsers || []);
         renderAnalytics(analyticsData || {});
@@ -932,7 +943,7 @@ async function searchUsers(query) {
     }
     try {
         const result = await apiRequest(`search?q=${encodeURIComponent(query)}&type=nickname`);
-        renderUsers(result.users || []);
+        renderUsers(result.users || [], result.total || 0);
     } catch (err) {
         alert(err.message || 'Search failed.');
     }

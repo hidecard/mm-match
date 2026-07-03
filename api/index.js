@@ -2247,7 +2247,7 @@ async function handleDashboardAPI(req, res) {
             console.log('Fetching users...');
             
             const usersResult = await db.execute({
-                sql: "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 50",
+                sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 50",
                 args: []
             });
             
@@ -2385,25 +2385,32 @@ async function handleDashboardAPI(req, res) {
             
             console.log('Searching:', searchType, searchQuery);
             
-            let sql, params = [];
+            let sql, countSql, params = [];
             
             if (searchType === 'nickname' && searchQuery) {
-                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE nickname LIKE ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE nickname LIKE ? AND is_registered = 1 LIMIT 50";
+                countSql = "SELECT COUNT(*) as count FROM users WHERE nickname LIKE ? AND is_registered = 1";
                 params = ['%' + searchQuery + '%'];
             } else if (searchType === 'city' && searchQuery) {
-                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE address LIKE ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE address LIKE ? AND is_registered = 1 LIMIT 50";
+                countSql = "SELECT COUNT(*) as count FROM users WHERE address LIKE ? AND is_registered = 1";
                 params = ['%' + searchQuery + '%'];
             } else if (searchType === 'age' && searchQuery) {
-                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE age = ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE age = ? AND is_registered = 1 LIMIT 50";
+                countSql = "SELECT COUNT(*) as count FROM users WHERE age = ? AND is_registered = 1";
                 params = [parseInt(searchQuery)];
             } else {
-                sql = "SELECT telegram_id, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE is_registered = 1 LIMIT 50";
+                countSql = "SELECT COUNT(*) as count FROM users WHERE is_registered = 1";
             }
             
             const usersResult = await db.execute({ sql, args: params });
+            const totalResult = await db.execute({ sql: countSql, args: params });
+            const totalUsers = totalResult.rows[0]?.count || 0;
             
             return res.status(200).json({
                 users: usersResult.rows || [],
+                total: totalUsers,
                 query: searchQuery,
                 type: searchType
             });
