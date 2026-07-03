@@ -343,31 +343,7 @@
 <span class="material-symbols-outlined text-primary">sensors</span>
 <h3 class="text-headline-sm font-headline-sm text-on-surface">Live Pulse Feed</h3>
 </div>
-<div id="live-feed" class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
-<!-- Feed Item -->
-<div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all">
-<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-on-primary">favorite</span>
-</div>
-<div class="flex-1 min-w-0">
-<p class="text-label-lg font-bold text-on-surface truncate">Thiri M. & Zay Y.</p>
-<p class="text-label-sm text-on-surface-variant">Matched in Yangon</p>
-</div>
-<span class="text-[10px] text-on-surface-variant shrink-0">Just now</span>
-</div>
-<div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all">
-<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-on-secondary">person_add</span>
-</div>
-<div class="flex-1 min-w-0">
-<p class="text-label-lg font-bold text-on-surface truncate">Kyaw S. K.</p>
-<p class="text-label-sm text-on-surface-variant">New user joined</p>
-</div>
-<span class="text-[10px] text-on-surface-variant shrink-0">2m ago</span>
-</div>
-<div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all">
-<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-on-primary">favorite</span>
+<div id="live-feed" class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2"></div>
 </div>
 <div class="flex-1 min-w-0">
 <p class="text-label-lg font-bold text-on-surface truncate">Nadi W. & Min H.</p>
@@ -730,6 +706,70 @@ function renderBanned(users, page = 1, pageSize = 10) {
     renderPagination(bannedPagination, page, totalPages, (newPage) => renderBanned(state.bannedUsers, newPage, pageSize));
 }
 
+function formatRelativeTime(value) {
+    if (!value) return 'Unknown time';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function renderLiveFeed(items) {
+    if (!feed) return;
+    feed.innerHTML = items.map(item => {
+        return `<div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all fade-in">
+            <div class="w-10 h-10 rounded-full ${item.iconBg} flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined ${item.iconColor}">${item.icon}</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-label-lg font-bold text-on-surface truncate">${item.title}</p>
+                <p class="text-label-sm text-on-surface-variant">${item.subtitle}</p>
+            </div>
+            <span class="text-[10px] text-on-surface-variant shrink-0">${formatRelativeTime(item.timestamp)}</span>
+        </div>`;
+    }).join('');
+}
+
+function buildFeedItem(name, action, timestamp) {
+    const lower = action.toLowerCase();
+    const icon = lower.includes('match') ? 'favorite' : lower.includes('joined') ? 'person_add' : lower.includes('premium') ? 'star' : 'sensors';
+    const iconBg = lower.includes('match') ? 'bg-primary-container' : lower.includes('joined') ? 'bg-secondary-container' : 'bg-tertiary-container';
+    const iconColor = lower.includes('match') ? 'text-on-primary' : lower.includes('joined') ? 'text-on-secondary' : 'text-on-tertiary-container';
+
+    return {
+        title: name,
+        subtitle: action,
+        timestamp,
+        icon,
+        iconBg,
+        iconColor
+    };
+}
+
+function initializeLiveFeed() {
+    const now = Date.now();
+    const sampleFeed = [
+        buildFeedItem('Thiri M. & Zay Y.', 'Matched in Yangon', new Date(now - 1000 * 60 * 1)),
+        buildFeedItem('Kyaw S. K.', 'New user joined', new Date(now - 1000 * 60 * 2)),
+        buildFeedItem('Htet Htet', 'Updated profile bio', new Date(now - 1000 * 60 * 12)),
+        buildFeedItem('Nadi W. & Min H.', 'Matched in Mandalay', new Date(now - 1000 * 60 * 5)),
+        buildFeedItem('Kyaw Kyaw', 'Matched in Naypyidaw', new Date(now - 1000 * 60 * 7))
+    ];
+    renderLiveFeed(sampleFeed);
+    return sampleFeed;
+}
+
+const liveFeedItems = initializeLiveFeed();
+
 async function loadDashboard() {
     try {
         const [statsData, usersData, reportsData, bannedData] = await Promise.all([
@@ -863,6 +903,18 @@ loginButton.addEventListener('click', login);
 searchInput.addEventListener('keyup', debounce(() => searchUsers(searchInput.value.trim()), 300));
 refreshButton.addEventListener('click', loadDashboard);
 
+function bindSidebarTabs() {
+    if (!sidebarTabs || !sidebarTabs.length) return;
+    sidebarTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetId = tab.dataset.target;
+            if (targetId) {
+                setActiveTab(targetId);
+            }
+        });
+    });
+}
+
 sidebarMenu?.addEventListener('click', event => {
     const tab = event.target.closest('.dashboard-tab');
     if (!tab) return;
@@ -873,6 +925,7 @@ sidebarMenu?.addEventListener('click', event => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+    bindSidebarTabs();
     await init();
     setActiveTab('overview-section');
 });
@@ -899,22 +952,11 @@ setInterval(() => {
     if (Math.random() > 0.7) {
         const name = pulseFeedItems[Math.floor(Math.random() * pulseFeedItems.length)];
         const action = pulseActions[Math.floor(Math.random() * pulseActions.length)];
-        const div = document.createElement('div');
-        div.className = 'flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all fade-in';
-        div.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
-                <span class="material-symbols-outlined text-on-tertiary-container">star</span>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-label-lg font-bold text-on-surface truncate">${name}</p>
-                <p class="text-label-sm text-on-surface-variant">${action}</p>
-            </div>
-            <span class="text-[10px] text-on-surface-variant shrink-0">Just now</span>
-        `;
-        feed.prepend(div);
-        while (feed.children.length > 8) {
-            feed.lastElementChild.remove();
+        liveFeedItems.unshift(buildFeedItem(name, action, new Date()));
+        if (liveFeedItems.length > 8) {
+            liveFeedItems.pop();
         }
+        renderLiveFeed(liveFeedItems);
     }
 }, 8000);
 </script>
