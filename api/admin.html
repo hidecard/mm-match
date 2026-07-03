@@ -544,7 +544,26 @@ async function apiRequest(path, options = {}) {
                 }
                 throw new Error(errorBody?.error || errorBody?.message || response.statusText || text || 'Request failed');
             }
-            return await response.json();
+            // Parse JSON with timeout and fallback to text to avoid hangs
+            let parsed = null;
+            try {
+                const jsonPromise = response.json();
+                const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('JSON parse timeout')), 5000));
+                parsed = await Promise.race([jsonPromise, timeoutPromise]);
+                appendDebug(`Parsed JSON: ${p} -> keys: ${Object.keys(parsed || {}).join(',')}`);
+                return parsed;
+            } catch (parseErr) {
+                appendDebug(`JSON parse failed for ${p}: ${parseErr.message}. Falling back to text.`);
+                const textBody = await response.text().catch(() => '');
+                appendDebug(`Response text for ${p}: ${textBody.slice(0,200)}`);
+                try {
+                    parsed = JSON.parse(textBody);
+                    appendDebug(`Recovered JSON parse for ${p}`);
+                    return parsed;
+                } catch (recoverErr) {
+                    throw new Error(`Invalid JSON response from ${p}: ${recoverErr.message}`);
+                }
+            }
         } catch (err) {
             lastErr = err;
             appendDebug(`Error fetching ${p}: ${err.message}`);
