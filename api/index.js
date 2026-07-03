@@ -92,6 +92,7 @@ const addToSessionViewed = (userId, profileId) => {
     // Limit cache size per user to prevent memory issues
     if (sessionViewedCache.get(userId).size > 50) {
         const entries = Array.from(sessionViewedCache.get(userId));
+
         sessionViewedCache.set(userId, new Set(entries.slice(-30)));
     }
 };
@@ -173,6 +174,63 @@ const migrateLocationSchema = async () => {
     } catch (error) {
         console.error('Secret messages table creation error:', error);
     }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS likes (
+                from_user INTEGER,
+                to_user INTEGER,
+                status TEXT DEFAULT 'pending',
+                PRIMARY KEY (from_user, to_user)
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Likes table creation error:', error);
+    }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS profile_views (
+                user_id INTEGER,
+                viewed_profile_id INTEGER,
+                viewed_at NUMERIC DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, viewed_profile_id)
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Profile views table creation error:', error);
+    }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_one INTEGER NOT NULL,
+                user_two INTEGER NOT NULL,
+                created_at NUMERIC DEFAULT CURRENT_TIMESTAMP,
+                is_revealed NUMERIC DEFAULT 0
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Matches table creation error:', error);
+    }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS chat_sessions (
+                user_id INTEGER PRIMARY KEY,
+                matched_user_id INTEGER NOT NULL,
+                match_id INTEGER NOT NULL,
+                started_at NUMERIC DEFAULT CURRENT_TIMESTAMP
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Chat sessions table creation error:', error);
+    }
 };
 
 migrateLocationSchema().catch((error) => console.error('Location schema migration failed:', error));
@@ -186,6 +244,50 @@ const getUser = async (id) => {
     } catch (error) {
         console.error('Error in getUser:', error);
         return null;
+    }
+};
+
+const getRecentFeedItems = async () => {
+    if (!db) return [];
+    try {
+        const feedResult = await db.execute({
+            sql: `
+                SELECT 'match' as type, m.created_at as timestamp,
+                       COALESCE(u1.nickname, 'User') || ' & ' || COALESCE(u2.nickname, 'User') as title,
+                       'Matched' as subtitle
+                FROM matches m
+                LEFT JOIN users u1 ON m.user_one = u1.telegram_id
+                LEFT JOIN users u2 ON m.user_two = u2.telegram_id
+                UNION ALL
+                SELECT 'view' as type, pv.viewed_at as timestamp,
+                       COALESCE(u1.nickname, 'User') || ' viewed ' || COALESCE(u2.nickname, 'User') as title,
+                       'Profile viewed' as subtitle
+                FROM profile_views pv
+                LEFT JOIN users u1 ON pv.user_id = u1.telegram_id
+                LEFT JOIN users u2 ON pv.viewed_profile_id = u2.telegram_id
+                UNION ALL
+                SELECT 'report' as type, r.created_at as timestamp,
+                       COALESCE(rep.nickname, 'User') || ' reported ' || COALESCE(rpd.nickname, 'User') as title,
+                       'Report submitted' as subtitle
+                FROM reports r
+                LEFT JOIN users rep ON r.reporter_id = rep.telegram_id
+                LEFT JOIN users rpd ON r.reported_user_id = rpd.telegram_id
+                UNION ALL
+                SELECT 'message' as type, sm.created_at as timestamp,
+                       COALESCE(u.nickname, 'User') || ' sent a secret message' as title,
+                       'Secret message sent' as subtitle
+                FROM secret_messages sm
+                LEFT JOIN users u ON sm.from_user = u.telegram_id
+                ORDER BY timestamp DESC
+                LIMIT 20
+            `,
+            args: []
+        });
+
+        return feedResult.rows || [];
+    } catch (error) {
+        console.error('Error fetching live feed items:', error);
+        return [];
     }
 };
 
@@ -2356,6 +2458,12 @@ async function handleDashboardAPI(req, res) {
             });
         }
 
+        // API: /api/feed - Get recent live dashboard feed
+        if (path === 'api/feed' || path === 'feed') {
+            const feedItems = await getRecentFeedItems();
+            return res.status(200).json({ feed: feedItems });
+        }
+
         // API: /api/reports - Get reports list
         if (path === 'api/reports' || path === 'reports') {
             const reportsResult = await db.execute({
@@ -2430,13 +2538,12 @@ async function handleDashboardAPI(req, res) {
 export default async (req, res) => {
     // Handle Dashboard API routes
     if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
-        req.url?.startsWith('/api/analytics') || req.url?.startsWith('/api/search') || 
-        req.url?.startsWith('/api/ban') || req.url?.startsWith('/api/delete-user') || 
-        req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/reports') ||
-        req.url?.startsWith('/api/review-report') || req.url?.startsWith('/api/check-auth') ||
+        req.url?.startsWith('/api/analytics') || req.url?.startsWith('/api/search') || req.url?.startsWith('/api/ban') ||
+        req.url?.startsWith('/api/delete-user') || req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/reports') ||
+        req.url?.startsWith('/api/review-report') || req.url?.startsWith('/api/check-auth') || req.url?.startsWith('/api/feed') ||
         req.url === '/stats' || req.url === '/users' || req.url === '/matches' || req.url === '/analytics' || 
         req.url === '/search' || req.url === '/ban' || req.url === '/delete-user' || req.url === '/banned-users' ||
-        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth') {
+        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth' || req.url === '/feed') {
         return handleDashboardAPI(req, res);
     }
     

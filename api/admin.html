@@ -741,9 +741,9 @@ function renderLiveFeed(items) {
 
 function buildFeedItem(name, action, timestamp) {
     const lower = action.toLowerCase();
-    const icon = lower.includes('match') ? 'favorite' : lower.includes('joined') ? 'person_add' : lower.includes('premium') ? 'star' : 'sensors';
-    const iconBg = lower.includes('match') ? 'bg-primary-container' : lower.includes('joined') ? 'bg-secondary-container' : 'bg-tertiary-container';
-    const iconColor = lower.includes('match') ? 'text-on-primary' : lower.includes('joined') ? 'text-on-secondary' : 'text-on-tertiary-container';
+    const icon = lower.includes('match') ? 'favorite' : lower.includes('joined') ? 'person_add' : lower.includes('report') ? 'report' : lower.includes('message') ? 'mail' : 'sensors';
+    const iconBg = lower.includes('match') ? 'bg-primary-container' : lower.includes('joined') ? 'bg-secondary-container' : lower.includes('report') ? 'bg-error-container' : 'bg-tertiary-container';
+    const iconColor = lower.includes('match') ? 'text-on-primary' : lower.includes('joined') ? 'text-on-secondary' : lower.includes('report') ? 'text-on-error-container' : 'text-on-tertiary-container';
 
     return {
         title: name,
@@ -753,6 +753,15 @@ function buildFeedItem(name, action, timestamp) {
         iconBg,
         iconColor
     };
+}
+
+function buildFeedItemsFromApi(feedItems) {
+    return (feedItems || []).map(item => {
+        const title = item.title || (item.type === 'match' ? 'New match' : item.type === 'view' ? 'Profile viewed' : item.type === 'report' ? 'Report submitted' : item.type === 'message' ? 'Secret message' : 'Activity');
+        const subtitle = item.subtitle || (item.type === 'match' ? 'Matched' : item.type === 'view' ? 'Profile viewed' : item.type === 'report' ? 'Report submitted' : item.type === 'message' ? 'Secret message sent' : 'Recent activity');
+        const timestamp = item.timestamp ? new Date(item.timestamp) : new Date();
+        return buildFeedItem(title, subtitle, timestamp);
+    });
 }
 
 function initializeLiveFeed() {
@@ -768,21 +777,30 @@ function initializeLiveFeed() {
     return sampleFeed;
 }
 
-const liveFeedItems = initializeLiveFeed();
+let liveFeedItems = [];
 
 async function loadDashboard() {
     try {
-        const [statsData, usersData, reportsData, bannedData] = await Promise.all([
+        const [statsData, usersData, reportsData, bannedData, feedData] = await Promise.all([
             apiRequest('stats'),
             apiRequest('users'),
             apiRequest('reports'),
-            apiRequest('banned-users')
+            apiRequest('banned-users'),
+            apiRequest('feed')
         ]);
 
         renderStats(statsData);
         renderUsers(usersData.users || []);
         renderReports(reportsData.reports || []);
         renderBanned(bannedData.bannedUsers || []);
+
+        const newFeedItems = buildFeedItemsFromApi(feedData.feed || []);
+        if (newFeedItems.length) {
+            liveFeedItems = newFeedItems;
+            renderLiveFeed(liveFeedItems);
+        } else {
+            liveFeedItems = initializeLiveFeed();
+        }
     } catch (err) {
         if (err.message === 'Unauthorized') {
             clearPassword();
@@ -944,20 +962,5 @@ buttons.forEach(btn => {
     });
 });
 
-// Simulating Live Feed Updates
-const pulseFeedItems = ['Aung K.', 'Moe M.', 'Su Su', 'Kyaw Kyaw', 'Pyae S.'];
-const pulseActions = ['Matched in Naypyidaw', 'New user joined', 'Verified their account', 'Purchased Premium'];
-setInterval(() => {
-    if (!feed) return;
-    if (Math.random() > 0.7) {
-        const name = pulseFeedItems[Math.floor(Math.random() * pulseFeedItems.length)];
-        const action = pulseActions[Math.floor(Math.random() * pulseActions.length)];
-        liveFeedItems.unshift(buildFeedItem(name, action, new Date()));
-        if (liveFeedItems.length > 8) {
-            liveFeedItems.pop();
-        }
-        renderLiveFeed(liveFeedItems);
-    }
-}, 8000);
-</script>
+// The live feed is loaded from the backend. No simulated mock updates are appended here.</script>
 </body></html>
