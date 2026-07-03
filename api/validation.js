@@ -42,3 +42,18 @@ export const validateBio = (bio) => {
     
     return { valid: true, value: trimmed };
 };
+
+export const validateSecretMessage = (msg) => {
+    if (!msg || typeof msg !== 'string') return { valid: false, error: "စာသားတစ်ကြောင်း ရိုက်ထည့်ပေးပါ" };
+    const trimmed = msg.trim();
+    if (trimmed.length < 2) return { valid: false, error: "စာသားတစ်ကြောင်း အနည်းဆုံး ၂ လုံး လိုအပ်ပါသည်" };
+    if (trimmed.length > 200) return { valid: false, error: "စာသားသည် ၂၀၀ လုံးထက် မကျော်ရပါ" };
+
+    const hasBadWord = PROFANITY_LIST.some(word => trimmed.toLowerCase().includes(word.toLowerCase()));
+    if (hasBadWord) return { valid: false, error: "မဆီလျော်သော စကားလုံးများ မပါနိုင်ပါ" };
+
+    // Disallow commands or inputs starting with slash
+    if (trimmed.startsWith('/')) return { valid: false, error: "Command များကို စာသားအဖြစ် အသုံးမပြုနိုင်ပါ" };
+
+    return { valid: true, value: trimmed };
+};

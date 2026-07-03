@@ -1,7 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@libsql/client';
 import 'dotenv/config';
-import { validateNickname, validateAge, validateBio } from './validation.js';
+import { validateNickname, validateAge, validateBio, validateSecretMessage } from './validation.js';
 
 // Check environment variables
 if (!process.env.BOT_TOKEN) console.error('BOT_TOKEN is missing');
@@ -1394,6 +1394,36 @@ bot.action(/^like_with_message_(.+)$/, async (ctx) => {
         parse_mode: 'Markdown',
         ...Markup.forceReply()
     });
+});
+
+// Capture force-reply secret message and validate
+bot.on('message', async (ctx) => {
+    try {
+        if (!ctx.message || !ctx.message.text) return;
+        const user = await getUser(ctx.from.id);
+        if (!user || !user.step) return;
+
+        const match = user.step.match(/^secret_message_(\d+)$/);
+        if (!match) return;
+
+        const targetId = match[1];
+        const msgText = ctx.message.text.trim();
+
+        const validation = validateSecretMessage(msgText);
+        if (!validation.valid) {
+            return await ctx.reply(`❌ ${validation.error}`);
+        }
+
+        // Store pending message in memory map until like button pressed
+        pendingSecretMessages.set(`${ctx.from.id}_${targetId}`, validation.value);
+
+        // Reset user step to done
+        await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [ctx.from.id] });
+
+        await ctx.reply('✅ စိတ်ကူးသိမ်းပြီးပါပြီ! အခု Like ကို နှိပ်ပြီး ပို့နိုင်သည်။');
+    } catch (e) {
+        console.error('Secret message handling error:', e);
+    }
 });
 
 bot.action(/^like_(.+)$/, async (ctx) => {
