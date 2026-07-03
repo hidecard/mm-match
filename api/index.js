@@ -2156,7 +2156,7 @@ async function handleDashboardAPI(req, res) {
     
     // Password check (skip for login check endpoint)
     const url = req.url || '';
-    if (!url.includes('/api/check-auth')) {
+    if (!url.includes('/api/check-auth') && !url.includes('/check-auth')) {
         const password = req.headers['x-password'] || req.query?.password;
         if (password !== DASHBOARD_PASSWORD) {
             return res.status(401).json({ error: 'Unauthorized - Invalid password' });
@@ -2593,7 +2593,10 @@ export default async (req, res) => {
     }
     
     // Serve admin dashboard HTML for root path
-    if (req.method === 'GET' && (req.url === '/' || req.url === '/dashboard' || req.url === '/admin' || req.url === '/api' || req.url === '/api/' || req.url === '/api/index' || req.url === '/api/index/' || req.url?.startsWith('/api/index?'))) {
+    if (req.method === 'GET' && (
+        req.url === '/' || req.url === '/dashboard' || req.url === '/admin' || req.url === '/api' || req.url === '/api/' ||
+        req.url === '/api/index' || req.url === '/api/index/' || req.url === '/api/index.js' || req.url?.startsWith('/api/index?') || req.url?.startsWith('/api/index.js?')
+    )) {
         res.setHeader('Content-Type', 'text/html');
         try {
             const html = fs.readFileSync(new URL('./admin.html', import.meta.url), 'utf8');
