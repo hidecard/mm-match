@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>MM Cupid | Admin Console</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@100..900&family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#1e0f11",
+                        "tertiary-fixed": "#e4dffc",
+                        "success-mint": "#4ADE80",
+                        "tertiary-container": "#918ea8",
+                        "on-primary-fixed": "#400010",
+                        "primary-fixed": "#ffdadc",
+                        "on-secondary-fixed": "#25113e",
+                        "surface-container-highest": "#423032",
+                        "outline": "#aa898b",
+                        "on-tertiary-container": "#29273d",
+                        "on-secondary-fixed-variant": "#523d6c",
+                        "on-primary-fixed-variant": "#91002f",
+                        "surface-container-lowest": "#180a0c",
+                        "on-surface-variant": "#e2bec0",
+                        "inverse-primary": "#bb1041",
+                        "inverse-surface": "#f8dcdd",
+                        "secondary-container": "#523d6c",
+                        "on-background": "#f8dcdd",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "surface-tint": "#ffb2b9",
+                        "secondary-fixed": "#eedbff",
+                        "on-tertiary": "#302e44",
+                        "tertiary-fixed-dim": "#c8c3df",
+                        "cta-gradient-end": "#FF8095",
+                        "primary": "#ffb2b9",
+                        "on-primary-container": "#5b001a",
+                        "tertiary": "#c8c3df",
+                        "on-secondary-container": "#c4abe1",
+                        "on-primary": "#67001f",
+                        "on-secondary": "#3b2754",
+                        "on-tertiary-fixed": "#1b192e",
+                        "surface-container-high": "#362627",
+                        "surface-dim": "#1e0f11",
+                        "indigo-bg": "#0D0B1F",
+                        "secondary-fixed-dim": "#d6bcf4",
+                        "primary-container": "#ff5070",
+                        "cta-gradient-start": "#FF4B6E",
+                        "error-container": "#93000a",
+                        "outline-variant": "#5a4042",
+                        "primary-fixed-dim": "#ffb2b9",
+                        "surface-container-low": "#271719",
+                        "inverse-on-surface": "#3d2c2d",
+                        "surface-glass": "rgba(255, 255, 255, 0.08)",
+                        "secondary": "#d6bcf4",
+                        "surface": "#1e0f11",
+                        "surface-bright": "#473536",
+                        "surface-variant": "#423032",
+                        "surface-container": "#2b1b1d",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#47445b",
+                        "on-surface": "#f8dcdd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-margin": "20px",
+                        "base": "8px",
+                        "stack-gap": "16px",
+                        "touch-target": "48px",
+                        "card-gutter": "12px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Plus Jakarta Sans"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "body-md": ["Noto Sans"],
+                        "body-lg": ["Noto Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "display-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-body-md text-on-background">
+    <!-- SideNavBar -->
+    <aside class="h-screen w-64 fixed left-0 top-0 overflow-y-auto flex flex-col border-r border-outline-variant bg-surface-container-low z-50">
+        <div class="p-6">
+            <h1 class="text-headline-md font-headline-md font-bold text-primary">MM Cupid Admin</h1>
+            <p class="text-label-sm text-on-surface-variant mt-1">System Administrator</p>
+        </div>
+        <nav class="flex-1 px-3 space-y-1" id="sidebar-menu">
+            <button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg opacity-90 transition-opacity w-full text-left" data-target="overview-section">
+                <span class="material-symbols-outlined">analytics</span>
+                <span class="text-label-lg font-label-lg">Analytics</span>
+            </button>
+            <button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="users-section">
+                <span class="material-symbols-outlined">group</span>
+                <span class="text-label-lg font-label-lg">User Management</span>
+            </button>
+            <button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="reports-section">
+                <span class="material-symbols-outlined">summarize</span>
+                <span class="text-label-lg font-label-lg">Reports</span>
+            </button>
+            <button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="banned-section">
+                <span class="material-symbols-outlined">person_remove</span>
+                <span class="text-label-lg font-label-lg">Banned Users</span>
+            </button>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" href="#">
+                <span class="material-symbols-outlined">settings</span>
+                <span class="text-label-lg font-label-lg">System Settings</span>
+            </a>
+        </nav>
+        <div class="p-4 border-t border-outline-variant">
+            <button class="w-full cta-gradient text-on-primary font-label-lg py-3 rounded-full flex items-center justify-center gap-2 mb-6">
+                <span class="material-symbols-outlined">add</span>
+                New Report
+            </button>
+            <div class="space-y-1">
+                <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200" href="#">
+                    <span class="material-symbols-outlined">help_center</span>
+                    <span class="text-label-lg font-label-lg">Support</span>
+                </a>
+                <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200" href="#">
+                    <span class="material-symbols-outlined">logout</span>
+                    <span class="text-label-lg font-label-lg">Logout</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- TopAppBar -->
+    <header class="full-width h-16 sticky top-0 z-40 flex justify-between items-center px-6 ml-64 backdrop-blur-md bg-surface-dim/80">
+        <div class="flex items-center gap-4 flex-1">
+            <div class="relative max-w-md w-full">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+                <input id="search-input" class="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-label-lg focus:ring-1 focus:ring-primary text-on-surface placeholder:text-on-surface-variant" placeholder="Search users by nickname..." type="text" autocomplete="off" />
+            </div>
+        </div>
+        <div class="flex items-center gap-6">
+            <button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center scale-95 duration-150">
+                <span class="material-symbols-outlined">notifications</span>
+            </button>
+            <button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center scale-95 duration-150">
+                <span class="material-symbols-outlined">dark_mode</span>
+            </button>
+            <div class="flex items-center gap-3 pl-4 border-l border-outline-variant">
+                <div class="text-right">
+                    <p class="text-label-lg font-bold text-primary">Admin Console</p>
+                    <p class="text-label-sm text-on-surface-variant">Profile</p>
+                </div>
+                <div class="w-10 h-10 rounded-full border-2 border-primary-container p-0.5 overflow-hidden">
+                    <img class="w-full h-full object-cover rounded-full" data-alt="A professional portrait of a senior system administrator in their 40s with a confident expression, wearing a sleek modern navy blazer. The lighting is dramatic and warm, set against a dark indigo office background with faint bokeh lights in romantic rose tones. The image captures a clean, high-tech administrative aesthetic consistent with the MM Cupid brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzDGaJ-dYxuSRVoNyq6sixJCdBRf59XuBgQgAK-54pRAzbmpGXv-F5szsCjHhlqWes8Gt7-sjriudjVsJnSPJb0EET7dBEgwJk_5UbC7Sm9CPfH7R7EsdtztBdQ8Wv3mxj-2pRvAyH4hfdVabz-51n_tISLvDxmJdvYiuGdkhuY9dGNGeCbJ3lPQwi5lnGpWd4-XUVRxuJBVeqZlyvsVe5hZgI9_fPz1km1n0fXG3QlBcB-hvKdJojKyf_91jk08xIugNP0czNVf8"/>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="ml-64 p-8 relative">
+        <div id="login-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div class="glass-card w-full max-w-md rounded-[32px] p-8">
+                <h2 class="text-display-lg font-display-lg text-on-surface mb-2">Admin Login</h2>
+                <p class="text-body-md text-on-surface-variant mb-6">Enter the dashboard password to access admin controls.</p>
+                <input id="dashboard-password" type="password" placeholder="Dashboard password" class="w-full rounded-2xl border border-outline p-4 bg-surface-container text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                <button id="login-button" class="mt-6 w-full cta-gradient text-on-primary font-label-lg py-3 rounded-full">Unlock Dashboard</button>
+                <p id="login-error" class="mt-4 text-error hidden"></p>
+            </div>
+        </div>
+
+        <div id="overview-section" class="fade-in">
+            <header class="mb-8">
+                <h2 class="text-display-lg font-display-lg text-on-surface">System Overview</h2>
+                <p class="text-body-lg text-on-surface-variant">Welcome back, Admin. Here's what's happening on MM Cupid today.</p>
+            </header>
+            <div class="grid grid-cols-4 gap-4 mb-8">
+                <div class="glass-card p-4 rounded-2xl">
+                    <p class="text-label-sm text-on-surface-variant">Total Users</p>
+                    <p id="users-count" class="text-headline-sm font-bold text-on-surface">—</p>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <p class="text-label-sm text-on-surface-variant">Total Matches</p>
+                    <p id="matches-count" class="text-headline-sm font-bold text-on-surface">—</p>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <p class="text-label-sm text-on-surface-variant">Open Reports</p>
+                    <p id="reports-count" class="text-headline-sm font-bold text-on-surface">—</p>
+                </div>
+                <div class="glass-card p-4 rounded-2xl">
+                    <p class="text-label-sm text-on-surface-variant">Server</p>
+                    <p id="server-status" class="text-headline-sm font-bold text-on-surface">—</p>
+                </div>
+            </div>
+
+            <!-- Metrics Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="glass-card p-6 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-start">
+                        <span class="text-label-lg text-on-surface-variant">Active Users</span>
+                        <span class="material-symbols-outlined text-primary">group</span>
+                    </div>
+                    <div class="flex items-end gap-3 mt-4">
+                        <span id="active-users" class="text-headline-md text-on-surface">1,240</span>
+                        <span class="text-success-mint text-label-sm mb-1 flex items-center">+5% <span class="material-symbols-outlined text-xs">trending_up</span></span>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-start">
+                        <span class="text-label-lg text-on-surface-variant">Total Matches Today</span>
+                        <span class="material-symbols-outlined text-primary">favorite</span>
+                    </div>
+                    <div class="flex items-end gap-3 mt-4">
+                        <span id="matches-today" class="text-headline-md text-on-surface">85</span>
+                        <span class="text-on-surface-variant text-label-sm mb-1">Peak Hour</span>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-start">
+                        <span class="text-label-lg text-on-surface-variant">Open Reports</span>
+                        <span class="material-symbols-outlined text-primary">report</span>
+                    </div>
+                    <div class="flex items-end gap-3 mt-4">
+                        <span id="open-reports-card" class="text-headline-md text-on-surface">12</span>
+                        <span class="text-primary font-bold text-label-sm mb-1">High Priority</span>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-start">
+                        <span class="text-label-lg text-on-surface-variant">Server Status</span>
+                        <span class="material-symbols-outlined text-primary">dns</span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-4">
+                        <span id="server-status-card" class="text-headline-md text-on-surface">Healthy</span>
+                        <div class="relative flex h-3 w-3">
+                            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-success-mint opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-success-mint"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Visualizations -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                <!-- Chart Area -->
+                <div class="lg:col-span-2 glass-card p-8 rounded-2xl min-h-[400px] flex flex-col">
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 class="text-headline-sm font-headline-sm text-on-surface">User Growth & Match Pulse</h3>
+                            <p class="text-label-sm text-on-surface-variant">Historical performance over the last 30 days</p>
+                        </div>
+                        <select class="bg-surface-container-low border-none rounded-lg text-label-sm focus:ring-1 focus:ring-primary px-4">
+                            <option>Last 30 Days</option>
+                            <option>Last 7 Days</option>
+                            <option>Today</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 relative overflow-hidden rounded-xl bg-surface-container-lowest/50 border border-outline-variant flex items-center justify-center">
+                        <!-- Placeholder for multi-series line chart -->
+                        <div class="absolute inset-0 opacity-20 pointer-events-none">
+                            <svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 800 200">
+                                <path d="M0,150 C100,120 200,180 300,140 C400,100 500,160 600,120 C700,80 800,100 800,100" fill="none" stroke="#FF4B6E" stroke-width="3"></path>
+                                <path d="M0,180 C100,160 200,190 300,170 C400,150 500,170 600,150 C700,130 800,150 800,150" fill="none" stroke="#d6bcf4" stroke-dasharray="8 4" stroke-width="2"></path>
+                            </svg>
+                        </div>
+                        <div id="analytics-insights" class="text-center z-10">
+                            <span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">insights</span>
+                            <p class="text-label-lg font-bold">Growth Visualization</p>
+                            <p class="text-label-sm text-on-surface-variant">Real-time data synchronization active</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Pulse Feed -->
+                <div class="glass-card p-8 rounded-2xl flex flex-col h-[400px]">
+                    <div class="flex items-center gap-2 mb-6">
+                        <span class="material-symbols-outlined text-primary">sensors</span>
+                        <h3 class="text-headline-sm font-headline-sm text-on-surface">Live Pulse Feed</h3>
+                    </div>
+                    <div id="live-feed" class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reported Profiles Table -->
+        <section id="reports-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant hidden">
+            <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-error">gavel</span>
+                    <h3 class="text-headline-sm font-headline-sm text-on-surface">Recent Reported Profiles</h3>
+                </div>
+                <button id="refresh-data" class="text-label-lg text-primary hover:underline">Refresh Data</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-high/50 text-label-sm text-on-surface-variant uppercase tracking-wider">
+                            <th class="px-6 py-4 font-semibold">Reporter</th>
+                            <th class="px-6 py-4 font-semibold">Reported</th>
+                            <th class="px-6 py-4 font-semibold">Reason</th>
+                            <th class="px-6 py-4 font-semibold">Status</th>
+                            <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-table-body" class="divide-y divide-outline-variant">
+                        <tr class="hover:bg-surface-container-high/20 transition-colors">
+                            <td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="5">Loading report data…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="reports-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
+        </section>
+
+        <section id="users-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8 hidden">
+            <div class="p-6 border-b border-outline-variant flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-surface-container-low">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-secondary">group</span>
+                    <div>
+                        <h3 class="text-headline-sm font-headline-sm text-on-surface">User Management</h3>
+                        <p id="user-management-count" class="text-label-sm text-on-surface-variant">Loading users…</p>
+                    </div>
+                </div>
+                <span class="text-label-sm text-on-surface-variant">Search by nickname using the top bar.</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-high/50 text-label-sm text-on-surface-variant uppercase tracking-wider">
+                            <th class="px-6 py-4 font-semibold">Telegram Username</th>
+                            <th class="px-6 py-4 font-semibold">Nickname</th>
+                            <th class="px-6 py-4 font-semibold">Age</th>
+                            <th class="px-6 py-4 font-semibold">Gender</th>
+                            <th class="px-6 py-4 font-semibold">Location</th>
+                            <th class="px-6 py-4 font-semibold">Status</th>
+                            <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body" class="divide-y divide-outline-variant">
+                        <tr class="hover:bg-surface-container-high/20 transition-colors">
+                            <td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="6">Loading user data…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="users-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
+        </section>
+
+        <section id="banned-section" class="glass-card rounded-2xl overflow-hidden border border-outline-variant mt-8 hidden">
+            <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">person_remove</span>
+                    <h3 class="text-headline-sm font-headline-sm text-on-surface">Banned & Shadowbanned</h3>
+                </div>
+                <span class="text-label-sm text-on-surface-variant">Review and restore banned accounts.</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-high/50 text-label-sm text-on-surface-variant uppercase tracking-wider">
+                            <th class="px-6 py-4 font-semibold">Nickname</th>
+                            <th class="px-6 py-4 font-semibold">Status</th>
+                            <th class="px-6 py-4 font-semibold">Reason</th>
+                            <th class="px-6 py-4 font-semibold">Banned At</th>
+                            <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="banned-table-body" class="divide-y divide-outline-variant">
+                        <tr class="hover:bg-surface-container-high/20 transition-colors">
+                            <td class="px-6 py-5 text-label-sm text-on-surface-variant" colspan="5">Loading banned user data…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="banned-pagination" class="flex items-center justify-between gap-4 p-4 bg-surface-container-low"></div>
+        </section>
+    </main>
+
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

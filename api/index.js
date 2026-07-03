@@ -2634,11 +2634,35 @@ export default async (req, res) => {
     )) {
         res.setHeader('Content-Type', 'text/html');
         try {
-            const html = fs.readFileSync(new URL('./admin.html', import.meta.url), 'utf8');
+            const html = fs.readFileSync(new URL('../admin-dashboard/index.html', import.meta.url), 'utf8');
             return res.status(200).send(html);
         } catch (error) {
-            console.error('Unable to load admin.html:', error);
+            console.error('Unable to load admin dashboard HTML:', error);
             return res.status(500).send('Unable to load admin dashboard.');
+        }
+    }
+    
+    // Serve admin dashboard CSS
+    if (req.method === 'GET' && req.url === '/css/dashboard.css') {
+        res.setHeader('Content-Type', 'text/css');
+        try {
+            const css = fs.readFileSync(new URL('../admin-dashboard/css/dashboard.css', import.meta.url), 'utf8');
+            return res.status(200).send(css);
+        } catch (error) {
+            console.error('Unable to load dashboard CSS:', error);
+            return res.status(500).send('Unable to load dashboard CSS.');
+        }
+    }
+    
+    // Serve admin dashboard JS
+    if (req.method === 'GET' && req.url === '/js/dashboard.js') {
+        res.setHeader('Content-Type', 'application/javascript');
+        try {
+            const js = fs.readFileSync(new URL('../admin-dashboard/js/dashboard.js', import.meta.url), 'utf8');
+            return res.status(200).send(js);
+        } catch (error) {
+            console.error('Unable to load dashboard JS:', error);
+            return res.status(500).send('Unable to load dashboard JS.');
         }
     }
     
