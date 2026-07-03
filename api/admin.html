@@ -529,11 +529,16 @@ async function apiRequest(path, options = {}) {
     for (const p of tryPaths) {
         try {
             appendDebug(`Fetching: ${p}`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 8000);
             const response = await fetch(p, {
                 method: options.method || 'GET',
                 headers,
-                body: options.body ? JSON.stringify(options.body) : undefined
-            });
+                body: options.body ? JSON.stringify(options.body) : undefined,
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
             appendDebug(`Response: ${p} -> ${response.status}`);
             if (!response.ok) {
                 const text = await response.text().catch(() => '');
@@ -567,6 +572,9 @@ async function apiRequest(path, options = {}) {
         } catch (err) {
             lastErr = err;
             appendDebug(`Error fetching ${p}: ${err.message}`);
+            if (err.name === 'AbortError') {
+                appendDebug(`Fetch aborted (timeout) for ${p}`);
+            }
             if (err.message && err.message.includes('404')) continue;
         }
     }
