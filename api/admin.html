@@ -526,28 +526,49 @@ async function apiRequest(path, options = {}) {
     const password = getPassword();
     if (password) headers['X-Password'] = password;
 
-    const response = await fetch(`${API_BASE}/${path}`, {
-        method: options.method || 'GET',
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined
-    });
+    // Try the API base path, then a root path fallback to support both /api/check-auth and /check-auth
+    const tryPaths = [`${API_BASE}/${path}`, `/${path}`];
+    let lastErr = null;
 
-    if (!response.ok) {
-        const errorBody = await response.json().catch(() => null);
-        if (response.status === 401) {
-            throw new Error('Unauthorized');
+    for (const p of tryPaths) {
+        try {
+            const response = await fetch(p, {
+                method: options.method || 'GET',
+                headers,
+                body: options.body ? JSON.stringify(options.body) : undefined
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => null);
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error(errorBody?.error || errorBody?.message || response.statusText || 'Request failed');
+            }
+            return await response.json();
+        } catch (err) {
+            lastErr = err;
+            // If 404, try next fallback
+            if (err.message && err.message.includes('404')) continue;
         }
-        throw new Error(errorBody?.error || errorBody?.message || response.statusText || 'Request failed');
     }
-    return await response.json();
+    throw lastErr || new Error('Request failed');
 }
 
 async function verifyPassword(password) {
-    const response = await fetch(`${API_BASE}/check-auth`, {
-        method: 'GET',
-        headers: { 'X-Password': password }
-    });
-    return response.ok;
+    // Try both /api/check-auth and /check-auth to support various deployment paths
+    const paths = [`${API_BASE}/check-auth`, `/check-auth`, `/api/check-auth`];
+    for (const p of paths) {
+        try {
+            const response = await fetch(p, { method: 'GET', headers: { 'X-Password': password } });
+            if (response.ok) return true;
+            if (response.status === 404) continue;
+        } catch (err) {
+            // continue to next path
+            continue;
+        }
+    }
+    return false;
 }
 
 async function login() {
@@ -676,7 +697,11 @@ async function loadDashboard() {
             showLogin('Session expired. Please log in again.');
         } else {
             console.error(err);
-            showLogin('Unable to load admin dashboard.');
+            // Provide guidance when backend endpoints are missing (404) or unreachable
+            const msg = (err.message && err.message.includes('404'))
+                ? 'Admin API not found (404). Ensure DASHBOARD_PASSWORD is set in Vercel env and that /api/index.js is deployed.'
+                : 'Unable to load admin dashboard. Check console/network for details.';
+            showLogin(msg);
         }
     }
 }
