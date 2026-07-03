@@ -137,6 +137,41 @@ const migrateLocationSchema = async () => {
     } catch (error) {
         console.error('Location index migration error:', error);
     }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_id INTEGER,
+                reported_user_id INTEGER,
+                reason TEXT,
+                description TEXT,
+                status TEXT DEFAULT 'pending',
+                action_taken TEXT,
+                reviewed_by INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at DATETIME
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Reports table creation error:', error);
+    }
+
+    try {
+        await db.execute({
+            sql: `CREATE TABLE IF NOT EXISTS secret_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_user INTEGER,
+                to_user INTEGER,
+                message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+            args: []
+        });
+    } catch (error) {
+        console.error('Secret messages table creation error:', error);
+    }
 };
 
 migrateLocationSchema().catch((error) => console.error('Location schema migration failed:', error));
@@ -2359,6 +2394,21 @@ async function handleDashboardAPI(req, res) {
                 sql: "UPDATE reports SET status = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, action_taken = ? WHERE id = ?",
                 args: [action, adminId, actionTaken || 'no_action', reportId]
             });
+
+            // If admin chooses to ban the reported user, apply the ban
+            if (action === 'banned') {
+                const reportedResult = await db.execute({
+                    sql: "SELECT reported_user_id FROM reports WHERE id = ?",
+                    args: [reportId]
+                });
+                const reportedUserId = reportedResult.rows[0]?.reported_user_id;
+                if (reportedUserId) {
+                    await db.execute({
+                        sql: "UPDATE users SET is_banned = 1, is_shadowbanned = 0, ban_reason = ?, banned_at = CURRENT_TIMESTAMP, banned_by = ? WHERE telegram_id = ?",
+                        args: [actionTaken || 'Banned by admin review', adminId, reportedUserId]
+                    });
+                }
+            }
             
             return res.status(200).json({ success: true, message: 'Report reviewed' });
         }
@@ -2512,6 +2562,8 @@ const dashboardHTML = `<!DOCTYPE html>
             stats: { totalUsers: 0, todayMatches: 0, lastUpdated: '' },
             users: [],
             matches: [],
+            reports: [],
+            bannedUsers: [],
             analytics: { genderDistribution: [], totalLikes: 0, dailyActiveUsers: 0, topCities: [], ageDistribution: [], matchSuccessRate: '0%', totalMatches: 0 }
         };
 
@@ -2582,16 +2634,20 @@ const dashboardHTML = `<!DOCTYPE html>
             state.loading = true;
             render();
             try {
-                const [statsResult, usersResult, matchesResult, analyticsResult] = await Promise.all([
+                const [statsResult, usersResult, matchesResult, analyticsResult, reportsResult, bannedUsersResult] = await Promise.all([
                     apiRequest('/api/stats'),
                     apiRequest('/api/users'),
                     apiRequest('/api/matches'),
-                    apiRequest('/api/analytics')
+                    apiRequest('/api/analytics'),
+                    apiRequest('/api/reports'),
+                    apiRequest('/api/banned-users')
                 ]);
                 state.stats = Object.assign({}, state.stats, statsResult);
                 state.users = usersResult.users || [];
                 state.matches = matchesResult.matches || [];
                 state.analytics = Object.assign({}, state.analytics, analyticsResult);
+                state.reports = reportsResult.reports || [];
+                state.bannedUsers = bannedUsersResult.bannedUsers || [];
                 state.auth = true;
             } catch (err) {
                 if (err.message === 'Unauthorized') {
@@ -2652,6 +2708,11 @@ const dashboardHTML = `<!DOCTYPE html>
                     '<td><span class="badge ' + genderClass + '">' + (user.gender || 'N/A') + '</span></td>' +
                     '<td><span class="badge ' + lookingForClass + '">' + (user.looking_for || '-') + '</span></td>' +
                     '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
+                    '<td>' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'ban\')">Ban</button> ' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'shadowban\')">Shadowban</button> ' +
+                        '<button class="button button-muted" onclick="deleteUser(' + user.telegram_id + ')">Delete</button>' +
+                    '</td>' +
                 '</tr>';
             }).join('');
         }
@@ -2668,11 +2729,104 @@ const dashboardHTML = `<!DOCTYPE html>
             }).join('');
         }
 
+        function buildReportRows(reports) {
+            return (reports || []).map(function(report) {
+                var statusClass = report.status === 'pending' ? 'pending' : 'active';
+                var statusLabel = report.status ? report.status.toUpperCase() : 'UNKNOWN';
+                return '<tr>' +
+                    '<td>' + (report.reporter_name || report.reporter_id || 'Unknown') + '</td>' +
+                    '<td>' + (report.reported_name || report.reported_user_id || 'Unknown') + '</td>' +
+                    '<td>' + (report.reason || '-') + '</td>' +
+                    '<td>' + (report.description || '-') + '</td>' +
+                    '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+                    '<td>' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'resolved\')">Resolve</button> ' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'rejected\')">Reject</button>' +
+                        '<button class="button button-muted" onclick="reviewReport(' + report.id + ', \'banned\')">Ban user</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function buildBannedRows(bannedUsers) {
+            return (bannedUsers || []).map(function(user) {
+                var badgeClass = user.is_shadowbanned ? 'pending' : 'active';
+                var statusText = user.is_shadowbanned ? 'Shadowbanned' : 'Banned';
+                return '<tr>' +
+                    '<td>' + (user.nickname || 'Unknown') + '</td>' +
+                    '<td>' + (user.telegram_id || '-') + '</td>' +
+                    '<td><span class="badge ' + badgeClass + '">' + statusText + '</span></td>' +
+                    '<td>' + (user.ban_reason || '-') + '</td>' +
+                    '<td>' + (user.banned_at || '-') + '</td>' +
+                    '<td>' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'unban\')">Unban</button> ' +
+                        '<button class="button button-muted" onclick="banOrUnbanUser(' + user.telegram_id + ', \'unshadowban\')">Unshadow</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        async function reviewReport(reportId, action) {
+            state.error = '';
+            state.loading = true;
+            render();
+            try {
+                await apiRequest('/api/review-report', {
+                    method: 'POST',
+                    body: { reportId: reportId, action: action, actionTaken: action }
+                });
+                await loadDashboard();
+            } catch (err) {
+                setError(err.message || 'Unable to review report.');
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        async function banOrUnbanUser(userId, action) {
+            state.error = '';
+            state.loading = true;
+            render();
+            try {
+                await apiRequest('/api/ban', {
+                    method: 'POST',
+                    body: { userId: userId, action: action, reason: action === 'shadowban' ? 'Shadowban' : action === 'ban' ? 'Admin action' : 'Unban action' }
+                });
+                await loadDashboard();
+            } catch (err) {
+                setError(err.message || 'Unable to update ban status.');
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        async function deleteUser(userId) {
+            state.error = '';
+            state.loading = true;
+            render();
+            try {
+                await apiRequest('/api/delete-user', {
+                    method: 'POST',
+                    body: { userId: userId }
+                });
+                await loadDashboard();
+            } catch (err) {
+                setError(err.message || 'Unable to delete user.');
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
         function renderDashboard() {
             var stats = state.stats;
             var users = state.users;
             var matches = state.matches;
             var analytics = state.analytics;
+            var reports = state.reports;
+            var bannedUsers = state.bannedUsers;
             var activeTab = state.activeTab;
             app.innerHTML =
                 '<div class="app-shell">' +
@@ -2700,6 +2854,8 @@ const dashboardHTML = `<!DOCTYPE html>
                         '<button class="tab' + (activeTab === 'overview' ? ' active' : '') + '" data-tab="overview">Overview</button>' +
                         '<button class="tab' + (activeTab === 'users' ? ' active' : '') + '" data-tab="users">Users</button>' +
                         '<button class="tab' + (activeTab === 'matches' ? ' active' : '') + '" data-tab="matches">Matches</button>' +
+                        '<button class="tab' + (activeTab === 'reports' ? ' active' : '') + '" data-tab="reports">Reports</button>' +
+                        '<button class="tab' + (activeTab === 'banned' ? ' active' : '') + '" data-tab="banned">Banned</button>' +
                         '<button class="tab' + (activeTab === 'analytics' ? ' active' : '') + '" data-tab="analytics">Analytics</button>' +
                     '</div>' +
                     '<div class="grid grid-2">' +
@@ -2724,11 +2880,19 @@ const dashboardHTML = `<!DOCTYPE html>
                     '</div>' +
                     '<div class="panel" style="display:' + (activeTab === 'users' ? 'block' : 'none') + ';">' +
                         '<div class="section-title"><h2>Users</h2></div>' +
-                        '<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th>Looking for</th><th>Status</th></tr></thead><tbody>' + buildUserRows(users) + '</tbody></table></div>' +
+                        '<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th>Looking for</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + buildUserRows(users) + '</tbody></table></div>' +
                     '</div>' +
                     '<div class="panel" style="display:' + (activeTab === 'matches' ? 'block' : 'none') + ';">' +
                         '<div class="section-title"><h2>Latest matches</h2></div>' +
                         '<div class="table-wrapper"><table><thead><tr><th>Match</th><th></th></tr></thead><tbody>' + buildMatchRows(matches) + '</tbody></table></div>' +
+                    '</div>' +
+                    '<div class="panel" style="display:' + (activeTab === 'reports' ? 'block' : 'none') + ';">' +
+                        '<div class="section-title"><h2>Reports</h2></div>' +
+                        '<div class="table-wrapper"><table><thead><tr><th>Reporter</th><th>Reported</th><th>Reason</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + buildReportRows(reports) + '</tbody></table></div>' +
+                    '</div>' +
+                    '<div class="panel" style="display:' + (activeTab === 'banned' ? 'block' : 'none') + ';">' +
+                        '<div class="section-title"><h2>Banned users</h2></div>' +
+                        '<div class="table-wrapper"><table><thead><tr><th>Name</th><th>ID</th><th>Status</th><th>Reason</th><th>Banned at</th><th>Actions</th></tr></thead><tbody>' + buildBannedRows(bannedUsers) + '</tbody></table></div>' +
                     '</div>' +
                 '</div>';
             document.getElementById('refresh-button').addEventListener('click', function() { loadDashboard(); });
