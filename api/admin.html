@@ -668,7 +668,7 @@ function renderReports(reports, page = 1, pageSize = 10) {
     renderPagination(reportsPagination, page, totalPages, (newPage) => renderReports(state.reports, newPage, pageSize));
 }
 
-function renderUsers(users, totalCount = 0, page = 1, pageSize = 10) {
+function renderUsers(users, totalCount = 0) {
     state.users = users || [];
     if (userManagementCount) {
         const visible = state.users.length;
@@ -681,9 +681,7 @@ function renderUsers(users, totalCount = 0, page = 1, pageSize = 10) {
         return;
     }
 
-    const totalPages = Math.ceil(state.users.length / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const pagedUsers = state.users.slice(startIndex, startIndex + pageSize);
+    const pagedUsers = state.users;
 
     usersBody.innerHTML = pagedUsers.map(user => {
         const status = user.is_registered ? 'Active' : 'Pending';
@@ -702,7 +700,7 @@ function renderUsers(users, totalCount = 0, page = 1, pageSize = 10) {
         </tr>`;
     }).join('');
 
-    renderPagination(usersPagination, page, totalPages, (newPage) => renderUsers(state.users, totalCount, newPage, pageSize));
+    renderPagination(usersPagination, 1, 1, () => {});
 }
 
 function renderBanned(users, page = 1, pageSize = 10) {

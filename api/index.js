@@ -2204,10 +2204,20 @@ async function handleDashboardAPI(req, res) {
                 sql: "SELECT COUNT(*) as count FROM matches",
                 args: []
             });
-            const totalMatches = totalMatchesResult.rows[0]?.count || 0;
-            console.log('Total matches:', totalMatches);
+            const matchesTableCount = totalMatchesResult.rows[0]?.count || 0;
+            console.log('Matches table count:', matchesTableCount);
 
-            // Get matches created today
+            // Use mutual likes count if the matches table is incomplete or out of sync
+            const mutualLikesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user)",
+                args: []
+            });
+            const mutualLikesCount = mutualLikesResult.rows[0]?.count || 0;
+            const likedMatches = Math.floor(mutualLikesCount / 2);
+            const totalMatches = likedMatches;
+            console.log('Mutual likes matches count:', likedMatches, 'Resolved total matches:', totalMatches);
+
+            // Get matches created today (from matches table)
             const todayMatchesResult = await db.execute({
                 sql: "SELECT COUNT(*) as count FROM matches WHERE date(created_at) = date('now')",
                 args: []
@@ -2247,12 +2257,12 @@ async function handleDashboardAPI(req, res) {
             console.log('Fetching users...');
             
             const usersResult = await db.execute({
-                sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users LIMIT 50",
+                sql: "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered FROM users",
                 args: []
             });
             
             const countResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1",
+                sql: "SELECT COUNT(*) as count FROM users",
                 args: []
             });
             
@@ -2388,19 +2398,19 @@ async function handleDashboardAPI(req, res) {
             let sql, countSql, params = [];
             
             if (searchType === 'nickname' && searchQuery) {
-                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE nickname LIKE ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE nickname LIKE ? AND is_registered = 1";
                 countSql = "SELECT COUNT(*) as count FROM users WHERE nickname LIKE ? AND is_registered = 1";
                 params = ['%' + searchQuery + '%'];
             } else if (searchType === 'city' && searchQuery) {
-                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE address LIKE ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE address LIKE ? AND is_registered = 1";
                 countSql = "SELECT COUNT(*) as count FROM users WHERE address LIKE ? AND is_registered = 1";
                 params = ['%' + searchQuery + '%'];
             } else if (searchType === 'age' && searchQuery) {
-                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE age = ? AND is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE age = ? AND is_registered = 1";
                 countSql = "SELECT COUNT(*) as count FROM users WHERE age = ? AND is_registered = 1";
                 params = [parseInt(searchQuery)];
             } else {
-                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE is_registered = 1 LIMIT 50";
+                sql = "SELECT telegram_id, username, nickname, age, gender, looking_for, address, is_registered, bio FROM users WHERE is_registered = 1";
                 countSql = "SELECT COUNT(*) as count FROM users WHERE is_registered = 1";
             }
             
