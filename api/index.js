@@ -2155,17 +2155,18 @@ async function handleDashboardAPI(req, res) {
     }
     
     // Password check (skip for login check endpoint)
-    const url = req.url || '';
-    if (!url.includes('/api/check-auth') && !url.includes('/check-auth')) {
+    const rawUrl = req.url || '';
+    const originalUrl = req.headers['x-vercel-original-path'] || req.headers['x-now-original-path'] || req.headers['x-original-url'] || rawUrl;
+    if (!originalUrl.includes('/api/check-auth') && !originalUrl.includes('/check-auth')) {
         const password = req.headers['x-password'] || req.query?.password;
         if (password !== DASHBOARD_PASSWORD) {
             return res.status(401).json({ error: 'Unauthorized - Invalid password' });
         }
     }
     
-    // Get path from URL
-    let path = url;
-    console.log('Dashboard API request:', path);
+    // Get path from original URL or raw URL
+    let path = originalUrl || rawUrl;
+    console.log('Dashboard API request:', path, 'rawUrl:', rawUrl, 'originalUrl:', originalUrl);
     
     // Remove query params and normalize
     path = path.split('?')[0].replace(/^\//, '');
@@ -2582,13 +2583,14 @@ async function handleDashboardAPI(req, res) {
 // Vercel Handler - Ensures all async operations complete
 export default async (req, res) => {
     // Handle Dashboard API routes
-    if (req.url?.startsWith('/api/stats') || req.url?.startsWith('/api/users') || req.url?.startsWith('/api/matches') ||
-        req.url?.startsWith('/api/analytics') || req.url?.startsWith('/api/search') || req.url?.startsWith('/api/ban') ||
-        req.url?.startsWith('/api/delete-user') || req.url?.startsWith('/api/banned-users') || req.url?.startsWith('/api/reports') ||
-        req.url?.startsWith('/api/review-report') || req.url?.startsWith('/api/check-auth') || req.url?.startsWith('/api/feed') ||
-        req.url === '/stats' || req.url === '/users' || req.url === '/matches' || req.url === '/analytics' || 
-        req.url === '/search' || req.url === '/ban' || req.url === '/delete-user' || req.url === '/banned-users' ||
-        req.url === '/reports' || req.url === '/review-report' || req.url === '/check-auth' || req.url === '/feed') {
+    const routingUrl = req.url || req.headers['x-vercel-original-path'] || req.headers['x-now-original-path'] || req.headers['x-original-url'] || '';
+    if (routingUrl?.startsWith('/api/stats') || routingUrl?.startsWith('/api/users') || routingUrl?.startsWith('/api/matches') ||
+        routingUrl?.startsWith('/api/analytics') || routingUrl?.startsWith('/api/search') || routingUrl?.startsWith('/api/ban') ||
+        routingUrl?.startsWith('/api/delete-user') || routingUrl?.startsWith('/api/banned-users') || routingUrl?.startsWith('/api/reports') ||
+        routingUrl?.startsWith('/api/review-report') || routingUrl?.startsWith('/api/check-auth') || routingUrl?.startsWith('/api/feed') ||
+        routingUrl === '/stats' || routingUrl === '/users' || routingUrl === '/matches' || routingUrl === '/analytics' || 
+        routingUrl === '/search' || routingUrl === '/ban' || routingUrl === '/delete-user' || routingUrl === '/banned-users' ||
+        routingUrl === '/reports' || routingUrl === '/review-report' || routingUrl === '/check-auth' || routingUrl === '/feed') {
         return handleDashboardAPI(req, res);
     }
     

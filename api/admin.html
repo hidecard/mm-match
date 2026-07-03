@@ -522,8 +522,7 @@ async function apiRequest(path, options = {}) {
     const password = getPassword();
     if (password) headers['X-Password'] = password;
 
-    // Try the API base path, then a root path fallback to support both /api/check-auth and /check-auth
-    const tryPaths = [`${API_BASE}/${path}`, `/${path}`];
+    const tryPaths = [`${API_BASE}/${path}`, `/${path}`, `${window.location.origin}${API_BASE}/${path}`, `${window.location.origin}/${path}`];
     let lastErr = null;
 
     for (const p of tryPaths) {
@@ -535,16 +534,17 @@ async function apiRequest(path, options = {}) {
             });
 
             if (!response.ok) {
-                const errorBody = await response.json().catch(() => null);
+                const text = await response.text().catch(() => '');
+                let errorBody = null;
+                try { errorBody = JSON.parse(text); } catch (parseErr) { }
                 if (response.status === 401) {
                     throw new Error('Unauthorized');
                 }
-                throw new Error(errorBody?.error || errorBody?.message || response.statusText || 'Request failed');
+                throw new Error(errorBody?.error || errorBody?.message || response.statusText || text || 'Request failed');
             }
             return await response.json();
         } catch (err) {
             lastErr = err;
-            // If 404, try next fallback
             if (err.message && err.message.includes('404')) continue;
         }
     }
