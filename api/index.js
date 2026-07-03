@@ -2191,7 +2191,7 @@ async function handleDashboardAPI(req, res) {
         if (path === 'api/stats' || path === 'stats') {
             console.log('Fetching stats...');
             
-            // Get total users
+            // Get total registered users
             const totalResult = await db.execute({
                 sql: "SELECT COUNT(*) as count FROM users WHERE is_registered = 1",
                 args: []
@@ -2199,17 +2199,45 @@ async function handleDashboardAPI(req, res) {
             const totalUsers = totalResult.rows[0]?.count || 0;
             console.log('Total users:', totalUsers);
             
-            // Get total matches (mutual likes count)
-            const matchesResult = await db.execute({
-                sql: "SELECT COUNT(*) as count FROM likes l WHERE EXISTS (SELECT 1 FROM likes l2 WHERE l2.from_user = l.to_user AND l2.to_user = l.from_user)",
+            // Get total matches from matches table
+            const totalMatchesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM matches",
                 args: []
             });
-            const totalMatches = Math.floor((matchesResult.rows[0]?.count || 0) / 2);
+            const totalMatches = totalMatchesResult.rows[0]?.count || 0;
             console.log('Total matches:', totalMatches);
-            
+
+            // Get matches created today
+            const todayMatchesResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM matches WHERE date(created_at) = date('now')",
+                args: []
+            });
+            const todayMatches = todayMatchesResult.rows[0]?.count || 0;
+            console.log('Today matches:', todayMatches);
+
+            // Get open reports count
+            const openReportsResult = await db.execute({
+                sql: "SELECT COUNT(*) as count FROM reports WHERE status = 'pending'",
+                args: []
+            });
+            const openReports = openReportsResult.rows[0]?.count || 0;
+            console.log('Open reports:', openReports);
+
+            // Get daily active users via profile view activity
+            const activeUsersResult = await db.execute({
+                sql: "SELECT COUNT(DISTINCT user_id) as count FROM profile_views WHERE date(viewed_at) = date('now')",
+                args: []
+            });
+            const activeUsers = activeUsersResult.rows[0]?.count || totalUsers;
+            console.log('Active users today:', activeUsers);
+
             return res.status(200).json({
                 totalUsers: totalUsers,
-                todayMatches: totalMatches,
+                totalMatches: totalMatches,
+                todayMatches: todayMatches,
+                openReports: openReports,
+                activeUsers: activeUsers,
+                serverStatus: 'Healthy',
                 lastUpdated: new Date().toISOString()
             });
         }

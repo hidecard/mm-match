@@ -269,7 +269,7 @@
 <span class="material-symbols-outlined text-primary">group</span>
 </div>
 <div class="flex items-end gap-3 mt-4">
-<span class="text-headline-md text-on-surface">1,240</span>
+<span id="active-users" class="text-headline-md text-on-surface">1,240</span>
 <span class="text-success-mint text-label-sm mb-1 flex items-center">+5% <span class="material-symbols-outlined text-xs">trending_up</span></span>
 </div>
 </div>
@@ -279,7 +279,7 @@
 <span class="material-symbols-outlined text-primary">favorite</span>
 </div>
 <div class="flex items-end gap-3 mt-4">
-<span class="text-headline-md text-on-surface">85</span>
+<span id="matches-today" class="text-headline-md text-on-surface">85</span>
 <span class="text-on-surface-variant text-label-sm mb-1">Peak Hour</span>
 </div>
 </div>
@@ -289,7 +289,7 @@
 <span class="material-symbols-outlined text-primary">report</span>
 </div>
 <div class="flex items-end gap-3 mt-4">
-<span class="text-headline-md text-on-surface">12</span>
+<span id="open-reports-card" class="text-headline-md text-on-surface">12</span>
 <span class="text-primary font-bold text-label-sm mb-1">High Priority</span>
 </div>
 </div>
@@ -299,7 +299,7 @@
 <span class="material-symbols-outlined text-primary">dns</span>
 </div>
 <div class="flex items-center gap-3 mt-4">
-<span class="text-headline-md text-on-surface">Healthy</span>
+<span id="server-status-card" class="text-headline-md text-on-surface">Healthy</span>
 <div class="relative flex h-3 w-3">
 <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-success-mint opacity-75"></span>
 <span class="relative inline-flex rounded-full h-3 w-3 bg-success-mint"></span>
@@ -328,9 +328,8 @@
 <svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 800 200">
 <path d="M0,150 C100,120 200,180 300,140 C400,100 500,160 600,120 C700,80 800,100 800,100" fill="none" stroke="#FF4B6E" stroke-width="3"></path>
 <path d="M0,180 C100,160 200,190 300,170 C400,150 500,170 600,150 C700,130 800,150 800,150" fill="none" stroke="#d6bcf4" stroke-dasharray="8 4" stroke-width="2"></path>
-</svg>
 </div>
-<div class="text-center z-10">
+<div id="analytics-insights" class="text-center z-10">
 <span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">insights</span>
 <p class="text-label-lg font-bold">Growth Visualization</p>
 <p class="text-label-sm text-on-surface-variant">Real-time data synchronization active</p>
@@ -485,6 +484,7 @@ const bannedSection = document.getElementById('banned-section');
 const reportsPagination = document.getElementById('reports-pagination');
 const usersPagination = document.getElementById('users-pagination');
 const bannedPagination = document.getElementById('banned-pagination');
+const analyticsInsights = document.getElementById('analytics-insights');
 
 function getPassword() {
     return localStorage.getItem(PASSWORD_KEY) || '';
@@ -595,9 +595,14 @@ function createBadge(text, variant) {
 
 function renderStats(data) {
     usersCount.textContent = data.totalUsers || 0;
-    matchesCount.textContent = data.todayMatches || 0;
-    reportsCount.textContent = state.reports.filter(r => r.status === 'pending').length || 0;
-    serverStatus.textContent = 'Healthy';
+    matchesCount.textContent = data.totalMatches || 0;
+    reportsCount.textContent = data.openReports != null ? data.openReports : state.reports.filter(r => r.status === 'pending').length;
+    serverStatus.textContent = data.serverStatus || 'Healthy';
+
+    document.getElementById('active-users')?.textContent = data.activeUsers != null ? data.activeUsers : data.totalUsers || 0;
+    document.getElementById('matches-today')?.textContent = data.todayMatches || 0;
+    document.getElementById('open-reports-card')?.textContent = data.openReports != null ? data.openReports : (state.reports.filter(r => r.status === 'pending').length || 0);
+    document.getElementById('server-status-card')?.textContent = data.serverStatus || 'Healthy';
 }
 
 function renderPagination(container, currentPage, totalPages, onPageClick) {
@@ -725,6 +730,10 @@ function formatRelativeTime(value) {
 
 function renderLiveFeed(items) {
     if (!feed) return;
+    if (!items || !items.length) {
+        feed.innerHTML = `<div class="p-5 rounded-2xl bg-surface-container-low/40 border border-outline-variant text-label-sm text-on-surface-variant">No recent activity yet. New app events will appear here as they happen.</div>`;
+        return;
+    }
     feed.innerHTML = items.map(item => {
         return `<div class="flex items-center gap-4 p-3 rounded-xl bg-surface-container-low/40 border border-transparent hover:border-primary-container transition-all fade-in">
             <div class="w-10 h-10 rounded-full ${item.iconBg} flex items-center justify-center shrink-0">
@@ -777,29 +786,56 @@ function initializeLiveFeed() {
     return sampleFeed;
 }
 
+function renderAnalytics(data) {
+    if (!analyticsInsights) return;
+    const totalMatches = data.totalMatches != null ? data.totalMatches : 0;
+    const dailyActiveUsers = data.dailyActiveUsers != null ? data.dailyActiveUsers : 0;
+    const matchSuccessRate = data.matchSuccessRate || '0%';
+    analyticsInsights.innerHTML = `
+        <div class="space-y-4">
+            <span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">insights</span>
+            <p class="text-label-lg font-bold">Growth Visualization</p>
+            <p class="text-label-sm text-on-surface-variant">Last 30 days performance</p>
+            <div class="grid grid-cols-2 gap-3 mt-4 text-left">
+                <div class="rounded-2xl bg-surface-container-high p-4">
+                    <p class="text-label-sm text-on-surface-variant">Total matches</p>
+                    <p class="text-headline-sm font-bold text-on-surface">${totalMatches}</p>
+                </div>
+                <div class="rounded-2xl bg-surface-container-high p-4">
+                    <p class="text-label-sm text-on-surface-variant">Active users today</p>
+                    <p class="text-headline-sm font-bold text-on-surface">${dailyActiveUsers}</p>
+                </div>
+            </div>
+            <p class="text-label-sm text-on-surface-variant">Match success rate: ${matchSuccessRate}</p>
+        </div>`;
+}
+
 let liveFeedItems = [];
 
 async function loadDashboard() {
     try {
-        const [statsData, usersData, reportsData, bannedData, feedData] = await Promise.all([
+        const [statsData, usersData, reportsData, bannedData, feedData, analyticsData] = await Promise.all([
             apiRequest('stats'),
             apiRequest('users'),
             apiRequest('reports'),
             apiRequest('banned-users'),
-            apiRequest('feed')
+            apiRequest('feed'),
+            apiRequest('analytics')
         ]);
 
         renderStats(statsData);
         renderUsers(usersData.users || []);
         renderReports(reportsData.reports || []);
         renderBanned(bannedData.bannedUsers || []);
+        renderAnalytics(analyticsData || {});
 
         const newFeedItems = buildFeedItemsFromApi(feedData.feed || []);
         if (newFeedItems.length) {
             liveFeedItems = newFeedItems;
             renderLiveFeed(liveFeedItems);
         } else {
-            liveFeedItems = initializeLiveFeed();
+            liveFeedItems = [];
+            renderLiveFeed([]);
         }
     } catch (err) {
         if (err.message === 'Unauthorized') {
