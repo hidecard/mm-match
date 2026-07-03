@@ -599,10 +599,22 @@ function renderStats(data) {
     reportsCount.textContent = data.openReports != null ? data.openReports : state.reports.filter(r => r.status === 'pending').length;
     serverStatus.textContent = data.serverStatus || 'Healthy';
 
-    document.getElementById('active-users')?.textContent = data.activeUsers != null ? data.activeUsers : data.totalUsers || 0;
-    document.getElementById('matches-today')?.textContent = data.todayMatches || 0;
-    document.getElementById('open-reports-card')?.textContent = data.openReports != null ? data.openReports : (state.reports.filter(r => r.status === 'pending').length || 0);
-    document.getElementById('server-status-card')?.textContent = data.serverStatus || 'Healthy';
+    const activeUsersEl = document.getElementById('active-users');
+    if (activeUsersEl) {
+        activeUsersEl.textContent = data.activeUsers != null ? data.activeUsers : data.totalUsers || 0;
+    }
+    const matchesTodayEl = document.getElementById('matches-today');
+    if (matchesTodayEl) {
+        matchesTodayEl.textContent = data.todayMatches || 0;
+    }
+    const openReportsEl = document.getElementById('open-reports-card');
+    if (openReportsEl) {
+        openReportsEl.textContent = data.openReports != null ? data.openReports : (state.reports.filter(r => r.status === 'pending').length || 0);
+    }
+    const serverStatusEl = document.getElementById('server-status-card');
+    if (serverStatusEl) {
+        serverStatusEl.textContent = data.serverStatus || 'Healthy';
+    }
 }
 
 function renderPagination(container, currentPage, totalPages, onPageClick) {
