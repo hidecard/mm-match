@@ -163,19 +163,19 @@
 <p class="text-label-sm text-on-surface-variant mt-1">System Administrator</p>
 </div>
 <nav class="flex-1 px-3 space-y-1" id="sidebar-menu">
-<button class="dashboard-tab flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg opacity-90 transition-opacity w-full text-left" data-target="overview-section">
+<button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg opacity-90 transition-opacity w-full text-left" data-target="overview-section">
 <span class="material-symbols-outlined">analytics</span>
 <span class="text-label-lg font-label-lg">Analytics</span>
 </button>
-<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="users-section">
+<button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="users-section">
 <span class="material-symbols-outlined">group</span>
 <span class="text-label-lg font-label-lg">User Management</span>
 </button>
-<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="reports-section">
+<button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="reports-section">
 <span class="material-symbols-outlined">summarize</span>
 <span class="text-label-lg font-label-lg">Reports</span>
 </button>
-<button class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="banned-section">
+<button type="button" class="dashboard-tab flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors duration-200 w-full text-left" data-target="banned-section">
 <span class="material-symbols-outlined">person_remove</span>
 <span class="text-label-lg font-label-lg">Banned Users</span>
 </button>
@@ -500,7 +500,7 @@ const usersBody = document.getElementById('users-table-body');
 const bannedBody = document.getElementById('banned-table-body');
 const refreshButton = document.getElementById('refresh-data');
 const feed = document.getElementById('live-feed');
-const sidebarTabs = document.querySelectorAll('.dashboard-tab');
+const sidebarMenu = document.getElementById('sidebar-menu');
 const overviewSection = document.getElementById('overview-section');
 const reportsSection = document.getElementById('reports-section');
 const usersSection = document.getElementById('users-section');
@@ -857,10 +857,13 @@ loginButton.addEventListener('click', login);
 searchInput.addEventListener('keyup', debounce(() => searchUsers(searchInput.value.trim()), 300));
 refreshButton.addEventListener('click', loadDashboard);
 
-sidebarTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        setActiveTab(tab.dataset.target);
-    });
+sidebarMenu?.addEventListener('click', event => {
+    const tab = event.target.closest('.dashboard-tab');
+    if (!tab) return;
+    const targetId = tab.dataset.target;
+    if (targetId) {
+        setActiveTab(targetId);
+    }
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
