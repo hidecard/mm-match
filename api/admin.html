@@ -501,6 +501,7 @@ const bannedBody = document.getElementById('banned-table-body');
 const refreshButton = document.getElementById('refresh-data');
 const feed = document.getElementById('live-feed');
 const sidebarMenu = document.getElementById('sidebar-menu');
+const sidebarTabs = document.querySelectorAll('.dashboard-tab');
 const overviewSection = document.getElementById('overview-section');
 const reportsSection = document.getElementById('reports-section');
 const usersSection = document.getElementById('users-section');
@@ -764,18 +765,23 @@ function hideAllSections() {
 }
 
 function setActiveTab(targetId) {
-    sidebarTabs.forEach(tab => {
-        if (tab.dataset.target === targetId) {
-            tab.classList.add('bg-secondary-container', 'text-on-secondary-container');
-            tab.classList.remove('text-on-surface-variant');
-        } else {
-            tab.classList.remove('bg-secondary-container', 'text-on-secondary-container');
-            tab.classList.add('text-on-surface-variant');
-        }
-    });
+    if (sidebarTabs && sidebarTabs.length) {
+        sidebarTabs.forEach(tab => {
+            if (tab.dataset.target === targetId) {
+                tab.classList.add('bg-secondary-container', 'text-on-secondary-container');
+                tab.classList.remove('text-on-surface-variant');
+            } else {
+                tab.classList.remove('bg-secondary-container', 'text-on-secondary-container');
+                tab.classList.add('text-on-surface-variant');
+            }
+        });
+    }
 
     hideAllSections();
-    document.getElementById(targetId).classList.remove('hidden');
+    const section = document.getElementById(targetId);
+    if (section) {
+        section.classList.remove('hidden');
+    }
 }
 
 async function reviewReport(reportId, action) {
