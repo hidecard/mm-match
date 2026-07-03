@@ -2013,18 +2013,27 @@ async function handleChat(ctx, user) {
     
     // Handle report description input
     if (user?.step?.startsWith('report_desc_')) {
-        const stepParts = user.step.replace('report_desc_', '').split('_');
-        const reason = stepParts[0];
-        const targetId = stepParts[1];
+        const stepValue = user.step.replace('report_desc_', '');
+        // step format: reason_targetId (e.g., "fake_123456")
+        const lastUnderscoreIndex = stepValue.lastIndexOf('_');
+        const reason = stepValue.substring(0, lastUnderscoreIndex);
+        const targetId = stepValue.substring(lastUnderscoreIndex + 1);
         const reporterId = ctx.from.id;
         const description = text.trim();
         
-        console.log('Submitting report - reporter:', reporterId, 'target:', targetId, 'reason:', reason);
+        console.log('Submitting report - reporter:', reporterId, 'target:', targetId, 'reason:', reason, 'step:', user.step);
+        
+        // Validate targetId is a number
+        if (!targetId || isNaN(parseInt(targetId))) {
+            console.error('Invalid targetId in report:', targetId);
+            await db.execute({ sql: "UPDATE users SET step = 'done' WHERE telegram_id = ?", args: [reporterId] });
+            return await ctx.reply('❌ Report တင်ရာတွင် အမှားဖြစ်ပါသည်။ နောက်မှ ပြန်စမ်းကြည့်ပါ။');
+        }
         
         // Insert report into database
         await db.execute({
             sql: "INSERT INTO reports (reporter_id, reported_user_id, reason, description, status) VALUES (?, ?, ?, ?, 'pending')",
-            args: [reporterId, targetId, reason, description]
+            args: [reporterId, parseInt(targetId), reason, description]
         });
         
         // Clear step
